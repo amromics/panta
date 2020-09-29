@@ -389,42 +389,42 @@ def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False,tim
     sample['execution']['end']=str(datetime.datetime.now())
     return sample
 def pipeline_func(args):
-    # report = {'samples': {}, 'set':{}}
-    # with open(args.input) as tsvfile:
-    #     reader = csv.DictReader(tsvfile, dialect='excel-tab')
-    #     for row in reader:
-    #         sample={}
-    #         sample['id']=row['Sample ID']
-    #         sample['name']=row['Sample Name']
-    #         sample['type']=row['Input Type']
-    #         sample['files']=row['Files']
-    #         sample['genus']=row['Genus']
-    #         sample['species']=row['Species']
-    #         sample['strain']=row['Strain']
-    #         sample['gram']=row['Gram']
-    #         metadata=row['Metadata'].split(';')
-    #         mt={}
-    #         if len(metadata)>0:
-    #             for kv in metadata:
-    #                 if len(kv.split(':'))==2:
-    #                     k,v=kv.split(':')
-    #                     mt[k]=v
-    #         sample['metadata']=mt
-    #         sample['execution']={}
-    #         report['samples'][sample['id']]=sample
+    report = {'samples': {}, 'set':{}}
+    with open(args.input) as tsvfile:
+        reader = csv.DictReader(tsvfile, dialect='excel-tab')
+        for row in reader:
+            sample={}
+            sample['id']=row['Sample ID']
+            sample['name']=row['Sample Name']
+            sample['type']=row['Input Type']
+            sample['files']=row['Files']
+            sample['genus']=row['Genus']
+            sample['species']=row['Species']
+            sample['strain']=row['Strain']
+            sample['gram']=row['Gram']
+            metadata=row['Metadata'].split(';')
+            mt={}
+            if len(metadata)>0:
+                for kv in metadata:
+                    if len(kv.split(':'))==2:
+                        k,v=kv.split(':')
+                        mt[k]=v
+            sample['metadata']=mt
+            sample['execution']={}
+            report['samples'][sample['id']]=sample
 
 
-    # #run single sample pipeline
-    # for id in report['samples']:
-    #     sample_dir=args.work_dir+'/samples/'+id
-    #     if not os.path.exists(sample_dir):
-    #         os.makedirs(sample_dir)
-    #     report['samples'][id]['execution']['out']={}
-    #     report['samples'][id]=run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
+    #run single sample pipeline
+    for id in report['samples']:
+        sample_dir=args.work_dir+'/samples/'+id
+        if not os.path.exists(sample_dir):
+            os.makedirs(sample_dir)
+        report['samples'][id]['execution']['out']={}
+        report['samples'][id]=run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
 
-    # report=run_roary(report,threads=args.threads,base_dir=args.work_dir)
-    # report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir)
-    # json.dump(report, open( "temp.json", 'w' ))
+    report=run_roary(report,threads=args.threads,base_dir=args.work_dir)
+    report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir)
+    json.dump(report, open( "temp.json", 'w' ))
     
     report=json.load( open( "temp.json" ) )
     #report=runAlignment(report,base_dir=args.work_dir)

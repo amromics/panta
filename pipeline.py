@@ -160,6 +160,7 @@ def get_assembly(sample,base_dir):
     with open(assembly_file, 'w') as f:
         for i, contig in enumerate(contigs):
             contig.id=sample['id']+'_C'+str(i)
+            contig.description=''
             #print(len(contig))
             SeqIO.write(contig,f,"fasta")
     #ret_sample['assembly'] = assembly_file
@@ -364,7 +365,8 @@ def runAlignment(report,base_dir):
             if i>13:               
                 if(not row[i]==''):
                     gene_file = os.path.join(gene_dir, fieldnames[i] + '.fasta')
-                    SeqIO.write(dict_cds[row[i]],gene_file,"fasta")
+                    
+                    SeqIO.write(dict_cds[row[i].split('\t')[0]],gene_file,"fasta")
         if not os.path.exists(os.path.join(alignment_dir, row[0])):
             os.makedirs(os.path.join(alignment_dir, row[0]))
         myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(2,gene_dir,gene_file,os.path.join(base_dir, 'set/alignments/'+row[0]))
@@ -421,14 +423,13 @@ def pipeline_func(args):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out']={}
         report['samples'][id]=run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
-
+    #report=json.load( open( "temp.json" ) )
+    
+    json.dump(report, open( "temp.json", 'w' ))
     report=run_roary(report,threads=args.threads,base_dir=args.work_dir)
     report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir)
+    report=runAlignment(report,base_dir=args.work_dir)
     json.dump(report, open( "temp.json", 'w' ))
-    
-    report=json.load( open( "temp.json" ) )
-    #report=runAlignment(report,base_dir=args.work_dir)
-    #json.dump(report, open( "temp.json", 'w' ))
     export_json(report,args.export_dir)
 def export_json(report,exp_dir):
 
@@ -441,8 +442,8 @@ def export_json(report,exp_dir):
         ret_asm={'group':'CONTIG'}
         ret_asm['data']=exportAssembly(out['assembly'])
         result.append(ret_asm)
-        #handle mlst results
-        ret_mlst={'group':'MLST'}
+        #handle mgfglst results   gf
+        ret_mlst={'group':'MLST'}        
         ret_mlst['data']=extract_mlst(out['mlst'])
         result.append(ret_mlst)
         ret_vir={'group':'VIR'}

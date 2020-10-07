@@ -1,5 +1,9 @@
 # amromics-visualization
 ## To run visualization
+### Prerequisites
+- NodeJS
+- npm
+### Run visualization
 cd amromics-vis
 npm run dev
 ## To run pipeline

@@ -11,6 +11,10 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import datetime
 import base64
+
+NUM_CORES_DEFAULT = 8
+
+
 def run_command(cmd, timing_log=None):
     """
     Run a command line, return the returning code of the command
@@ -20,132 +24,11 @@ def run_command(cmd, timing_log=None):
     """
     if timing_log is not None:
         cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
-    #logger.info('Running "{}'.format(cmd))
     print(cmd)
     ret = os.system(cmd)
     return ret
 
-###Trimming using trimmomatic
-def trim_pe_trimmomatic(report, threads=0, base_dir='.', timing_log=None, **kargs):
-    """
-    report is a dictionary with field `sample_id`
-    :param report:
-    :param threads:
-    :param base_dir:
-    :param kargs:
-    :return:
-    """
-    if threads <= 0:
-        threads = NUM_CORES_DEFAULT
 
-    out_dir = os.path.join(base_dir, 'trimmomatic_pe')
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    out_p1 = os.path.join(out_dir, report['sample_id'] + '_R1.fastq.gz')
-    out_p2 = os.path.join(out_dir, report['sample_id'] + '_R2.fastq.gz')
-
-    out_s1 = os.path.join(out_dir, report['sample_id'] + '_S1.fastq')
-    out_s2 = os.path.join(out_dir, report['sample_id'] + '_S2.fastq')
-
-    cmd = 'trimmomatic.sh PE -threads {threads}'.format(threads=threads)
-    cmd += ' {in_p1} {in_p2} {out_p1} {out_s1} {out_p2} {out_s2}'.format(
-        in_p1=report['pe1'], in_p2=report['pe2'],
-        out_p1=out_p1, out_s1=out_s1, out_p2=out_p2, out_s2=out_s2)
-    ret = run_command(cmd, timing_log)
-    # Combine single-ended reads into one
-    out_s = os.path.join(out_dir, report['sample_id'] + '_S.fastq')
-    with open(out_s, 'w') as fn:
-        for seq in bioseq.read_sequence_file(out_s1):
-            fn.write(seq.format_fastq())
-        for seq in bioseq.read_sequence_file(out_s2):
-            fn.write(seq.format_fastq())
-
-    if ret == 0:
-        report['pe1'] = out_p1
-        report['pe2'] = out_p2
-        report['se'] = out_s
-        return report
-
-###NGS assembly using SPAdes
-def assemble_spades(sample, base_dir = '.', threads=0, memory=50, timing_log=None, **kargs):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
-
-    sample_id = sample['id']
-    path_out = os.path.join(base_dir, sample_id + '_spades')
-    if not os.path.exists(path_out):
-        os.makedirs(path_out)
-
-    cmd = 'spades.py -m {memory} -t {threads} -k 77,99,127 --careful -o {path_out}'.format(
-        memory=int(memory), threads=threads, path_out=path_out)
-    if len(ret_sample['files'].split(';'))>0 :
-        pe1=ret_sample['files'].split(';')[0]
-        pe2=ret_sample['files'].split(';')[1]
-        cmd += ' --pe1-1 {pe1} --pe1-2 {pe2}'.format(pe1=pe1, pe2=pe2)
-    else:
-        cmd += ' --s1 {se}'.format(se=sample['files'])
-
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        return None
-
-    #Read in list of contigs
-    contigs = list(SeqIO.parse(os.path.join(path_out, 'contigs.fasta'), "fasta"))
-    #TODO: filter based on coverage
-
-    contigs = sorted(contigs, key=len, reverse=True)
-
-    assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta')
-
-    with open(assembly_file, 'w') as f:
-        for i, contig in enumerate(contigs):
-            contig.id=ret_sample['id']+'_C'+str(i)
-
-            SeqIO.write(contig,assembly_file,"fasta")
-
-    return assembly_file
-    # TODO: Get the graph
-    # Export report:
-
-
-def assemble_skesa(sample, base_dir = '.', threads=0, memory=50, timing_log=None, **kargs):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
-
-    sample_id = sample['id']
-    path_out = os.path.join(base_dir, sample_id + '_skesa')
-    if not os.path.exists(path_out):
-        os.makedirs(path_out)
-
-    cmd = 'skesa --memory {memory} --cores {threads} --fastq '.format(
-        memory=int(memory), threads=threads)
-    if len(ret_sample['files'].split(';'))>0 :
-        pe1=ret_sample['files'].split(';')[0]
-        pe2=ret_sample['files'].split(';')[1]
-        cmd += '{pe1} {pe2}'.format(pe1=pe1, pe2=pe2)
-    if 'se' in read_data:
-        cmd += '{se}'.format(se=sample['files'])
-    assembly_file_raw= os.path.join(path_out, 'contigs.fasta')
-    cmd+=' >{output}'.format(output=assembly_file_raw)
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        return None
-
-    #Read in list of contigs
-    contigs = list(SeqIO.parse(assembly_file_raw, "fasta"))
-    #TODO: filter based on coverage
-    assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta')
-    contigs = sorted(contigs, key=len, reverse=True)
-    #logger.info("Read in {} contigs".format(len(contigs)))
-
-    with open(assembly_file, 'w') as f:
-        for i, contig in enumerate(contigs):
-            contig.id=ret_sample['id']+'_C'+str(i)
-
-            SeqIO.write(contig,assembly_file,"fasta")
-    #ret_sample['assembly'] = assembly_file
-    return assembly_file
 def get_assembly(sample,base_dir):
     path_out = os.path.join(base_dir, sample['id'] + '_assembly')
     if not os.path.exists(path_out):
@@ -165,8 +48,9 @@ def get_assembly(sample,base_dir):
             SeqIO.write(contig,f,"fasta")
     #ret_sample['assembly'] = assembly_file
     return assembly_file
-###Annotation using prokka
-def annotate_prokka( sample, base_dir='.', timing_log=None, threads=0):
+
+
+def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
@@ -176,7 +60,7 @@ def annotate_prokka( sample, base_dir='.', timing_log=None, threads=0):
 
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
-    if not sample['genus']=='':
+    if not sample['genus'] == '':
         cmd += ' --genus ' + sample['genus']
     if not sample['species']=='':
         cmd += ' --species ' + sample['genus']
@@ -374,22 +258,8 @@ def runAlignment(report,base_dir):
     f.close()
     report['set']['alignments']=alignment_dir
     return report
-def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False,timing_log=None):
-    #handle assembly input, ignore spades and bwa:
-    sample['execution']['start']=str(datetime.datetime.now())
 
-    if not sample['type']=='asm':
-        #report = assemble_spades(report, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
-        sample['execution']['out']['assembly'] = assemble_skesa(sample, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
-    else:
-        sample['execution']['out']['assembly']=get_assembly(sample, base_dir=base_dir)
-    sample['execution']['out']['annotation'] = annotate_prokka(sample, base_dir=base_dir,timing_log=timing_log, threads=threads)
-    sample['execution']['out']['mlst'] = mlst(sample, base_dir=base_dir, threads=threads)
-    sample['execution']['out']['resistome'] = detect_amr(sample, base_dir=base_dir,timing_log=timing_log, threads=threads)
-    sample['execution']['out']['virulome'] = detect_virulome(sample, base_dir=base_dir, threads=threads)
-    sample['execution']['out']['plasmid'] = detect_plasmid(sample, base_dir=base_dir, threads=threads)
-    sample['execution']['end']=str(datetime.datetime.now())
-    return sample
+
 def pipeline_func(args):
     report = {'samples': {}, 'set':{}}
     with open(args.input) as tsvfile:
@@ -816,8 +686,12 @@ def exportAlignment(file_xmfa):
         aligments.append(sample)
     
     return aligments
+
+
 def version_func():
     print('V.1.0')
+
+
 def main(arguments=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         prog='pipeline_bacterial_analysis',
@@ -840,7 +714,6 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('--work-dir', help='Working folder', default='out')
     pa_cmd.add_argument('-e','--export-dir', help='Export folder', default='export')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-
 
     args = parser.parse_args(arguments)
     return args.func(args)

@@ -11,6 +11,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import datetime
 import base64
+import pandas as pd
 
 NUM_CORES_DEFAULT = 8
 
@@ -29,27 +30,6 @@ def run_command(cmd, timing_log=None):
     return ret
 
 
-def get_assembly(sample,base_dir):
-    path_out = os.path.join(base_dir, sample['id'] + '_assembly')
-    if not os.path.exists(path_out):
-        os.makedirs(path_out)
-    contigs = list(SeqIO.parse(sample['files'], "fasta"))
-    #TODO: filter based on coverage
-    print(len(contigs))
-    assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
-    contigs = sorted(contigs, key=len, reverse=True)
-    #logger.info("Read in {} contigs".format(len(contigs)))
-
-    with open(assembly_file, 'w') as f:
-        for i, contig in enumerate(contigs):
-            contig.id=sample['id']+'_C'+str(i)
-            contig.description=''
-            #print(len(contig))
-            SeqIO.write(contig,f,"fasta")
-    #ret_sample['assembly'] = assembly_file
-    return assembly_file
-
-
 def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
@@ -60,14 +40,15 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
 
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
-    if not sample['genus'] == '':
+    if not sample['genus']:
         cmd += ' --genus ' + sample['genus']
-    if not sample['species']=='':
-        cmd += ' --species ' + sample['genus']
-    if not sample['strain']=='':
+    if not sample['species']:
+        cmd += ' --species ' + sample['species']
+    if not sample['strain']:
         cmd += ' --strain ' + sample['strain']
-    if not sample['gram']=='':
+    if not sample['gram']:
         cmd += ' --gram ' + sample['gram']
+
     cmd += ' ' + sample['execution']['out']['assembly']
     cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
@@ -75,7 +56,7 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
     #ret_sample['annotation'] = path_out
     return path_out
 
-###Sequence typing using mlst
+
 def mlst(sample,  base_dir='.', threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
@@ -91,12 +72,6 @@ def mlst(sample,  base_dir='.', threads=0, timing_log=None):
     return mlst_out
 
 
-
-
-
-
-
-###AMRomes profiling using abricate
 def detect_amr(sample,  base_dir='.', threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
@@ -262,29 +237,28 @@ def runAlignment(report,base_dir):
 
 def pipeline_func(args):
     report = {'samples': {}, 'set':{}}
-    with open(args.input) as tsvfile:
-        reader = csv.DictReader(tsvfile, dialect='excel-tab')
-        for row in reader:
-            sample={}
-            sample['id']=row['Sample ID']
-            sample['name']=row['Sample Name']
-            sample['type']=row['Input Type']
-            sample['files']=row['Files']
-            sample['genus']=row['Genus']
-            sample['species']=row['Species']
-            sample['strain']=row['Strain']
-            sample['gram']=row['Gram']
-            metadata=row['Metadata'].split(';')
-            mt={}
-            if len(metadata)>0:
-                for kv in metadata:
-                    if len(kv.split(':'))==2:
-                        k,v=kv.split(':')
-                        mt[k]=v
-            sample['metadata']=mt
-            sample['execution']={}
-            report['samples'][sample['id']]=sample
-
+    sample_df = pd.read_csv(args.input, sep='\t')
+    sample_df.fillna('', inplace=True)
+    for _, row in sample_df.iterrows():
+        sample = {}
+        sample['id'] = row['Sample ID']
+        sample['name'] = row['Sample Name']
+        sample['type'] = row['Input Type']
+        sample['files'] = row['Files']
+        sample['genus'] = row['Genus']
+        sample['species'] = row['Species']
+        sample['strain'] = row['Strain']
+        sample['gram'] = row['Gram']
+        metadata = row['Metadata'].split(';')
+        mt = {}
+        if len(metadata) > 0:
+            for kv in metadata:
+                if len(kv.split(':')) == 2:
+                    k, v = kv.split(':')
+                    mt[k] = v
+        sample['metadata'] = mt
+        sample['execution'] = {}
+        report['samples'][sample['id']] = sample
 
     #run single sample pipeline
     for id in report['samples']:
@@ -301,6 +275,8 @@ def pipeline_func(args):
     report=runAlignment(report,base_dir=args.work_dir)
     json.dump(report, open( "temp.json", 'w' ))
     export_json(report,args.export_dir)
+
+
 def export_json(report,exp_dir):
 
     #export single samples

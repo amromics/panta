@@ -30,7 +30,47 @@ def run_command(cmd, timing_log=None):
     return ret
 
 
-def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
+def get_assembly(sample,base_dir):
+    """
+
+    :param sample:
+    :param base_dir:
+    :return:
+    """
+    path_out = os.path.join(base_dir, sample['id'] + '_assembly')
+    if not os.path.exists(path_out):
+        os.makedirs(path_out)
+    contigs = list(SeqIO.parse(sample['files'], "fasta"))
+    assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
+    contigs = sorted(contigs, key=len, reverse=True)
+
+    with open(assembly_file, 'w') as f:
+        for i, contig in enumerate(contigs):
+            contig.id = sample['id']+'_C'+str(i)
+            contig.description = ''
+            SeqIO.write(contig, f, "fasta")
+    return assembly_file
+
+
+def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False,timing_log=None):
+    sample['execution']['start'] = str(datetime.datetime.now())
+
+    if sample['type'] != 'asm':
+        raise Exception('Only support asm type!')
+        # sample['execution']['out']['assembly'] = assemble_skesa(sample, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
+    else:
+        sample['execution']['out']['assembly'] = get_assembly(sample, base_dir=base_dir)
+
+    sample['execution']['out']['annotation'] = annotate_prokka(sample, base_dir=base_dir, timing_log=timing_log, threads=threads)
+    sample['execution']['out']['mlst'] = mlst(sample, base_dir=base_dir, threads=threads)
+    sample['execution']['out']['resistome'] = detect_amr(sample, base_dir=base_dir, timing_log=timing_log, threads=threads)
+    sample['execution']['out']['virulome'] = detect_virulome(sample, base_dir=base_dir, threads=threads)
+    sample['execution']['out']['plasmid'] = detect_plasmid(sample, base_dir=base_dir, threads=threads)
+    sample['execution']['end'] = str(datetime.datetime.now())
+    return sample
+
+
+def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0, overwrite=False):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
@@ -38,22 +78,30 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0):
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
+    file_out = os.path.join(path_out, sample['id'] + '.gff')
+    if os.path.isfile(file_out) and (not overwrite):
+        # Dont run again if gff file exists
+        print('GFF file found, skip annotating')
+        return path_out
+
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
-    if not sample['genus']:
+    if sample['genus']:
         cmd += ' --genus ' + sample['genus']
-    if not sample['species']:
+    if sample['species']:
         cmd += ' --species ' + sample['species']
-    if not sample['strain']:
+    if sample['strain']:
         cmd += ' --strain ' + sample['strain']
-    if not sample['gram']:
-        cmd += ' --gram ' + sample['gram']
+
+    # Disable this for now so that we dont have to install signalp
+    # if sample['gram']:
+    #    cmd += ' --gram ' + sample['gram']
 
     cmd += ' ' + sample['execution']['out']['assembly']
-    cmd = "bash -c '{}'".format(cmd)
+    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
+        raise Exception('Command {} returns non-zero!'.format(cmd))
         return None
-    #ret_sample['annotation'] = path_out
     return path_out
 
 
@@ -66,7 +114,7 @@ def mlst(sample,  base_dir='.', threads=0, timing_log=None):
         os.makedirs(path_out)
     mlst_out = os.path.join(path_out, sample['id'] + '_mlst.tsv')
     cmd = 'mlst --quiet --threads {threads} --nopath {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=mlst_out)
-    cmd = "bash -c '{}'".format(cmd)
+    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return mlst_out
@@ -79,14 +127,13 @@ def detect_amr(sample,  base_dir='.', threads=0, timing_log=None):
     path_out = os.path.join(base_dir, 'abricate_' + sample['id'])
     if not os.path.exists(path_out):
         os.makedirs(path_out)
-    #AMR profiling with CARD. TODO: replace by consensus db later
+    # TODO: replace by consensus db later
     amr_out = os.path.join(path_out, sample['id'] + '_resistome.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db card {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=amr_out)
-    cmd = "bash -c '{}'".format(cmd)
+    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return amr_out
-
 
 
 ###Virulome profiling using abricate with VFDB
@@ -100,7 +147,7 @@ def detect_virulome(sample,  base_dir='.', threads=0, timing_log=None):
 
     vir_out = os.path.join(path_out, sample['id'] + '_virulome.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db vfdb {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=vir_out)
-    cmd = "bash -c '{}'".format(cmd)
+    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return vir_out
@@ -117,12 +164,10 @@ def detect_plasmid(sample,  base_dir='.', threads=0, timing_log=None):
     #Plasmid finder
     oriREP_out = os.path.join(path_out, sample['id'] + '_plasmid.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=oriREP_out)
-    cmd = "bash -c '{}'".format(cmd)
+    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return oriREP_out
-
-
 
 
 def run_roary(report,threads=0, base_dir='.',):
@@ -133,26 +178,34 @@ def run_roary(report,threads=0, base_dir='.',):
         :param threads: number of core CPU
         :return:
     """
-    gff_folder=os.path.join(base_dir,'temp/gff')
-    if not os.path.exists(gff_folder):
-        os.makedirs(gff_folder)
-    # assumtion that the path is : base_dir/sample_id/output
-    for sample  in report['samples']:
-        for root, dirs, files in os.walk(report['samples'][sample]['execution']['out']['annotation']):
-            for _file in files:
-                if _file.endswith('.gff'):
-                    #print ('Found file in: ' , str(root),',',_file)
-                    newname = sample+'.gff'
-                    #print ('new  file: ' , newname)
-                    shutil.copy(os.path.abspath(str(root) + '/' + _file), gff_folder+'/'+newname)
+    gff_list = []
+    for sample_id in report['samples']:
+        sample = report['samples'][sample_id]
+        gff_file = os.path.join(sample['execution']['out']['annotation'], sample_id + '.gff')
+        assert os.path.isfile(gff_file)
+        gff_list.append(gff_file)
 
-    roary_folder=os.path.join(base_dir,'set/roary')
-    #if not os.path.exists(roary_folder):
-    #    os.makedirs(roary_folder)
-    myCmd = 'roary -p {} -f {} -e -n -v {}/*.gff'.format(threads,roary_folder,gff_folder)
+    # gff_folder=os.path.join(base_dir,'temp/gff')
+    # if not os.path.exists(gff_folder):
+    #     os.makedirs(gff_folder)
+    # # assumtion that the path is : base_dir/sample_id/output
+    # for sample in report['samples']:
+    #     for root, dirs, files in os.walk(report['samples'][sample]['execution']['out']['annotation']):
+    #         for _file in files:
+    #             if _file.endswith('.gff'):
+    #                 #print ('Found file in: ' , str(root),',',_file)
+    #                 newname = sample+'.gff'
+    #                 #print ('new  file: ' , newname)
+    #                 shutil.copy(os.path.abspath(str(root) + '/' + _file), gff_folder+'/'+newname)
+
+    roary_folder = os.path.join(base_dir,'set/roary')
+    if not os.path.exists(roary_folder):
+        os.makedirs(roary_folder)
+    myCmd = 'roary -p {} -f {} -e -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
     run_command(myCmd)
-    report['set']['pangenome']=roary_folder
+    report['set']['pangenome'] = roary_folder
     return report
+
 def run_phylogeny(report,base_dir,threads=0):
     """
         Run parsnp to create phylogeny tree
@@ -168,7 +221,7 @@ def run_phylogeny(report,base_dir,threads=0):
     genome_dir=os.path.join(base_dir,'temp/fasta')
     if not os.path.exists(genome_dir):
         os.makedirs(genome_dir)
-    for sample  in report['samples']:
+    for sample in report['samples']:
         shutil.copy(report['samples'][sample]['execution']['out']['assembly'], genome_dir+'/'+os.path.basename(report['samples'][sample]['execution']['out']['assembly'] ))
     #take first genome to get reference genome
     files=os.listdir(genome_dir)
@@ -177,9 +230,8 @@ def run_phylogeny(report,base_dir,threads=0):
         if f.endswith(('.fna', '.fa', '.fn', '.fasta')) :
             #check if seq.desc contain '-' character, may cause error with parsnp
             containSpecialCharacter=False
-
             for seq in SeqIO.parse(os.path.join(genome_dir,f), "fasta"):
-                if '-' in seq.id :
+                if '-' in seq.id:
                     containSpecialCharacter=True
                     break
             if containSpecialCharacter:
@@ -192,12 +244,13 @@ def run_phylogeny(report,base_dir,threads=0):
         print('Can not determine appropriate reference genome, may be description of contigs contain special characters (-)')
     else:
         ref_genome=candidate_ref
-    myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads,genome_dir,ref_genome,phylogeny_folder)
-    #print(myCmd)
+    myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, genome_dir, ref_genome, phylogeny_folder)
     run_command(myCmd)
 
-    report['set']['phylogeny']=phylogeny_folder
+    report['set']['phylogeny'] = phylogeny_folder
     return report
+
+
 def runAlignment(report,base_dir):
     gene_cluster_file=report['set']['pangenome']+'/gene_presence_absence.csv'
     dict_cds={}
@@ -266,7 +319,7 @@ def pipeline_func(args):
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out']={}
-        report['samples'][id]=run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
+        report['samples'][id] = run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
     #report=json.load( open( "temp.json" ) )
     
     json.dump(report, open( "temp.json", 'w' ))
@@ -470,6 +523,7 @@ def find_amr(amr_file):
         str_gene=str_gene+v+', '
     ret['antibiotics']=str_gene[:-2]
     return ret
+
 def find_plasmid(plasmid_file):
     set_plasmid=set()
     with open(plasmid_file) as tsvfile:
@@ -688,7 +742,7 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-i', '--input', help='Input file',type=str)
     pa_cmd.add_argument('--work-dir', help='Working folder', default='out')
-    pa_cmd.add_argument('-e','--export-dir', help='Export folder', default='export')
+    pa_cmd.add_argument('-e', '--export-dir', help='Export folder', default='export')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
 
     args = parser.parse_args(arguments)

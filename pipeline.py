@@ -202,7 +202,7 @@ def run_roary(report,threads=0, base_dir='.', timing_log=None, overwrite=False):
     roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
     if os.path.isfile(roary_output) and (not overwrite):
         print('roary has run')
-        return roary_folder
+        return report
 
     #Make sure the directory is not there or roary will add timestamp
     if os.path.isfile(roary_folder):
@@ -230,6 +230,7 @@ def run_phylogeny(report,base_dir,threads=0, timing_log=None):
     genome_dir=os.path.join(base_dir,'temp/fasta')
     if not os.path.exists(genome_dir):
         os.makedirs(genome_dir)
+
     for sample in report['samples']:
         shutil.copy(report['samples'][sample]['execution']['out']['assembly'], genome_dir+'/'+os.path.basename(report['samples'][sample]['execution']['out']['assembly'] ))
     #take first genome to get reference genome

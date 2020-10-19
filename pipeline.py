@@ -87,7 +87,7 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0, overwrite=
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
     if sample['genus']:
-        cmd += ' --genus ' + sample['genus']
+        cmd += ' --usegenus --genus ' + sample['genus']
     if sample['species']:
         cmd += ' --species ' + sample['species']
     if sample['strain']:
@@ -170,7 +170,7 @@ def detect_plasmid(sample,  base_dir='.', threads=0, timing_log=None):
     return oriREP_out
 
 
-def run_roary(report,threads=0, base_dir='.',):
+def run_roary(report,threads=0, base_dir='.', timing_log=None, overwrite=False):
     """
         Run roay make pangeome analysis (using prokka results in previous step)
         :param report: result holder
@@ -199,14 +199,23 @@ def run_roary(report,threads=0, base_dir='.',):
     #                 shutil.copy(os.path.abspath(str(root) + '/' + _file), gff_folder+'/'+newname)
 
     roary_folder = os.path.join(base_dir,'set/roary')
-    if not os.path.exists(roary_folder):
-        os.makedirs(roary_folder)
+    roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
+    if os.path.isfile(roary_output) and (not overwrite):
+        print('roary has run')
+        return roary_folder
+
+    #Make sure the directory is not there or roary will add timestamp
+    if os.path.isfile(roary_folder):
+        os.remove(roary_folder)
+    if os.path.exists(roary_folder):
+        shutil.rmtree(roary_folder)
+
     myCmd = 'roary -p {} -f {} -e -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
-    run_command(myCmd)
+    run_command(myCmd, timing_log)
     report['set']['pangenome'] = roary_folder
     return report
 
-def run_phylogeny(report,base_dir,threads=0):
+def run_phylogeny(report,base_dir,threads=0, timing_log=None):
     """
         Run parsnp to create phylogeny tree
         :param report: result holder
@@ -245,13 +254,13 @@ def run_phylogeny(report,base_dir,threads=0):
     else:
         ref_genome=candidate_ref
     myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, genome_dir, ref_genome, phylogeny_folder)
-    run_command(myCmd)
+    run_command(myCmd, timing_log)
 
     report['set']['phylogeny'] = phylogeny_folder
     return report
 
 
-def runAlignment(report,base_dir):
+def runAlignment(report,base_dir, timing_log=None):
     gene_cluster_file=report['set']['pangenome']+'/gene_presence_absence.csv'
     dict_cds={}
     for id in report['samples']:
@@ -282,14 +291,15 @@ def runAlignment(report,base_dir):
         if not os.path.exists(os.path.join(alignment_dir, row[0])):
             os.makedirs(os.path.join(alignment_dir, row[0]))
         myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(2,gene_dir,gene_file,os.path.join(base_dir, 'set/alignments/'+row[0]))
-        run_command(myCmd)
+        run_command(myCmd, timing_log)
     f.close()
     report['set']['alignments']=alignment_dir
     return report
 
 
 def pipeline_func(args):
-    report = {'samples': {}, 'set':{}}
+    report = {'samples': {}, 'set': {}}
+
     sample_df = pd.read_csv(args.input, sep='\t')
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
@@ -323,9 +333,9 @@ def pipeline_func(args):
     #report=json.load( open( "temp.json" ) )
     
     json.dump(report, open( "temp.json", 'w' ))
-    report=run_roary(report,threads=args.threads,base_dir=args.work_dir)
-    report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir)
-    report=runAlignment(report,base_dir=args.work_dir)
+    report=run_roary(report,threads=args.threads,base_dir=args.work_dir, timing_log=args.time_log)
+    report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir, timing_log=args.time_log)
+    report=runAlignment(report,base_dir=args.work_dir, timing_log=args.time_log)
     json.dump(report, open( "temp.json", 'w' ))
     export_json(report,args.export_dir)
 

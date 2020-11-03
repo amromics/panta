@@ -298,7 +298,7 @@ def runAlignment(report,base_dir, timing_log=None):
 
 
 def pipeline_func(args):
-    """ report = {'samples': {}, 'set': {}}
+    report = {'samples': {}, 'set': {}}
     workdir=args.work_dir+"/"+args.id
 
     sample_df = pd.read_csv(args.input, sep='\t')
@@ -333,13 +333,13 @@ def pipeline_func(args):
         report['samples'][id] = run_single_sample(report['samples'][id],base_dir=sample_dir, threads=args.threads, memory=args.memory, timing_log=args.time_log)
     #report=json.load( open( "temp.json" ) )
     
-    json.dump(report, open( "temp.json", 'w' ))
+    #json.dump(report, open( "temp.json", 'w' ))
     
     report=run_roary(report,threads=args.threads,base_dir=workdir, timing_log=args.time_log)
     report=run_phylogeny(report,threads=args.threads,base_dir=workdir, timing_log=args.time_log)
     report=runAlignment(report,base_dir=workdir, timing_log=args.time_log)
-    json.dump(report, open( "temp.json", 'w' )) """
-    report=json.load( open( "temp.json" ))
+    json.dump(report, open( "temp.json", 'w' ))
+    #report=json.load( open( "temp.json" ))
     export_json(report,args.export_dir)
 
 def export_json(report,exp_dir):

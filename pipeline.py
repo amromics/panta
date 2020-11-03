@@ -29,7 +29,6 @@ def run_command(cmd, timing_log=None):
     ret = os.system(cmd)
     return ret
 
-
 def get_assembly(sample,base_dir):
     """
 
@@ -299,13 +298,14 @@ def runAlignment(report,base_dir, timing_log=None):
 
 
 def pipeline_func(args):
-    report = {'samples': {}, 'set': {}}
+    """ report = {'samples': {}, 'set': {}}
+    workdir=args.work_dir+"/"+args.id
 
     sample_df = pd.read_csv(args.input, sep='\t')
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
         sample = {}
-        sample['id'] = row['Sample ID']
+        sample['id'] = str(row['Sample ID'])
         sample['name'] = row['Sample Name']
         sample['type'] = row['Input Type']
         sample['files'] = row['Files']
@@ -326,7 +326,7 @@ def pipeline_func(args):
 
     #run single sample pipeline
     for id in report['samples']:
-        sample_dir=args.work_dir+'/samples/'+id
+        sample_dir=workdir+'/samples/'+str(id)
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out']={}
@@ -334,12 +334,13 @@ def pipeline_func(args):
     #report=json.load( open( "temp.json" ) )
     
     json.dump(report, open( "temp.json", 'w' ))
-    report=run_roary(report,threads=args.threads,base_dir=args.work_dir, timing_log=args.time_log)
-    report=run_phylogeny(report,threads=args.threads,base_dir=args.work_dir, timing_log=args.time_log)
-    report=runAlignment(report,base_dir=args.work_dir, timing_log=args.time_log)
-    json.dump(report, open( "temp.json", 'w' ))
+    
+    report=run_roary(report,threads=args.threads,base_dir=workdir, timing_log=args.time_log)
+    report=run_phylogeny(report,threads=args.threads,base_dir=workdir, timing_log=args.time_log)
+    report=runAlignment(report,base_dir=workdir, timing_log=args.time_log)
+    json.dump(report, open( "temp.json", 'w' )) """
+    report=json.load( open( "temp.json" ))
     export_json(report,args.export_dir)
-
 
 def export_json(report,exp_dir):
 
@@ -382,15 +383,15 @@ def export_json(report,exp_dir):
             'metadata':report['samples'][id]['metadata']
 
         })
-    #save pangenome result
 
     set_result=[]
-    
-    set_result.append({'group':'phylo_heatmap','data':exportAMRHeatmap(report)})
-    set_result.append({'group':'pan_sum','data':exportPangenomeSumary(report['set']['pangenome']+'/summary_statistics.txt')})
-    set_result.append({'group':'pan_cluster','data':exportPangenomeCluster(report['set']['pangenome']+'/gene_presence_absence.csv')})
+    if not os.path.exists(exp_dir+"/set"):
+        os.makedirs(exp_dir+"/set")
+    set_result.append({'group':'phylo_heatmap','data':exportAMRHeatmap(report,exp_dir)})
+    set_result.append({'group':'pan_sum','data':exportPangenomeSumary(report['set']['pangenome']+'/summary_statistics.txt',exp_dir)})
+    set_result.append({'group':'pan_cluster','data':exportPangenomeCluster(report['set']['pangenome']+'/gene_presence_absence.csv',exp_dir)})
     set_result.append({'group':'phylogeny_tree','data':exportPhylogenyTree(report['set']['phylogeny']+'/parsnp.tree')})
-    set_result.append({'group':'gene_alignments','data':exportMultiAlignment(report)})
+    set_result.append({'group':'gene_alignments','data':exportMultiAlignment(report,exp_dir)})
     collection_report={"samples":samples,"results":set_result}
     json.dump( collection_report, open( exp_dir+'/set.json', 'w' ))
 
@@ -605,7 +606,7 @@ def save_sample_result(sample,exp_dir):
         os.makedirs(sample_dir)
     json.dump( sample, open( sample_dir+'/'+sample['id']+".json", 'w' ))
 
-def exportPangenomeSumary(summary_file):
+def exportPangenomeSumary(summary_file,exp_dir):
     f = open(summary_file)
     ret={}
     ret['group']=[]
@@ -615,8 +616,11 @@ def exportPangenomeSumary(summary_file):
         ret['group'].append({'name':tok[0],'des':tok[1],'num':tok[2]})    
     ret['total']=lines[len(lines)-1].strip().split('\t')[2]
     f.close()
-    return ret
-def exportPangenomeCluster(pre_abs_file):
+    save_path=exp_dir+"/set/pangenome_summary.json"
+    json.dump( ret, open( save_path, 'w' ))
+    
+    return "/set/pangenome_summary.json"
+def exportPangenomeCluster(pre_abs_file,exp_dir):
     ret={}
     ret['genes']=[]
     with open(pre_abs_file) as tsvfile:
@@ -629,8 +633,12 @@ def exportPangenomeCluster(pre_abs_file):
             gene['nosequences']=row['No. sequences']         
             gene['length']=row['Avg group size nuc']
             ret['genes'].append(gene)
-    return ret
-def exportAMRHeatmap(report):
+    save_path=exp_dir+"/set/pangenome_cluster.json"
+    json.dump( ret, open( save_path, 'w' ))
+    
+    return "/set/pangenome_cluster.json"
+    #return ret
+def exportAMRHeatmap(report,exp_dir):
     set_genes=set()
     set_class=set()
     set_samples=set()
@@ -666,7 +674,9 @@ def exportAMRHeatmap(report):
     heatmap_stats['list_genes']=list(set_genes.union(set_vir_gene))
     heatmap_stats['list_class']=list(set_class)
     heatmap_stats['samples']=list(set_samples)
-    return heatmap_stats
+    save_path=exp_dir+"/set/amrheatmap.json"
+    json.dump( heatmap_stats, open( save_path, 'w' ))
+    return "/set/amrheatmap.json"
 def exportPhylogenyTree(treefile):
     data=''
     with open(treefile) as myfile:
@@ -675,7 +685,7 @@ def exportPhylogenyTree(treefile):
     base64_bytes = base64.b64encode(message_bytes)
     base64_message = base64_bytes.decode('ascii')
     return base64_message
-def exportMultiAlignment(report):
+def exportMultiAlignment(report,exp_dir):
     list_genes=os.listdir( report['set']['alignments'] )
     alignments={}
     alignments['alignments']=[]
@@ -686,10 +696,11 @@ def exportMultiAlignment(report):
             tree=exportPhylogenyTree(report['set']['alignments']+'/'+gene+'/parsnp.tree')
             aln={'gene':gene}
             aln['tree']=tree
-            aln['samples']=exportAlignment(report['set']['alignments']+'/'+gene+'/parsnp.xmfa')
+            aln['samples']=exportAlignment(gene,report['set']['alignments']+'/'+gene+'/parsnp.xmfa',exp_dir,)
             alignments['alignments'].append(aln)
+
     return alignments
-def exportAlignment(file_xmfa):
+def exportAlignment(gene,file_xmfa,exp_dir):
     f = open(file_xmfa)
     aligments=[]
     s_dict={}
@@ -725,8 +736,13 @@ def exportAlignment(file_xmfa):
     for sid in s_dict:
         sample={'sample':s_dict[sid]['id'],'seq':s_dict[sid]['seq'].upper().replace('=','')}
         aligments.append(sample)
+    if not os.path.exists(exp_dir+"/set/alignments/"):
+        os.makedirs(exp_dir+"/set/alignments/")
+    save_path=exp_dir+"/set/alignments/"+gene+".json"
+    json.dump( aligments, open( save_path, 'w' ))
     
-    return aligments
+    return "/set/alignments/"+gene+".json"
+    #return aligments
 
 
 def version_func():
@@ -749,6 +765,7 @@ def main(arguments=sys.argv[1:]):
         'pa', description='NGS analysis pipeline', help='NGS analysis pipeline',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     pa_cmd.set_defaults(func=pipeline_func)
+    pa_cmd.add_argument('--id', help='Colletion ID',type=str)
     pa_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-i', '--input', help='Input file',type=str)

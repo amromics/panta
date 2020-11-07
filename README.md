@@ -8,22 +8,22 @@ The easiest way to run Amromics-viz is to use the predefined docker image.
 ```bash
 conda install -c conda-forge -c bioconda -c defaults prokka pysam samtools mlst abricate roary
 ```
-Download and extract Parsnp
+- Download and extract Parsnp
 ```bash
 wget https://github.com/marbl/parsnp/releases/download/v1.2/parsnp-Linux64-v1.2.tar.gz && \
     tar -xvf parsnp-Linux64-v1.2.tar.gz && rm parsnp-Linux64-v1.2.tar.gz
 ```
-Add parsnp to PATH 
-Install requirement packs using pip
+- Add parsnp to PATH 
+- Install requirement packs using pip
 ```bash
 pip install -r requirements.txt
 ```
 #### Set up Amromics-viz web application
-Install NodeJS (v10.20 or later)
+- Install NodeJS (v10.20 or later)
 ```bash
 sudo apt install nodejs
 ```
-Setup web application using npm
+- Setup web application using npm
 ```bash
 cd amromics-vis
 ```

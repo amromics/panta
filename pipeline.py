@@ -300,7 +300,7 @@ def runAlignment(report,base_dir, timing_log=None):
 def pipeline_func(args):
     report = {'samples': {}, 'set': {}}
     workdir=args.work_dir+"/"+args.id
-
+    updateCollectionHistory(args.export_dir,args.id,args.id,"Processing")
     sample_df = pd.read_csv(args.input, sep='\t')
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
@@ -339,9 +339,11 @@ def pipeline_func(args):
     report=run_phylogeny(report,threads=args.threads,base_dir=workdir, timing_log=args.time_log)
     report=runAlignment(report,base_dir=workdir, timing_log=args.time_log)
     json.dump(report, open( "temp.json", 'w' ))
-    #report=json.load( open( "temp.json" ))
-    export_json(report,args.export_dir)
-
+    report=json.load( open( "temp.json" ))
+    if not os.path.exists(args.export_dir+"/"+args.id):
+        os.makedirs(args.export_dir+"/"+args.id)
+    export_json(report,args.export_dir+"/"+args.id)
+    updateCollectionHistory(args.export_dir,args.id,args.id,"Ready")
 def export_json(report,exp_dir):
 
     #export single samples
@@ -744,7 +746,24 @@ def exportAlignment(gene,file_xmfa,exp_dir):
     return "/set/alignments/"+gene+".json"
     #return aligments
 
-
+def updateCollectionHistory(export_dir,collectionID,collectionName,status):
+    if not os.path.exists(export_dir+"/collections.json"):
+        #make the empty collection
+        emp_arr={collections:[]}
+        json.dump(emp_arr,open( export_dir+"/collections.json", 'w' ))
+    print(export_dir+"/collections.json")
+    collections=json.load(open( export_dir+"/collections.json"))
+    isExist=False
+    for key in collections["collections"]:
+        print(key["collectionID"])
+        if key["collectionID"]==collectionID:
+            key["collectionName"]=collectionName
+            key["status"]=status
+            isExist=True
+    if not isExist:
+        collections["collections"].append({"collectionID":collectionID,"collectionName":collectionName,"status":status})
+    json.dump(collections,open( export_dir+"/collections.json", 'w' ))
+    
 def version_func():
     print('V.1.0')
 

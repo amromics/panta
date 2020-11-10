@@ -13,7 +13,7 @@ import datetime
 import base64
 import pandas as pd
 def export_json(inp_dir,collectionID,exp_dir):
-    updateCollectionHistory(exp_dir,args.id,args.id,"Not Ready") 
+    updateCollectionHistory(exp_dir,collectionID,collectionID,"Not Ready") 
     #look for dump file:
     if (os.path.isfile(inp_dir+"/"+collectionID+"_dump.json")):
         print("Dump file not found!")

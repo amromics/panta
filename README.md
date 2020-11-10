@@ -51,4 +51,10 @@ npm run build --modern
 ```bash
 python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```
+```bash
+--id : Collection ID, a string without space or special character
+--input: the file listing samples of collection
+--t : threads number
+--m: memory (in GB)
+```
 The web application is auto opened on URL localhost:3000 (or other port if this port is occupated)

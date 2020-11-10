@@ -1,7 +1,7 @@
 # amromics-visualization
 ## Introduction
 ## Installation
-### Using Docker image
+### Using Docker image (comming soon)
 The easiest way to run Amromics-viz is to use the predefined docker image.
 ### Install from source
 #### Set up pipeline
@@ -23,29 +23,32 @@ pip install -r requirements.txt
 ```bash
 sudo apt install nodejs
 ```
-- Setup web application using npm
+- Install live-server
+```bash
+npm install -g live-server
+```
+- Setup and build web application using npm (option for developing)
 ```bash
 cd amromics-vis
 ```
 ```bash
 npm install
 ```
+```bash
+npm run build --modern
+```
 ## Usage
-### Run from docker image
+### Run from docker image (Comming soon)
 
 ### Run from source
 #### To run pipeline
 ##### Prepare input file
-- Check sample input file in /samples/set1.tsv
+- Check sample input file in data/samples/set1.tsv
 - Note:
   + Gram column should be empty
   + Metadata is empty or in format: key1:value1;key2:value2;...  Ex: Geographic Location:Houston,USA;Insert Date:8/8/2017;Host Name:Human, Homo sapiens;ampicillin:Resistant;aztreonam:Resistant;ciprofloxacin:Resistant;gentamicin:Susceptible;tetracycline:Susceptible
-##### Run pipeline.py
-python pipeline.py pa -i samples/set1.tsv -t 2 -m 8 -e amromics-vis/static/data 
-#### To visualize
+##### Run pipeline and visualize tools
 ```bash
-cd amromics-vis
+python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```
-```bash
- npm run dev
-```
+The web application is auto opened on URL localhost:3000 (or other port if this port is occupated)

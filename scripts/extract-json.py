@@ -15,10 +15,10 @@ import pandas as pd
 def export_json(inp_dir,collectionID,exp_dir):
     updateCollectionHistory(exp_dir,collectionID,collectionID,"Not Ready") 
     #look for dump file:
-    if (os.path.isfile(inp_dir+"/"+collectionID+"_dump.json")):
-        print("Dump file not found!")
+    if (not os.path.isfile(inp_dir+"/"+collectionID+"/"+collectionID+"_dump.json")):
+        print("Dump file "+inp_dir+"/"+collectionID+"/"+collectionID+"_dump.json"+ " not found!")
         return
-    dumpfile=os.path.join(inp_dir,+collectionID+"_dump.json")
+    dumpfile=os.path.join(inp_dir+"/"+collectionID+"/"+collectionID+"_dump.json")
     exp_dir_current=os.path.join(exp_dir,collectionID)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)
@@ -50,7 +50,7 @@ def export_json(inp_dir,collectionID,exp_dir):
         ret_annotation['data']=exportKnowgene(out['annotation'])
         result.append(ret_annotation)
         report['samples'][id]['execution']['result']=result
-        save_sample_result(report['samples'][id],exp_dir)
+        save_sample_result(report['samples'][id],exp_dir_current)
         samples.append({
             'id':report['samples'][id]['id'],\
             'name':report['samples'][id]['name'],
@@ -65,14 +65,14 @@ def export_json(inp_dir,collectionID,exp_dir):
 
     set_result=[]
     if not os.path.exists(exp_dir_current+"/set"):
-        os.makedirs(exp_dir+"/set")
+        os.makedirs(exp_dir_current+"/set")
     set_result.append({'group':'phylo_heatmap','data':exportAMRHeatmap(report,exp_dir_current)})
     set_result.append({'group':'pan_sum','data':exportPangenomeSumary(report['set']['pangenome']+'/summary_statistics.txt',exp_dir_current)})
     set_result.append({'group':'pan_cluster','data':exportPangenomeCluster(report['set']['pangenome']+'/gene_presence_absence.csv',exp_dir_current)})
     set_result.append({'group':'phylogeny_tree','data':exportPhylogenyTree(report['set']['phylogeny']+'/parsnp.tree')})
     set_result.append({'group':'gene_alignments','data':exportMultiAlignment(report,exp_dir_current)})
     collection_report={"samples":samples,"results":set_result}
-    json.dump( collection_report, open( exp_dir+'/set.json', 'w' ))
+    json.dump( collection_report, open( exp_dir_current+'/set.json', 'w' ))
     updateCollectionHistory(exp_dir,collectionID,collectionID,"Ready")   
 
 def exportAssembly(contigs_file_contents):

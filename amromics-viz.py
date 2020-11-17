@@ -25,7 +25,7 @@ def main(arguments=sys.argv[1:]):
     args = parser.parse_args()
     run_command('python scripts/pipeline.py pa --id '+args.id+' -i '+args.input+' -t 0 -m 16 --work-dir data/output')
     run_command('python scripts/extract-json.py --id '+args.id+' --inp data/output --out web-app/static/data' )
-    run_command('cd web-app && live-server --port=3000  --entry-file=index.html' )
+    #run_command('cd web-app && live-server --port=3000  --entry-file=index.html' )
     
     #check if amromics-vis is compiled
     

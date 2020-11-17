@@ -47,7 +47,7 @@ npm run build --modern
 - Note:
   + Gram column should be empty
   + Metadata is empty or in format: key1:value1;key2:value2;...  Ex: Geographic Location:Houston,USA;Insert Date:8/8/2017;Host Name:Human, Homo sapiens;ampicillin:Resistant;aztreonam:Resistant;ciprofloxacin:Resistant;gentamicin:Susceptible;tetracycline:Susceptible
-##### Run pipeline and visualize tools
+##### Run pipeline and export visualization data to web app
 ```bash
 python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```
@@ -57,4 +57,9 @@ python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 --t : threads number
 --m: memory (in GB)
 ```
+##### Run web app
+```bash
+cd web-app && live-server --port=3000  --entry-file=index.html
+```
+```bash
 The web application is auto opened on URL localhost:3000 (or other port if this port is occupated)

@@ -5,6 +5,7 @@
 ### Install with conda
 
 The easiest method is to create a conda environment with all the neccesary dependencies.
+
 1. Download and install the appropriate anaconda from https://repo.anaconda.com/archive/
 2. Create an environment to run amromics-viz:
 ```bash
@@ -18,21 +19,12 @@ npm install -g live-server
 4. (Optional) Setup and build web application using npm
 ```bash
 cd amromics-vis
-```
-```bash
 npm install
-```
-```bash
 npm run build --modern
 ```
 
-### Using Docker image (comming soon)
-Comming soon
-
 ## Usage
-### Run from docker image (Comming soon)
 
-### Run from source
 #### To run pipeline
 ##### Prepare input file
 - Check sample input file in data/samples/set1.tsv

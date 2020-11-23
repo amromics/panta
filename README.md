@@ -1,33 +1,21 @@
 # amromics-visualization
-## Introduction
+
 ## Installation
-### Using Docker image (comming soon)
-The easiest way to run Amromics-viz is to use the predefined docker image.
-### Install from source
-#### Set up pipeline
+
+### Install with conda
+
+The easiest method is to create a conda environment with all the neccesary dependencies.
+1. Download and install the appropriate anaconda from https://repo.anaconda.com/archive/
+2. Create an environment to run amromics-viz:
 ```bash
-conda install -c conda-forge -c bioconda -c defaults prokka pysam samtools mlst abricate roary
+conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz python=3.7 ipykernel numpy pandas biopython prokka pysam samtools mlst abricate snippy tqdm shovill roary parsnp nodejs
 ```
-- Download and extract Parsnp
+3. Setup nodejs
 ```bash
-wget https://github.com/marbl/parsnp/releases/download/v1.2/parsnp-Linux64-v1.2.tar.gz && \
-    tar -xvf parsnp-Linux64-v1.2.tar.gz && rm parsnp-Linux64-v1.2.tar.gz
-```
-- Add parsnp to PATH 
-- Install requirement packs using pip
-```bash
-pip install -r requirements.txt
-```
-#### Set up Amromics-viz web application
-- Install NodeJS (v10.20 or later)
-```bash
-sudo apt install nodejs
-```
-- Install live-server
-```bash
+soure activate amromics-viz
 npm install -g live-server
 ```
-- Setup and build web application using npm (option for developing)
+4. (Optional) Setup and build web application using npm
 ```bash
 cd amromics-vis
 ```
@@ -37,6 +25,10 @@ npm install
 ```bash
 npm run build --modern
 ```
+
+### Using Docker image (comming soon)
+Comming soon
+
 ## Usage
 ### Run from docker image (Comming soon)
 

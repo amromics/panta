@@ -32,7 +32,7 @@ def get_assembly(sample, base_dir):
     :param base_dir:
     :return:
     """
-    path_out = os.path.join(base_dir, sample['id'] + '_assembly')
+    path_out = os.path.join(base_dir, 'assembly')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     contigs = list(SeqIO.parse(sample['files'], "fasta"))
@@ -67,11 +67,11 @@ def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False, ti
     return sample
 
 
-def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0, overwrite=False):
+def annotate_prokka(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
-    path_out = os.path.join(base_dir, 'prokka_' + sample['id'])
+    path_out = os.path.join(base_dir, 'prokka')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
@@ -103,65 +103,86 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0, overwrite=
     return path_out
 
 
-def mlst(sample, base_dir='.', threads=0, timing_log=None):
+def mlst(sample, base_dir='.', threads=0, overwrite=False, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
-    path_out = os.path.join(base_dir, 'mlst_' + sample['id'])
+    path_out = os.path.join(base_dir, 'mlst')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     mlst_out = os.path.join(path_out, sample['id'] + '_mlst.tsv')
-    cmd = 'mlst --quiet --threads {threads} --nopath {infile} > {outfile}'.format(threads=threads,
-                                                                                  infile=sample['execution']['out'][
-                                                                                      'assembly'], outfile=mlst_out)
+    if os.path.isfile(mlst_out) and (not overwrite):
+        print('MLST for {} exists, skip mlsting'.format(sample['id']))
+        return mlst_out
+
+    cmd = 'mlst --quiet --threads {threads} --nopath {infile} > {outfile}'.format(
+        threads=threads,
+        infile=sample['execution']['out']['assembly'],
+        outfile=mlst_out)
     if run_command(cmd, timing_log) != 0:
         return None
     return mlst_out
 
 
-def detect_amr(sample, base_dir='.', threads=0, timing_log=None):
+def detect_amr(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
-    path_out = os.path.join(base_dir, 'abricate_' + sample['id'])
+    path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     # TODO: replace by consensus db later
     amr_out = os.path.join(path_out, sample['id'] + '_resistome.tsv')
-    cmd = 'abricate --quiet --threads {threads} --nopath --db card {infile} > {outfile}'.format(threads=threads, infile=
-    sample['execution']['out']['assembly'], outfile=amr_out)
+    if os.path.isfile(amr_out) and (not overwrite):
+        print('Resistome for {} exists, skip analysis'.format(sample['id']))
+        return amr_out
+
+    cmd = 'abricate --quiet --threads {threads} --nopath --db card {infile} > {outfile}'.format(
+        threads=threads,
+        infile=sample['execution']['out']['assembly'],
+        outfile=amr_out)
     if run_command(cmd, timing_log) != 0:
         return None
     return amr_out
 
 
 # Virulome profiling using abricate with VFDB
-def detect_virulome(sample, base_dir='.', threads=0, timing_log=None):
+def detect_virulome(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
-    path_out = os.path.join(base_dir, 'abricate_' + sample['id'])
+    path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
     vir_out = os.path.join(path_out, sample['id'] + '_virulome.tsv')
-    cmd = 'abricate --quiet --threads {threads} --nopath --db vfdb {infile} > {outfile}'.format(threads=threads, infile=
-    sample['execution']['out']['assembly'], outfile=vir_out)
+    if os.path.isfile(vir_out) and (not overwrite):
+        print('Virulome for {} exists, skip analysis'.format(sample['id']))
+        return vir_out
+
+    cmd = 'abricate --quiet --threads {threads} --nopath --db vfdb {infile} > {outfile}'.format(
+        threads=threads,
+        infile=sample['execution']['out']['assembly'],
+        outfile=vir_out)
     if run_command(cmd, timing_log) != 0:
         return None
     return vir_out
 
 
-def detect_plasmid(sample, base_dir='.', threads=0, timing_log=None):
+def detect_plasmid(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
-    path_out = os.path.join(base_dir, 'abricate_' + sample['id'])
+    path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
     # Plasmid finder
     oriREP_out = os.path.join(path_out, sample['id'] + '_plasmid.tsv')
+    if os.path.isfile(oriREP_out) and (not overwrite):
+        print('ORI for {} exists, skip analysis'.format(sample['id']))
+        return oriREP_out
+
     cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(
         threads=threads, infile=sample['execution']['out']['assembly'], outfile=oriREP_out)
     if run_command(cmd, timing_log) != 0:
@@ -169,7 +190,7 @@ def detect_plasmid(sample, base_dir='.', threads=0, timing_log=None):
     return oriREP_out
 
 
-def run_roary(report, threads=0, base_dir='.', timing_log=None, overwrite=False):
+def run_roary(report, base_dir='.', overwrite=False, threads=0, timing_log=None):
     """
         Run roay make pangeome analysis (using prokka results in previous step)
         :param report: result holder
@@ -177,18 +198,30 @@ def run_roary(report, threads=0, base_dir='.', timing_log=None, overwrite=False)
         :param threads: number of core CPU
         :return:
     """
+    if threads == 0:
+        threads = NUM_CORES_DEFAULT
+
     gff_list = []
     for sample_id in report['samples']:
         sample = report['samples'][sample_id]
         gff_file = os.path.join(sample['execution']['out']['annotation'], sample_id + '.gff')
         assert os.path.isfile(gff_file)
         gff_list.append(gff_file)
+    dataset_sample_ids = sorted(report['samples'].keys())
 
     roary_folder = os.path.join(base_dir, 'set/roary')
     roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
+    sample_set_file = os.path.join(roary_folder, 'sample_set.json')
+
+    # Check if roary has run for the same dataset ID and the same set of samples
+    report['set']['pangenome'] = roary_folder
     if os.path.isfile(roary_output) and (not overwrite):
-        print('roary has run')
-        return report
+        if os.path.isfile(sample_set_file):
+            with open(sample_set_file) as fn:
+                sample_set = json.load(fn)
+            if sample_set == dataset_sample_ids:
+                print('roary has run, skip roarying')
+                return report
 
     # Make sure the directory is not there or roary will add timestamp
     if os.path.isfile(roary_folder):
@@ -196,13 +229,19 @@ def run_roary(report, threads=0, base_dir='.', timing_log=None, overwrite=False)
     if os.path.exists(roary_folder):
         shutil.rmtree(roary_folder)
 
-    myCmd = 'roary -p {} -f {} -e -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
-    run_command(myCmd, timing_log)
-    report['set']['pangenome'] = roary_folder
+    cmd = 'roary -p {} -f {} -e -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        return None
+
+    # Write the set of sample IDs
+    with open(sample_set_file, 'w') as fn:
+        json.dump(dataset_sample_ids, fn)
+
     return report
 
 
-def run_phylogeny(report, base_dir, threads=0, timing_log=None):
+def run_phylogeny(report, base_dir, overwrite=False, threads=0, timing_log=None):
     """
         Run parsnp to create phylogeny tree
         :param report: result holder
@@ -211,6 +250,15 @@ def run_phylogeny(report, base_dir, threads=0, timing_log=None):
         :param threads: number of core CPU
         :return:
     """
+    # TODOs:
+    # - Can make it faster with using fastree (parsnps need to have this option specifically set
+    # - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
+    # - Can provide the genbank of the reference (using prokka annotation)
+    # - Check if phylogeny for the same set of samples has run before (see roary). The same for alignment
+
+    if threads == 0:
+        threads = NUM_CORES_DEFAULT
+
     phylogeny_folder = os.path.join(base_dir, 'set/phylogeny')
     if not os.path.exists(phylogeny_folder):
         os.makedirs(phylogeny_folder)
@@ -239,19 +287,22 @@ def run_phylogeny(report, base_dir, threads=0, timing_log=None):
             else:
                 candidate_ref = os.path.join(genome_dir, f)
                 break
-    if candidate_ref == None:
+    if candidate_ref is None:
         print(
             'Cannot determine appropriate reference genome, may be description of contigs contain special characters (-)')
     else:
         ref_genome = candidate_ref
-    myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, genome_dir, ref_genome, phylogeny_folder)
-    run_command(myCmd, timing_log)
+    cmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, genome_dir, ref_genome, phylogeny_folder)
+    run_command(cmd, timing_log)
 
     report['set']['phylogeny'] = phylogeny_folder
     return report
 
 
-def runAlignment(report, base_dir, timing_log=None):
+def run_alignment(report, base_dir, overwrite=False, threads=0, timing_log=None):
+    if threads == 0:
+        threads = NUM_CORES_DEFAULT
+
     gene_cluster_file = report['set']['pangenome'] + '/gene_presence_absence.csv'
     dict_cds = {}
     for id in report['samples']:
@@ -280,15 +331,19 @@ def runAlignment(report, base_dir, timing_log=None):
                     SeqIO.write(dict_cds[row[i].split('\t')[0]], gene_file, "fasta")
         if not os.path.exists(os.path.join(alignment_dir, row[0])):
             os.makedirs(os.path.join(alignment_dir, row[0]))
-        myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(2, gene_dir, gene_file,
+        cmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, gene_dir, gene_file,
                                                         os.path.join(base_dir, 'set/alignments/' + row[0]))
-        run_command(myCmd, timing_log)
+        run_command(cmd, timing_log)
     f.close()
     report['set']['alignments'] = alignment_dir
     return report
 
 
 def pipeline_func(args):
+    threads = args.threads
+    if threads <= 0:
+        threads = NUM_CORES_DEFAULT
+
     report = {'samples': {}, 'set': {}}
     workdir = args.work_dir + "/" + args.id
     sample_df = pd.read_csv(args.input, sep='\t')
@@ -320,12 +375,13 @@ def pipeline_func(args):
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out'] = {}
-        report['samples'][id] = run_single_sample(report['samples'][id], base_dir=sample_dir, threads=args.threads,
-                                                  memory=args.memory, timing_log=args.time_log)
+        report['samples'][id] = run_single_sample(
+            report['samples'][id], base_dir=sample_dir, threads=threads,
+            memory=args.memory, timing_log=args.time_log)
 
-    report = run_roary(report, threads=args.threads, base_dir=workdir, timing_log=args.time_log)
-    report = run_phylogeny(report, threads=args.threads, base_dir=workdir, timing_log=args.time_log)
-    report = runAlignment(report, base_dir=workdir, timing_log=args.time_log)
+    report = run_roary(report, base_dir=workdir, threads=threads,  timing_log=args.time_log)
+    report = run_phylogeny(report, base_dir=workdir, threads=threads, timing_log=args.time_log)
+    report = run_alignment(report, base_dir=workdir, threads=threads, timing_log=args.time_log)
     json.dump(report, open(workdir + "/" + args.id + "_dump.json", 'w'))
     # clean up
     if os.path.exists(workdir + "/temp"):
@@ -352,7 +408,7 @@ def main(arguments=sys.argv[1:]):
         'pa', description='NGS analysis pipeline', help='NGS analysis pipeline',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     pa_cmd.set_defaults(func=pipeline_func)
-    pa_cmd.add_argument('--id', help='Colletion ID', type=str)
+    pa_cmd.add_argument('--id', help='collection ID', type=str)
     pa_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-i', '--input', help='Input file', type=str)

@@ -7,8 +7,14 @@ import os, shutil
 from Bio import SeqIO
 import datetime
 import pandas as pd
+import multiprocessing
 
-NUM_CORES_DEFAULT = 8
+# TODOs:
+# - Can make it faster with using fastree (parsnps need to have this option specifically set
+# - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
+# - Can provide the genbank of the reference (using prokka annotation)
+# - Check if phylogeny for the same set of samples has run before (see roary).
+# - Check if alignments has been run,
 
 
 def run_command(cmd, timing_log=None):
@@ -47,7 +53,7 @@ def get_assembly(sample, base_dir):
     return assembly_file
 
 
-def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False, timing_log=None):
+def run_single_sample(sample, base_dir='.', threads=8, memory=50, trim=False, timing_log=None):
     sample['execution']['start'] = str(datetime.datetime.now())
 
     if sample['type'] != 'asm':
@@ -56,20 +62,20 @@ def run_single_sample(sample, base_dir='.', threads=0, memory=50, trim=False, ti
     else:
         sample['execution']['out']['assembly'] = get_assembly(sample, base_dir=base_dir)
 
-    sample['execution']['out']['annotation'] = annotate_prokka(sample, base_dir=base_dir, timing_log=timing_log,
-                                                               threads=threads)
+    sample['execution']['out']['annotation'] = annotate_prokka(
+        sample, base_dir=base_dir,  threads=threads, timing_log=timing_log)
     sample['execution']['out']['mlst'] = mlst(sample, base_dir=base_dir, threads=threads)
-    sample['execution']['out']['resistome'] = detect_amr(sample, base_dir=base_dir, timing_log=timing_log,
-                                                         threads=threads)
-    sample['execution']['out']['virulome'] = detect_virulome(sample, base_dir=base_dir, threads=threads)
-    sample['execution']['out']['plasmid'] = detect_plasmid(sample, base_dir=base_dir, threads=threads)
+    sample['execution']['out']['resistome'] = detect_amr(
+        sample, base_dir=base_dir, threads=threads, timing_log=timing_log)
+    sample['execution']['out']['virulome'] = detect_virulome(
+        sample, base_dir=base_dir, threads=threads)
+    sample['execution']['out']['plasmid'] = detect_plasmid(
+        sample, base_dir=base_dir, threads=threads)
     sample['execution']['end'] = str(datetime.datetime.now())
     return sample
 
 
-def annotate_prokka(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
+def annotate_prokka(sample, base_dir='.', overwrite=False, threads=8, timing_log=None):
 
     path_out = os.path.join(base_dir, 'prokka')
     if not os.path.exists(path_out):
@@ -103,9 +109,7 @@ def annotate_prokka(sample, base_dir='.', overwrite=False, threads=0, timing_log
     return path_out
 
 
-def mlst(sample, base_dir='.', threads=0, overwrite=False, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
+def mlst(sample, base_dir='.', threads=8, overwrite=False, timing_log=None):
 
     path_out = os.path.join(base_dir, 'mlst')
     if not os.path.exists(path_out):
@@ -124,10 +128,7 @@ def mlst(sample, base_dir='.', threads=0, overwrite=False, timing_log=None):
     return mlst_out
 
 
-def detect_amr(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
-
+def detect_amr(sample, base_dir='.', overwrite=False, threads=8, timing_log=None):
     path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
@@ -147,9 +148,7 @@ def detect_amr(sample, base_dir='.', overwrite=False, threads=0, timing_log=None
 
 
 # Virulome profiling using abricate with VFDB
-def detect_virulome(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
+def detect_virulome(sample, base_dir='.', overwrite=False, threads=8, timing_log=None):
 
     path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
@@ -169,9 +168,7 @@ def detect_virulome(sample, base_dir='.', overwrite=False, threads=0, timing_log
     return vir_out
 
 
-def detect_plasmid(sample, base_dir='.', overwrite=False, threads=0, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
+def detect_plasmid(sample, base_dir='.', overwrite=False, threads=8, timing_log=None):
 
     path_out = os.path.join(base_dir, 'abricate')
     if not os.path.exists(path_out):
@@ -190,7 +187,7 @@ def detect_plasmid(sample, base_dir='.', overwrite=False, threads=0, timing_log=
     return oriREP_out
 
 
-def run_roary(report, base_dir='.', overwrite=False, threads=0, timing_log=None):
+def run_roary(report, base_dir='.', overwrite=False, threads=8, timing_log=None):
     """
         Run roay make pangeome analysis (using prokka results in previous step)
         :param report: result holder
@@ -198,9 +195,6 @@ def run_roary(report, base_dir='.', overwrite=False, threads=0, timing_log=None)
         :param threads: number of core CPU
         :return:
     """
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
-
     gff_list = []
     for sample_id in report['samples']:
         sample = report['samples'][sample_id]
@@ -241,7 +235,7 @@ def run_roary(report, base_dir='.', overwrite=False, threads=0, timing_log=None)
     return report
 
 
-def run_phylogeny(report, base_dir, overwrite=False, threads=0, timing_log=None):
+def run_phylogeny(report, base_dir, overwrite=False, threads=8, timing_log=None):
     """
         Run parsnp to create phylogeny tree
         :param report: result holder
@@ -250,15 +244,6 @@ def run_phylogeny(report, base_dir, overwrite=False, threads=0, timing_log=None)
         :param threads: number of core CPU
         :return:
     """
-    # TODOs:
-    # - Can make it faster with using fastree (parsnps need to have this option specifically set
-    # - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
-    # - Can provide the genbank of the reference (using prokka annotation)
-    # - Check if phylogeny for the same set of samples has run before (see roary). The same for alignment
-
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
-
     phylogeny_folder = os.path.join(base_dir, 'set/phylogeny')
     if not os.path.exists(phylogeny_folder):
         os.makedirs(phylogeny_folder)
@@ -299,9 +284,7 @@ def run_phylogeny(report, base_dir, overwrite=False, threads=0, timing_log=None)
     return report
 
 
-def run_alignment(report, base_dir, overwrite=False, threads=0, timing_log=None):
-    if threads == 0:
-        threads = NUM_CORES_DEFAULT
+def run_alignment(report, base_dir, overwrite=False, threads=8, timing_log=None):
 
     gene_cluster_file = report['set']['pangenome'] + '/gene_presence_absence.csv'
     dict_cds = {}
@@ -342,7 +325,7 @@ def run_alignment(report, base_dir, overwrite=False, threads=0, timing_log=None)
 def pipeline_func(args):
     threads = args.threads
     if threads <= 0:
-        threads = NUM_CORES_DEFAULT
+        threads = multiprocessing.cpu_count()
 
     report = {'samples': {}, 'set': {}}
     workdir = args.work_dir + "/" + args.id
@@ -421,3 +404,5 @@ def main(arguments=sys.argv[1:]):
 
 if __name__ == "__main__":
     main()
+
+

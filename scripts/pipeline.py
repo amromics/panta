@@ -2,19 +2,13 @@ import sys
 import argparse
 import logging
 import json
-import subprocess
 import csv
-import multiprocessing
-import os, shutil, glob
-from Bio.Seq import Seq
+import os, shutil
 from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
 import datetime
-import base64
 import pandas as pd
 
 NUM_CORES_DEFAULT = 8
-
 
 def run_command(cmd, timing_log=None):
     """
@@ -97,7 +91,6 @@ def annotate_prokka(sample, base_dir='.', timing_log=None, threads=0, overwrite=
     #    cmd += ' --gram ' + sample['gram']
 
     cmd += ' ' + sample['execution']['out']['assembly']
-    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         raise Exception('Command {} returns non-zero!'.format(cmd))
         return None
@@ -113,7 +106,6 @@ def mlst(sample,  base_dir='.', threads=0, timing_log=None):
         os.makedirs(path_out)
     mlst_out = os.path.join(path_out, sample['id'] + '_mlst.tsv')
     cmd = 'mlst --quiet --threads {threads} --nopath {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=mlst_out)
-    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return mlst_out
@@ -129,7 +121,6 @@ def detect_amr(sample,  base_dir='.', threads=0, timing_log=None):
     # TODO: replace by consensus db later
     amr_out = os.path.join(path_out, sample['id'] + '_resistome.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db card {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=amr_out)
-    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return amr_out
@@ -146,7 +137,6 @@ def detect_virulome(sample,  base_dir='.', threads=0, timing_log=None):
 
     vir_out = os.path.join(path_out, sample['id'] + '_virulome.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db vfdb {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=vir_out)
-    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return vir_out
@@ -163,7 +153,6 @@ def detect_plasmid(sample,  base_dir='.', threads=0, timing_log=None):
     #Plasmid finder
     oriREP_out = os.path.join(path_out, sample['id'] + '_plasmid.tsv')
     cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(threads=threads,infile=sample['execution']['out']['assembly'],outfile=oriREP_out)
-    #cmd = "bash -c '{}'".format(cmd)
     if run_command(cmd, timing_log) != 0:
         return None
     return oriREP_out
@@ -184,19 +173,6 @@ def run_roary(report,threads=0, base_dir='.', timing_log=None, overwrite=False):
         assert os.path.isfile(gff_file)
         gff_list.append(gff_file)
 
-    # gff_folder=os.path.join(base_dir,'temp/gff')
-    # if not os.path.exists(gff_folder):
-    #     os.makedirs(gff_folder)
-    # # assumtion that the path is : base_dir/sample_id/output
-    # for sample in report['samples']:
-    #     for root, dirs, files in os.walk(report['samples'][sample]['execution']['out']['annotation']):
-    #         for _file in files:
-    #             if _file.endswith('.gff'):
-    #                 #print ('Found file in: ' , str(root),',',_file)
-    #                 newname = sample+'.gff'
-    #                 #print ('new  file: ' , newname)
-    #                 shutil.copy(os.path.abspath(str(root) + '/' + _file), gff_folder+'/'+newname)
-
     roary_folder = os.path.join(base_dir,'set/roary')
     roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
     if os.path.isfile(roary_output) and (not overwrite):
@@ -213,6 +189,7 @@ def run_roary(report,threads=0, base_dir='.', timing_log=None, overwrite=False):
     run_command(myCmd, timing_log)
     report['set']['pangenome'] = roary_folder
     return report
+
 
 def run_phylogeny(report,base_dir,threads=0, timing_log=None):
     """
@@ -232,7 +209,8 @@ def run_phylogeny(report,base_dir,threads=0, timing_log=None):
 
     for sample in report['samples']:
         shutil.copy(report['samples'][sample]['execution']['out']['assembly'], genome_dir+'/'+os.path.basename(report['samples'][sample]['execution']['out']['assembly'] ))
-    #take first genome to get reference genome
+
+    # take first genome to get reference genome
     files=os.listdir(genome_dir)
     candidate_ref=None
     for f in files :
@@ -244,13 +222,13 @@ def run_phylogeny(report,base_dir,threads=0, timing_log=None):
                     containSpecialCharacter=True
                     break
             if containSpecialCharacter:
-                    #keep checking remain genome to find ref
+                # keep checking remain genome to find ref
                 continue
             else:
                 candidate_ref=os.path.join(genome_dir,f)
                 break
     if candidate_ref ==None:
-        print('Can not determine appropriate reference genome, may be description of contigs contain special characters (-)')
+        print('Cannot determine appropriate reference genome, may be description of contigs contain special characters (-)')
     else:
         ref_genome=candidate_ref
     myCmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, genome_dir, ref_genome, phylogeny_folder)
@@ -266,8 +244,7 @@ def runAlignment(report,base_dir, timing_log=None):
     for id in report['samples']:
         for seq in SeqIO.parse(report['samples'][id]['execution']['out']['annotation']+'/'+id+'.ffn', "fasta"):
             dict_cds[seq.id]=seq
-    
-  
+
     #make folder contains sequences for each gene
     alignment_dir=os.path.join(base_dir,'set/alignments')
     n_col=0
@@ -337,7 +314,9 @@ def pipeline_func(args):
     json.dump(report, open( workdir+"/"+args.id+"_dump.json", 'w' ))
     #clean up
     if os.path.exists(workdir+"/temp"):
-        shutil.rmtree(workdir+"/temp") 
+        shutil.rmtree(workdir+"/temp")
+
+
 def version_func():
     print('V.1.0')
 
@@ -367,5 +346,6 @@ def main(arguments=sys.argv[1:]):
 
     args = parser.parse_args(arguments)
     return args.func(args)
+
 if __name__ == "__main__":
     main()

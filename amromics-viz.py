@@ -13,6 +13,7 @@ def run_command(cmd, timing_log=None):
     print(cmd)
     ret = os.system(cmd)
     return ret
+
 def main(arguments=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         prog='extract tools for amromics-viz',

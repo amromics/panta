@@ -15,6 +15,7 @@ import multiprocessing
 # - Can provide the genbank of the reference (using prokka annotation)
 # - Check if phylogeny for the same set of samples has run before (see roary).
 # - Check if alignments has been run,
+# - Use log instead of print
 
 
 def run_command(cmd, timing_log=None):
@@ -106,6 +107,13 @@ def annotate_prokka(sample, base_dir='.', overwrite=False, threads=8, timing_log
     if run_command(cmd, timing_log) != 0:
         raise Exception('Command {} returns non-zero!'.format(cmd))
         return None
+
+    # fna?
+    for ext in ['err', 'faa', 'ffn', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
+        file_name = os.path.join(path_out, sample['id'] + '.' + ext)
+        if os.path.isfile(file_name):
+            os.remove(file_name)
+
     return path_out
 
 

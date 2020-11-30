@@ -109,7 +109,7 @@ def annotate_prokka(sample, base_dir='.', overwrite=False, threads=8, timing_log
         return None
 
     # fna?
-    for ext in ['err', 'faa', 'ffn', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
+    for ext in ['err', 'faa', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
         file_name = os.path.join(path_out, sample['id'] + '.' + ext)
         if os.path.isfile(file_name):
             os.remove(file_name)
@@ -322,8 +322,8 @@ def run_alignment(report, base_dir, overwrite=False, threads=8, timing_log=None)
                     SeqIO.write(dict_cds[row[i].split('\t')[0]], gene_file, "fasta")
         if not os.path.exists(os.path.join(alignment_dir, row[0])):
             os.makedirs(os.path.join(alignment_dir, row[0]))
-        cmd = 'parsnp -p {} -d {} -r {} -o {}'.format(threads, gene_dir, gene_file,
-                                                        os.path.join(base_dir, 'set/alignments/' + row[0]))
+        cmd = 'parsnp -p {} -d {} -r {} -o {}'.format(
+            threads, gene_dir, gene_file, os.path.join(base_dir, 'set/alignments/' + row[0]))
         run_command(cmd, timing_log)
     f.close()
     report['set']['alignments'] = alignment_dir

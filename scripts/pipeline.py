@@ -32,6 +32,50 @@ def run_command(cmd, timing_log=None):
     return ret
 
 
+def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
+    if threads == 0:
+        threads = 2
+
+    sample_id = sample['id']
+    path_out = os.path.join(base_dir, 'assembly')
+    assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta')
+   
+    if not os.path.exists(path_out):
+        os.makedirs(path_out)
+    else:
+        # return result if folder existed
+        return assembly_file
+    cmd = 'shovill  --ram {memory} -cpus {threads} -outdir {path_out}'.format(
+        memory=int(memory), threads=threads, path_out=path_out)
+    if len(sample['files'].split(';'))>0 :
+        pe1=sample['files'].split(';')[0]
+        pe2=sample['files'].split(';')[1]
+        cmd += ' --force  --R1 {pe1} --R2 {pe2}'.format(pe1=pe1, pe2=pe2)
+    else:
+       raise Exception('Only support pair-end reads!')
+
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        return None
+
+    #Read in list of contigs
+    contigs = list(SeqIO.parse( os.path.join(path_out,'contigs.fa'), "fasta"))
+
+    contigs = sorted(contigs, key=len, reverse=True)
+ 
+    
+
+    with open(assembly_file, 'w') as f:
+        for i, contig in enumerate(contigs):
+            contig.id=sample['id']+'_C'+str(i)
+
+            SeqIO.write(contig,assembly_file,"fasta")
+
+            contig.id = sample['id']+'_C'+str(i)
+            contig.description = ''
+            SeqIO.write(contig, f, "fasta")
+    return assembly_file
+
 def get_assembly(sample, base_dir):
     """
 
@@ -57,9 +101,8 @@ def get_assembly(sample, base_dir):
 def run_single_sample(sample, base_dir='.', threads=8, memory=50, trim=False, timing_log=None):
     sample['execution']['start'] = str(datetime.datetime.now())
 
-    if sample['type'] != 'asm':
-        raise Exception('Only support asm type!')
-        # sample['execution']['out']['assembly'] = assemble_skesa(sample, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
+    if sample['type'] != 'asm':      
+        sample['execution']['out']['assembly'] = assemble_shovill(sample, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
     else:
         sample['execution']['out']['assembly'] = get_assembly(sample, base_dir=base_dir)
 
@@ -81,7 +124,8 @@ def annotate_prokka(sample, base_dir='.', overwrite=False, threads=8, timing_log
     path_out = os.path.join(base_dir, 'prokka')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
-
+    else:
+        return path_out
     gff_file_out = os.path.join(path_out, sample['id'] + '.gff')
     gbk_file_out = os.path.join(path_out, sample['id'] + '.gbk')
 
@@ -336,7 +380,7 @@ def pipeline_func(args):
         threads = multiprocessing.cpu_count()
 
     report = {'samples': {}, 'set': {}}
-    workdir = args.work_dir + "/" + args.id
+    workdir = args.work_dir + "/collections/" + args.id
     sample_df = pd.read_csv(args.input, sep='\t')
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
@@ -362,7 +406,7 @@ def pipeline_func(args):
 
     # run single sample pipeline
     for id in report['samples']:
-        sample_dir = workdir + '/samples/' + str(id)
+        sample_dir =  args.work_dir + '/samples/' + str(id)
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out'] = {}

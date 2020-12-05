@@ -17,10 +17,10 @@ import pandas as pd
 def export_json(inp_dir, collectionID, exp_dir):
     updateCollectionHistory(exp_dir, collectionID, collectionID, "Not Ready")
     # look for dump file:
-    if not os.path.isfile(inp_dir + "/" + collectionID + "/" + collectionID + "_dump.json"):
+    if not os.path.isfile(inp_dir + "/collections/" + collectionID + "/" + collectionID + "_dump.json"):
         print("Dump file " + inp_dir + "/" + collectionID + "/" + collectionID + "_dump.json" + " not found!")
         return
-    dumpfile = os.path.join(inp_dir + "/" + collectionID + "/" + collectionID + "_dump.json")
+    dumpfile = os.path.join(inp_dir +"/collections/" + collectionID + "/" + collectionID + "_dump.json")
     exp_dir_current = os.path.join(exp_dir, collectionID)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)

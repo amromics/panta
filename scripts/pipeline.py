@@ -385,15 +385,15 @@ def pipeline_func(args):
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
         sample = {}
-        sample['id'] = str(row['Sample ID'])
-        sample['name'] = row['Sample Name']
-        sample['type'] = row['Input Type']
-        sample['files'] = row['Files']
-        sample['genus'] = row['Genus']
-        sample['species'] = row['Species']
-        sample['strain'] = row['Strain']
-        sample['gram'] = row['Gram']
-        metadata = row['Metadata'].split(';')
+        sample['id'] = str(row['sample_id'])
+        sample['name'] = row['sample_name']
+        sample['type'] = row['input_type']
+        sample['files'] = row['files']
+        sample['genus'] = row['genus']
+        sample['species'] = row['species']
+        sample['strain'] = row['strain']
+        sample['gram'] = row['gram']
+        metadata = row['metadata'].split(';')
         mt = {}
         if len(metadata) > 0:
             for kv in metadata:

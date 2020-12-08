@@ -49,11 +49,12 @@ The web application is auto opened on the URL **localhost:3000** (or another por
 
 ### To run the pipeline
 #### Prepare input file
-- Check sample input file in data/samples/set1.tsv
+- Data file inputed for analysis needs to be in *.tsv* format ((To-do: Check if .tsv format is required)) and follows specific requirements. Please check the sample input file *data/samples/set1.tsv* for an example.
 - Note:
-  + Gram column should be empty
-  + Metadata is empty or in format: key1:value1;key2:value2;...  Ex: Geographic Location:Houston,USA;Insert Date:8/8/2017;Host Name:Human, Homo sapiens;ampicillin:Resistant;aztreonam:Resistant;ciprofloxacin:Resistant;gentamicin:Susceptible;tetracycline:Susceptible
-#### Run pipeline and export visualization data to web app
+  + Column names need to remain exactly the same as in the sample file. ((To-do: Check is this is required))
+  + Gram column should be empty.
+  + Metadata is empty or in the format: key1:value1;key2:value2;...  For example: Geographic Location:Houston,USA;Insert Date:8/8/2017;Host Name:Human, Homo sapiens;ampicillin:Resistant;aztreonam:Resistant;ciprofloxacin:Resistant;gentamicin:Susceptible;tetracycline:Susceptible
+#### Run pipeline and export visualization data to web application
 ```bash
 python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```

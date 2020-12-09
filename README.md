@@ -96,7 +96,7 @@ python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```bash
 --id : Collection ID, a string without space or special character
 --input: the file listing samples of collection
--t : threads number
+-t : threads number ((To-do: Change this to number of CPUs?))
 -m: memory (in GB)
 ```
 

@@ -13,7 +13,14 @@ import datetime
 import base64
 import pandas as pd
 
-
+def copyFileToWeb(orginal_file,web_dir):
+    try:
+        web_file=os.path.join(web_dir,os.path.basename(orginal_file))
+        shutil.copyfile(orginal_file, web_file)
+        return web_file
+    except:
+        print('copy file '+orginal_file+' error')
+        return ''
 def export_json(inp_dir, collectionID, exp_dir):
     updateCollectionHistory(exp_dir, collectionID, collectionID, "Not Ready")
     # look for dump file:
@@ -24,40 +31,53 @@ def export_json(inp_dir, collectionID, exp_dir):
     exp_dir_current = os.path.join(exp_dir, collectionID)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)
+    exp_dir_downloadfile = os.path.join(exp_dir_current, 'files')
+    if not os.path.exists(exp_dir_downloadfile):
+        os.makedirs(exp_dir_downloadfile)
     report = json.load(open(dumpfile))
 
     # export single samples
     samples = []
     for id in report['samples']:
-        out = report['samples'][id]['execution']['out']
-        result = []
-        # handle assembly results
-        ret_asm = {'group': 'CONTIG', 'data': exportAssembly(out['assembly'])}
-        result.append(ret_asm)
-        # handle mgfglst results   gf
-        ret_mlst = {'group': 'MLST', 'data': extract_mlst(out['mlst'])}
-        result.append(ret_mlst)
-        ret_vir = {'group': 'VIR', 'data': find_virulome(out['virulome'])}
-        result.append(ret_vir)
-        ret_amr = {'group': 'AMR', 'data': find_amr(out['resistome'])}
-        result.append(ret_amr)
-        ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(out['plasmid'])}
-        result.append(ret_plasmid)
-        ret_annotation = {'group': 'ANNOTATION', 'data': exportKnowgene(out['annotation'])}
-        result.append(ret_annotation)
-        report['samples'][id]['execution']['result'] = result
-        save_sample_result(report['samples'][id], exp_dir_current)
-        samples.append({
-            'id': report['samples'][id]['id'], \
-            'name': report['samples'][id]['name'],
-            'type': report['samples'][id]['type'],
-            'files': report['samples'][id]['files'],
-            'genus': report['samples'][id]['genus'],
-            'species': report['samples'][id]['species'],
-            'strain': report['samples'][id]['strain'],
-            'gram': report['samples'][id]['gram'],
-            'metadata': report['samples'][id]['metadata']
-        })
+        try:
+            out = report['samples'][id]['execution']['out']
+            files=[]
+            files.append({'name':'FASTA','file':copyFileToWeb(out['assembly'],exp_dir_downloadfile)})
+            files.append({'name':'GFF','file':copyFileToWeb(out['annotation']+'/'+id+'.gff',exp_dir_downloadfile)})
+            files.append({'name':'GBK','file':copyFileToWeb(out['annotation']+'/'+id+'.gbk',exp_dir_downloadfile)})
+			
+            result = []
+            # handle assembly results
+            ret_asm = {'group': 'CONTIG', 'data': exportAssembly(out['assembly'])}
+            result.append(ret_asm)
+            # handle mgfglst results   gf
+            ret_mlst = {'group': 'MLST', 'data': extract_mlst(out['mlst'])}
+            result.append(ret_mlst)
+            ret_vir = {'group': 'VIR', 'data': find_virulome(out['virulome'])}
+            result.append(ret_vir)
+            ret_amr = {'group': 'AMR', 'data': find_amr(out['resistome'])}
+            result.append(ret_amr)
+            ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(out['plasmid'])}
+            result.append(ret_plasmid)
+            ret_annotation = {'group': 'ANNOTATION', 'data': exportKnowgene(out['annotation'])}
+            result.append(ret_annotation)
+            report['samples'][id]['execution']['result'] = result
+            save_sample_result(report['samples'][id], exp_dir_current)
+            samples.append({
+                'id': report['samples'][id]['id'], \
+                'name': report['samples'][id]['name'],
+                'type': report['samples'][id]['type'],
+                'files': report['samples'][id]['files'],
+                'genus': report['samples'][id]['genus'],
+                'species': report['samples'][id]['species'],
+                'strain': report['samples'][id]['strain'],
+                'gram': report['samples'][id]['gram'],
+                'metadata': report['samples'][id]['metadata'],
+                'download':files
+
+            })
+        except:
+            print('ignor sample has no assembly:'+id)
 
     set_result = []
     if not os.path.exists(exp_dir_current + "/set"):
@@ -327,22 +347,25 @@ def exportAMRHeatmap(report, exp_dir):
     heatmap_stats = {'hits': []}
     set_vir_gene = set()
     for id in report['samples']:
-        ret = find_amr(report['samples'][id]['execution']['out']['resistome'])
-        for v in ret['hits']:
-            set_genes.add(v['gene'])
-            set_class.add(v['resistance'])
-            hit = {'sample': id, 'gene': v['gene'], 'type': 'amr', 'class': v['resistance'],
+        try:
+            ret = find_amr(report['samples'][id]['execution']['out']['resistome'])
+            for v in ret['hits']:
+                set_genes.add(v['gene'])
+                set_class.add(v['resistance'])
+                hit = {'sample': id, 'gene': v['gene'], 'type': 'amr', 'class': v['resistance'],
                    'identity': float(v['identity'].replace('%', '')), 'product': v['product']}
-            heatmap_stats['hits'].append(hit)
+                heatmap_stats['hits'].append(hit)
 
-        ret = find_virulome(report['samples'][id]['execution']['out']['virulome'])
-        for v in ret['hits']:
-            set_vir_gene.add(v['gene'])
-            # set_class.add(v['resistance'])
-            hit = {'sample': id, 'gene': v['gene'], 'type': 'vir', 'identity': float(v['identity'].replace('%', '')),
+            ret = find_virulome(report['samples'][id]['execution']['out']['virulome'])
+            for v in ret['hits']:
+                set_vir_gene.add(v['gene'])
+                # set_class.add(v['resistance'])
+                hit = {'sample': id, 'gene': v['gene'], 'type': 'vir', 'identity': float(v['identity'].replace('%', '')),
                    'product': v['product']}
-            # hit['class']=v['class']
-            heatmap_stats['hits'].append(hit)
+                # hit['class']=v['class']
+                heatmap_stats['hits'].append(hit)
+        except:
+            print('error in sample '+id)
     heatmap_stats['list_genes'] = list(set_genes.union(set_vir_gene))
     heatmap_stats['list_class'] = list(set_class)
     heatmap_stats['samples'] = list(set_samples)

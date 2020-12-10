@@ -45,7 +45,7 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
     else:
         # return result if folder existed
         return assembly_file
-    cmd = 'shovill  --ram {memory} -cpus {threads} -outdir {path_out}'.format(
+    cmd = 'shovill --noreadcorr   --ram {memory} -cpus {threads} -outdir {path_out}'.format(
         memory=int(memory), threads=threads, path_out=path_out)
     if len(sample['files'].split(';'))>0 :
         pe1=sample['files'].split(';')[0]
@@ -59,11 +59,11 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
         return None
 
     #Read in list of contigs
-    contigs = list(SeqIO.parse( os.path.join(path_out,'contigs.fa'), "fasta"))
+    contigs = list(SeqIO.parse( path_out+'/contigs.fa', "fasta"))
 
-    contigs = sorted(contigs, key=len, reverse=True)
- 
+    #contigs = sorted(contigs, key=len, reverse=True)
     
+    print(len(contigs))
 
     with open(assembly_file, 'w') as f:
         for i, contig in enumerate(contigs):
@@ -73,7 +73,8 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
 
             contig.id = sample['id']+'_C'+str(i)
             contig.description = ''
-            SeqIO.write(contig, f, "fasta")
+        SeqIO.write(contigs, f, "fasta")
+           
     return assembly_file
 
 def get_assembly(sample, base_dir):
@@ -249,10 +250,13 @@ def run_roary(report, base_dir='.', overwrite=False, threads=8, timing_log=None)
     """
     gff_list = []
     for sample_id in report['samples']:
-        sample = report['samples'][sample_id]
-        gff_file = os.path.join(sample['execution']['out']['annotation'], sample_id + '.gff')
-        assert os.path.isfile(gff_file)
-        gff_list.append(gff_file)
+        try:
+            sample = report['samples'][sample_id]
+            gff_file = os.path.join(sample['execution']['out']['annotation'], sample_id + '.gff')
+            assert os.path.isfile(gff_file)
+            gff_list.append(gff_file)
+        except:
+            print('skip samples annotation error:'+sample_id)
     dataset_sample_ids = sorted(report['samples'].keys())
 
     roary_folder = os.path.join(base_dir, 'set/roary')
@@ -304,8 +308,13 @@ def run_phylogeny(report, base_dir, overwrite=False, threads=8, timing_log=None)
         os.makedirs(genome_dir)
 
     for sample in report['samples']:
-        shutil.copy(report['samples'][sample]['execution']['out']['assembly'],
-                    genome_dir + '/' + os.path.basename(report['samples'][sample]['execution']['out']['assembly']))
+        try:
+
+            shutil.copy(report['samples'][sample]['execution']['out']['assembly'],
+                        genome_dir + '/' + os.path.basename(report['samples'][sample]['execution']['out']['assembly']))
+        except:
+            print("ignore sample has no assembly:"+sample)
+
 
     # take first genome to get reference genome
     files = os.listdir(genome_dir)
@@ -341,8 +350,11 @@ def run_alignment(report, base_dir, overwrite=False, threads=8, timing_log=None)
     gene_cluster_file = report['set']['pangenome'] + '/gene_presence_absence.csv'
     dict_cds = {}
     for id in report['samples']:
-        for seq in SeqIO.parse(report['samples'][id]['execution']['out']['annotation'] + '/' + id + '.ffn', "fasta"):
-            dict_cds[seq.id] = seq
+        try:
+            for seq in SeqIO.parse(report['samples'][id]['execution']['out']['annotation'] + '/' + id + '.ffn', "fasta"):
+                dict_cds[seq.id] = seq
+        except:
+            print("ignor sample has no annotation:"+id)
 
     # make folder contains sequences for each gene
     alignment_dir = os.path.join(base_dir, 'set/alignments')
@@ -406,13 +418,16 @@ def pipeline_func(args):
 
     # run single sample pipeline
     for id in report['samples']:
-        sample_dir =  args.work_dir + '/samples/' + str(id)
-        if not os.path.exists(sample_dir):
-            os.makedirs(sample_dir)
-        report['samples'][id]['execution']['out'] = {}
-        report['samples'][id] = run_single_sample(
-            report['samples'][id], base_dir=sample_dir, threads=threads,
-            memory=args.memory, timing_log=args.time_log)
+        try:
+            sample_dir =  args.work_dir + '/samples/' + str(id)
+            if not os.path.exists(sample_dir):
+                os.makedirs(sample_dir)
+            report['samples'][id]['execution']['out'] = {}
+            report['samples'][id] = run_single_sample(
+                report['samples'][id], base_dir=sample_dir, threads=threads,
+                memory=args.memory, timing_log=args.time_log)
+        except:
+            print('Error processing on '+str(id))
 
     report = run_roary(report, base_dir=workdir, threads=threads,  timing_log=args.time_log)
     report = run_phylogeny(report, base_dir=workdir, threads=threads, timing_log=args.time_log)

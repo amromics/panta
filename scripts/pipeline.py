@@ -381,11 +381,11 @@ def pipeline_func(args):
 
     report = {'samples': {}, 'set': {}}
     workdir = args.work_dir + "/collections/" + args.id
-    sample_df = pd.read_csv(args.input, sep='\t')
+    sample_df = pd.read_csv(args.input, sep='\t', dtype='str')
     sample_df.fillna('', inplace=True)
     for _, row in sample_df.iterrows():
         sample = {}
-        sample['id'] = str(row['sample_id'])
+        sample['id'] = row['sample_id']
         sample['name'] = row['sample_name']
         sample['type'] = row['input_type']
         sample['files'] = row['files']

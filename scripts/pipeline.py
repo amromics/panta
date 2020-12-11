@@ -45,7 +45,7 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
     else:
         # return result if folder existed
         return assembly_file
-    cmd = 'shovill  --ram {memory} -cpus {threads} -outdir {path_out}'.format(
+    cmd = 'shovill  --ram {memory} --cpus {threads} --outdir {path_out}'.format(
         memory=int(memory), threads=threads, path_out=path_out)
     if len(sample['files'].split(';'))>0 :
         pe1=sample['files'].split(';')[0]

@@ -34,7 +34,7 @@ def run_command(cmd, timing_log=None):
 
 def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
     if threads == 0:
-        threads = 2
+        threads = 2  #((To-do: Why not set threads = 2 as default?))
 
     sample_id = sample['id']
     path_out = os.path.join(base_dir, 'assembly')
@@ -71,9 +71,9 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
 
             SeqIO.write(contig,assembly_file,"fasta")
 
-            contig.id = sample['id']+'_C'+str(i)
+            contig.id = sample['id']+'_C'+str(i)  #((To-do: Why do we need to repeat this?))
             contig.description = ''
-            SeqIO.write(contig, f, "fasta")
+            SeqIO.write(contig, f, "fasta")  #((To-do: What is the difference between this and the SeqIO.write above?))
     return assembly_file
 
 def get_assembly(sample, base_dir):
@@ -88,7 +88,7 @@ def get_assembly(sample, base_dir):
         os.makedirs(path_out)
     contigs = list(SeqIO.parse(sample['files'], "fasta"))
     assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
-    contigs = sorted(contigs, key=len, reverse=True)
+    contigs = sorted(contigs, key=len, reverse=True)  #((To-do: Do not find "len" in the sample Ecoli59 files))
 
     with open(assembly_file, 'w') as f:
         for i, contig in enumerate(contigs):

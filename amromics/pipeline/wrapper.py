@@ -1,13 +1,10 @@
-import sys
-import argparse
-# import logging
+# -*- coding: utf-8 -*-
 import json
-import csv
-import os, shutil
+import os
+import shutil
 from Bio import SeqIO
 import datetime
 import pandas as pd
-import multiprocessing
 import logging
 
 logging.basicConfig(level=logging.DEBUG,
@@ -18,8 +15,6 @@ logger = logging.getLogger(__name__)
 # - Can make it faster with using fasttree (parsnps need to have this option specifically set
 # - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
 # - Can provide the genbank of the reference (using prokka annotation)
-# - Check if phylogeny for the same set of samples has run before (see roary).
-# - Check if alignments has been run,
 
 
 def run_command(cmd, timing_log=None):
@@ -110,7 +105,6 @@ def get_assembly(sample, sample_dir, overwrite=False):
     -------
         path to assembly file
     """
-
     path_out = os.path.join(sample_dir, 'assembly')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
@@ -142,10 +136,10 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
         a dictionary-like object containing various attributes for a sample
     sample_dir: str
         the directory of the sample
-    overwrite:bool
-        whether to overwrite the existing annpotation
     threads: int
         number of threads to use
+    overwrite:bool
+        whether to overwrite the existing annotation
     timing_log: str
         log file
     Returns
@@ -181,9 +175,7 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Command {} returns non-zero ()!'.format(cmd, ret))
-        return None
 
-    # fna?
     for ext in ['err', 'faa', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
         file_name = os.path.join(path_out, sample['id'] + '.' + ext)
         if os.path.isfile(file_name):
@@ -211,7 +203,7 @@ def mlst(sample, sample_dir, threads=8, overwrite=False, timing_log=None):
         log file
     Returns
     -------
-        path to mlst folder
+        path to mlst result file
     """
     path_out = os.path.join(sample_dir, 'mlst')
     if not os.path.exists(path_out):
@@ -255,7 +247,6 @@ def detect_amr(sample, sample_dir, threads=8, overwrite=False, timing_log=None):
     path_out = os.path.join(sample_dir, 'abricate')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
-
     # TODO: replace by consensus db later
     amr_out = os.path.join(path_out, sample['id'] + '_resistome.tsv')
     if os.path.isfile(amr_out) and (not overwrite):
@@ -329,7 +320,7 @@ def detect_plasmid(sample, sample_dir,  threads=8, overwrite=False, timing_log=N
         log file
     Returns
     -------
-        path to origin of replicate file
+        path to origin of replication file
     """
 
     path_out = os.path.join(sample_dir, 'abricate')
@@ -356,6 +347,7 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
     Run the pipeline to analyse one single sample. Steps:
         0. Assembly if the input are read data
         1. Annotate the assembly using prokka
+        2. Identify resistant, virulent genes, origins of replication, and plasmids
 
     Parameters
     ----------
@@ -374,8 +366,8 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
 
     sample['execution_start'] = str(datetime.datetime.now())
 
-    if sample['type'] != 'asm':      
-        sample['assembly'] = assemble_shovill(sample, sample_dir=sample_dir, threads=0, memory=memory, timing_log=timing_log)
+    if sample['input_type'] not in ['asm', 'assembly']:
+        sample['assembly'] = assemble_shovill(sample, sample_dir=sample_dir, threads=threads, memory=memory, timing_log=timing_log)
     else:
         sample['assembly'] = get_assembly(sample, sample_dir=sample_dir)
 
@@ -393,6 +385,28 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
 
 
 def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log=None):
+    """
+    Run roary for pangenome analysis. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+
     gff_list = []
     for sample in report['samples']:
         sample_id = sample['id']
@@ -426,12 +440,25 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
 
 def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-        Run parsnp to create phylogeny tree
-        :param report: result holder
-        :param ref_genome: path to reference genome, if equal None, one of genome in genome directory will be choosed to be reference.
-        :param base_dir: working directory
-        :param threads: number of core CPU
-        :return:
+    Run parsnp to create phylogeny tree. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
     """
     phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
     if not os.path.exists(phylogeny_folder):
@@ -465,6 +492,27 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
 
 
 def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+    """
+    Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
     gene_cluster_file = report['roary'] + '/gene_presence_absence.csv'
     dict_cds = {}
     for sample in report['samples']:
@@ -473,8 +521,6 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
     # make folder contains sequences for each gene
     alignment_dir = os.path.join(collection_dir, 'alignments')
-    n_col = 0
-    fieldnames = []
     gene_df = pd.read_csv(gene_cluster_file, dtype=str)
     gene_df.fillna('', inplace=True)
 
@@ -494,7 +540,6 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
                 SeqIO.write(dict_cds[row[sample_column]], gene_file, 'fasta')
                 gene_files.append(gene_file)
                 gene_list.append(row[sample_column])
-                # SeqIO.write(dict_cds[row[sample_column].split('\t')[0]], gene_file, "fasta")
                 # TODO: make sure all samples in this gene have not updated
 
         gene_list = sorted(gene_list)
@@ -525,5 +570,3 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
     report['alignments'] = alignment_dir
     return report
-
-

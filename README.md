@@ -1,45 +1,69 @@
-# Amromics-viz
+# AMR-Viz
 
-## Welcome to Amromics-viz
+## Welcome to AMR-Viz
 
-**Amromics-viz** is an analysis and visualization package for antimicrobial 
-resistance (AMR) genome study. The core of Amromics-viz is a Python pipeline 
-that is run via a simple terminal command line but performs a comprehensive 
-multifaceted analysis of AMR genome data. The pipeline analysis results are 
+**AMR-Viz** is a package for genomics analysis antimicrobial resistace (AMR). 
+The core of AMR-Viz is a pipeline that bundles the current best practice for 
+multiple aspeces of AMR analyses. The pipeline analysis results are 
 represented and visualized via a web application. The web application also 
-provides efficient data management as well as supports exporting of results 
-and visualization displays ready for insertion in publications.
+provides efficient data management.
 
-((To-do: Is there any requirements/assumptions regarding users? For example: 
-do they need any special knowledge/background to be able to use the package?))
-
-### Computational requirements: 
-
-Amromics-viz requires Python ((To-do: Include version number)) to compile 
-and run. ((To-do: Include other requirements))
+[comment]: # (It also provided publication ready figures)
+ 
+AMR-Viz is written in python, and its web back-end is implemented with nodejs. 
+It includes the followings dependencies:
+ * blast (known to work with 2.10.1+)
+ * samtools (1.11)
+ * trimmomatic (0.39)
+ * spades (3.14.1)
+ * shovill (1.1.0)
+ * prokka (1.14.6)
+ * mlst (2.19.6)
+ * abricate (1.0.1 | Database: vfdb ecoli_vf ecoh card megares resfinder argannot ncbi plasmidfinder)
+ * roary (3.13.0)
+ * parsnp (1.5.3)
 
 ## Installation
 
-1. Download and install the appropriate anaconda from 
+The simplest method is installed via conda:
+
+0. Download and install the appropriate anaconda from 
 https://repo.anaconda.com/archive/
-2. Create a conda environment with all the neccesary dependencies to run 
+1. Create a conda environment with all the neccesary dependencies to run 
 amromics-viz:
 ```bash
-conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz python=3.7 ipykernel numpy pandas biopython prokka pysam samtools mlst abricate snippy tqdm shovill roary parsnp nodejs
+conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz \
+      python=3.7 \
+      ipykernel \
+      numpy \
+      pandas \
+      tqdm \
+      biopython \
+      pysam \
+      prokka \
+      samtools \
+      mlst \
+      abricate \
+      shovill \
+      roary \
+      parsnp \
+      nodejs
 ```
-3. Setup nodejs
+2. Setup nodejs
 ```bash
 source activate amromics-viz
 npm install -g live-server
 ```
-4. Clone **amromics-vis** GitHub repository to your local computer:
+3. Clone **amromics-vis** GitHub repository to your local computer:
 Change the current working directory to the location where you want the 
 cloned directory.
 ```bash
 git clone https://github.com/amromics-org/amromics-vis.git
 ```
-5. (Optional) Setup and build web application using npm 
-((To-do: Document what this is for.))
+4. (Optional) Setup and build web application using npm 
+
+[comment]: # ((To-do: Document what this is for.))
+
 ```bash
 cd amromics-vis
 npm install
@@ -49,7 +73,7 @@ npm run build --modern
 ## Usage
 
 Everytime you start using Amromics-viz, make sure you have activated
-the *amromics-viz* conda environment. If not yet, activate the environment
+the *amromics-viz* conda environment. This can beIf not yet, activate the environment
 with the following command:
 ```bash
 source activate amromics-viz

@@ -199,8 +199,7 @@ def collection_pa_func(args):
     if os.path.exists(collection_dir + "/temp"):
         shutil.rmtree(collection_dir + "/temp")
 
-
-    extract_json.export_json(collection_id, args.work_dir, 'web-app/static/data')
+    extract_json.export_json(work_dir, collection_id, 'web-app/static/data')
     logger.info('Congratulations, collection {} is imported to web-app!'.format(collection_id))
 
 

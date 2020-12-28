@@ -26,56 +26,56 @@ def export_json(work_dir, collection_id, exp_dir):
         os.makedirs(exp_dir_current)
     report = json.load(open(dump_file))
 
-
     # export single samples
-    samples = []
-    for id in report['samples']:
-        out = report['samples'][id]['execution']['out']
+    #samples = []
+    for sample in report['samples']:
         result = []
+
         # handle assembly results
-        ret_asm = {'group': 'CONTIG', 'data': exportAssembly(out['assembly'])}
+        ret_asm = {'group': 'CONTIG', 'data': exportAssembly(sample['assembly'])}
         result.append(ret_asm)
         # handle mgfglst results   gf
-        ret_mlst = {'group': 'MLST', 'data': extract_mlst(out['mlst'])}
+        ret_mlst = {'group': 'MLST', 'data': extract_mlst(sample['mlst'])}
         result.append(ret_mlst)
-        ret_vir = {'group': 'VIR', 'data': find_virulome(out['virulome'])}
+        ret_vir = {'group': 'VIR', 'data': find_virulome(sample['virulome'])}
         result.append(ret_vir)
-        ret_amr = {'group': 'AMR', 'data': find_amr(out['resistome'])}
+        ret_amr = {'group': 'AMR', 'data': find_amr(sample['resistome'])}
         result.append(ret_amr)
-        ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(out['plasmid'])}
+        ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(sample['plasmid'])}
         result.append(ret_plasmid)
-        ret_annotation = {'group': 'ANNOTATION', 'data': exportKnowgene(out['annotation'])}
+        ret_annotation = {'group': 'ANNOTATION', 'data': exportKnowgene(sample['annotation'])}
         result.append(ret_annotation)
-        report['samples'][id]['execution']['result'] = result
-        save_sample_result(report['samples'][id], exp_dir_current)
-        samples.append({
-            'id': report['samples'][id]['id'], \
-            'name': report['samples'][id]['name'],
-            'type': report['samples'][id]['type'],
-            'files': report['samples'][id]['files'],
-            'genus': report['samples'][id]['genus'],
-            'species': report['samples'][id]['species'],
-            'strain': report['samples'][id]['strain'],
-            'gram': report['samples'][id]['gram'],
-            'metadata': report['samples'][id]['metadata']
-        })
+        sample['result'] = result
+        save_sample_result(sample, exp_dir_current)
+
+        # samples.append({
+        #     'id': report['samples'][id]['id'],
+        #     'name': report['samples'][id]['name'],
+        #     'type': report['samples'][id]['type'],
+        #     'files': report['samples'][id]['files'],
+        #     'genus': report['samples'][id]['genus'],
+        #     'species': report['samples'][id]['species'],
+        #     'strain': report['samples'][id]['strain'],
+        #     'gram': report['samples'][id]['gram'],
+        #     'metadata': report['samples'][id]['metadata']
+        # })
 
     set_result = []
     if not os.path.exists(exp_dir_current + "/set"):
         os.makedirs(exp_dir_current + "/set")
     set_result.append({'group': 'phylo_heatmap', 'data': exportAMRHeatmap(report, exp_dir_current)})
     set_result.append({'group': 'pan_sum',
-                       'data': exportPangenomeSumary(report['set']['pangenome'] + '/summary_statistics.txt',
+                       'data': exportPangenomeSumary(report['roary'] + '/summary_statistics.txt',
                                                      exp_dir_current)})
     set_result.append({'group': 'pan_cluster',
-                       'data': exportPangenomeCluster(report['set']['pangenome'] + '/gene_presence_absence.csv',
+                       'data': exportPangenomeCluster(report['roary'] + '/gene_presence_absence.csv',
                                                       exp_dir_current)})
     set_result.append(
-        {'group': 'phylogeny_tree', 'data': exportPhylogenyTree(report['set']['phylogeny'] + '/parsnp.tree')})
+        {'group': 'phylogeny_tree', 'data': exportPhylogenyTree(report['phylogeny'] + '/parsnp.tree')})
     set_result.append({'group': 'gene_alignments', 'data': exportMultiAlignment(report, exp_dir_current)})
-    collection_report = {"samples": samples, "results": set_result}
+    collection_report = {"samples": report['samples'], "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
-    updateCollectionHistory(exp_dir, collectionID, collectionID, "Ready")
+    update_collection_history(exp_dir, collection_id, collection_id, "Ready")
 
 
 def exportAssembly(contigs_file_contents):
@@ -327,20 +327,27 @@ def exportAMRHeatmap(report, exp_dir):
     set_samples = set()
     heatmap_stats = {'hits': []}
     set_vir_gene = set()
-    for id in report['samples']:
-        ret = find_amr(report['samples'][id]['execution']['out']['resistome'])
+    for sample in report['samples']:
+        ret = find_amr(sample['resistome'])
         for v in ret['hits']:
             set_genes.add(v['gene'])
             set_class.add(v['resistance'])
-            hit = {'sample': id, 'gene': v['gene'], 'type': 'amr', 'class': v['resistance'],
-                   'identity': float(v['identity'].replace('%', '')), 'product': v['product']}
+            hit = {'sample': sample['id'],
+                   'gene': v['gene'],
+                   'type': 'amr',
+                   'class': v['resistance'],
+                   'identity': float(v['identity'].replace('%', '')),
+                   'product': v['product']}
             heatmap_stats['hits'].append(hit)
 
-        ret = find_virulome(report['samples'][id]['execution']['out']['virulome'])
+        ret = find_virulome(sample['virulome'])
         for v in ret['hits']:
             set_vir_gene.add(v['gene'])
             # set_class.add(v['resistance'])
-            hit = {'sample': id, 'gene': v['gene'], 'type': 'vir', 'identity': float(v['identity'].replace('%', '')),
+            hit = {'sample': sample['id'],
+                   'gene': v['gene'],
+                   'type': 'vir',
+                   'identity': float(v['identity'].replace('%', '')),
                    'product': v['product']}
             # hit['class']=v['class']
             heatmap_stats['hits'].append(hit)
@@ -363,15 +370,15 @@ def exportPhylogenyTree(treefile):
 
 
 def exportMultiAlignment(report, exp_dir):
-    list_genes = os.listdir(report['set']['alignments'])
+    list_genes = os.listdir(report['alignments'])
     alignments = {'alignments': []}
     for gene in list_genes:
-        if os.path.isdir(report['set']['alignments'] + '/' + gene):
-            if not os.path.isfile(report['set']['alignments'] + '/' + gene + '/parsnp.tree'):
+        if os.path.isdir(report['alignments'] + '/' + gene):
+            if not os.path.isfile(report['alignments'] + '/' + gene + '/parsnp.tree'):
                 continue
-            tree = exportPhylogenyTree(report['set']['alignments'] + '/' + gene + '/parsnp.tree')
+            tree = exportPhylogenyTree(report['alignments'] + '/' + gene + '/parsnp.tree')
             aln = {'gene': gene, 'tree': tree,
-                   'samples': exportAlignment(gene, report['set']['alignments'] + '/' + gene + '/parsnp.xmfa',exp_dir)}
+                   'samples': exportAlignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa',exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments
@@ -436,15 +443,15 @@ def update_collection_history(export_dir, collection_id, collection_name, status
     # TODO: what the following block does?. what if exist
     is_exist = False
     for col in collections["collections"]:
-        if col["collection_id"] == collection_id:
-            col["collection_name"] = collection_name
+        if col["collectionID"] == collection_id:
+            col["collectionName"] = collection_name
             col["status"] = status
             is_exist = True
 
     if not is_exist:
         collections["collections"].append(
-            {"collection_id": collection_id,
-             "collection_name": collection_name,
+            {"collectionID": collection_id,
+             "collectionName": collection_name,
              "status": status})
     with open(collection_json, 'w') as fn:
         json.dump(collections, fn)

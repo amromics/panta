@@ -475,7 +475,9 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
     alignment_dir = os.path.join(collection_dir, 'alignments')
     n_col = 0
     fieldnames = []
-    gene_df = pd.read_csv(gene_cluster_file)
+    gene_df = pd.read_csv(gene_cluster_file, dtype=str)
+    gene_df.fillna('', inplace=True)
+
     sample_columns = list(gene_df.columns)[14:]
     for _, row in gene_df.iterrows():
         gene_id = row['Gene']
@@ -503,7 +505,8 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
         # Check if done before
         gene_list_json = os.path.join(gene_dir, 'gene_list.json')
-        if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
+        #if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
+        if not overwrite:
             if os.path.isfile(gene_list_json):
                 with open(gene_list_json) as fn:
                     existing_gene_list = json.load(fn)

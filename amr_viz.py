@@ -2,57 +2,43 @@
 # -*- coding: utf-8 -*-
 """
     The entry point
-----------------
-Revision history:
-----------------
-2019-08-17: AMRomics created
 """
 from __future__ import division, print_function, absolute_import
 
-import sys, os
 import argparse
+import json
 import logging
-import subprocess
 import multiprocessing
+import os
+import shutil
 import socket
-
+import sys
 import pandas as pd
-import json, shutil
 
-from amromics.pipeline import wrapper
 from amromics import extract_json
-from amromics.utils import valid_id
+from amromics.pipeline import wrapper
+from amromics.utils import valid_id, software_version
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s [%(name)s] %(levelname)s : %(message)s')
 logger = logging.getLogger(__name__)
 
-dependencies = [
-    'prokka',
-    'shovil',
-]
+__version__ = '0.9.0'
+
 
 def version_func(args):
-    # Binary versions
-    cmd_versions = [
-        ('java', 'java -version 2>&1 | head -n 1'),
-        ('python', 'python --version 2>&1'),
-#        ('cromwell', 'cromwell.sh --version'),
-        ('spades', 'spades.py -v'),
-        ('prokka', 'prokka -version 2>&1'),
-#        ('trimmomatic', 'trimmomatic.sh PE -version'),
-        ('samtools', 'samtools --version | head -n 2 | tr "\n" "  "'),
-        ('mlst', 'mlst --version'),
-        ('abricate',
-         'abricate --version|tr "\n" " " && abricate --list|awk \'BEGIN{printf("| Database: ");}NR>1{printf("%s ",$1)}\''),
-        ('snippy', 'snippy --version 2>&1'),
-        ('blast', 'blastn -version | head -n 1')
-    ]
-    for program, cmd in cmd_versions:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-        (output, err) = p.communicate()
-        p.wait()
-        print('{:12}= {}'.format(program, output.decode().strip()))
+    software_version([
+        'python',
+        'blast',
+        'trimmomatic',
+        'spades',
+        'shovill',
+        'prokka',
+        'mlst',
+        'abricate',
+        'roary',
+        'parsnp'
+    ])
 
 
 def start_server_func(args):
@@ -61,6 +47,7 @@ def start_server_func(args):
     """
 
     port = args.port
+    webapp_dir = args.webapp_dir
 
     # Check if the port is open
     a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -69,7 +56,7 @@ def start_server_func(args):
     a_socket.close()
     if result_of_check != 0:
         logger.info('Starting server on port {}'.format(port))
-        cmd = 'cd web-app && live-server --no-browser --port={}  --entry-file=index.html'.format(port)
+        cmd = 'cd {} && live-server --no-browser --port={}  --entry-file=index.html'.format(webapp_dir, port)
         ret = wrapper.run_command(cmd)
         if ret != 0:
             sys.exit(ret)
@@ -82,7 +69,13 @@ def collection_pa_func(args):
 
     """
     collection_id = args.collection_id
+    collection_name = args.collection_name
+    if not collection_name:
+        collection_name = collection_id
+
     work_dir = args.work_dir
+    webapp_dir = args.webapp_dir
+
     threads = args.threads
     memory = args.memory
     timing_log = args.time_log
@@ -101,6 +94,14 @@ def collection_pa_func(args):
 
     if 'trim' not in sample_df.columns:
         sample_df['trim'] = False
+    else:
+        sample_df['trim'] = sample_df['trim'].apply(lambda x: x.lower() in ['y', 'yes', '1', 'true', 't', 'ok'])
+
+    if 'strain' not in sample_df.columns:
+        sample_df['strain'] = ''
+
+    if 'metadata' not in sample_df.columns:
+        sample_df['metadata'] = ''
 
     # 1. validate input
     for i, row in sample_df.iterrows():
@@ -134,13 +135,12 @@ def collection_pa_func(args):
         sample = {
             'id': sample_id,
             'name': row['sample_name'].strip(),
-            'type': row['input_type'].strip(),
-            'files': ';'.join(input_files),  # Re-join to make sure no white charactors slipped in
+            'input_type': row['input_type'].strip(),
+            'files': ';'.join(input_files),  # Re-join to make sure no white characters slipped in
             'genus': row['genus'].strip(),
             'species': row['species'].strip(),
             'strain': row['strain'].strip(),
             'trim': row['trim'],
-            # 'gram': row['gram'],
             'metadata': mt,
             'updated': False,
         }
@@ -183,7 +183,7 @@ def collection_pa_func(args):
         phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
         if os.path.exists(phylogeny_folder):
             shutil.rmtree(phylogeny_folder)
-        #Check for existing alignment is done within
+        # Note: Check for existing alignment is done within
 
     # Write the set of sample IDs
     with open(sample_set_file, 'w') as fn:
@@ -195,23 +195,25 @@ def collection_pa_func(args):
     with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
         json.dump(report, fn)
 
-    # clean up
-    if os.path.exists(collection_dir + "/temp"):
-        shutil.rmtree(collection_dir + "/temp")
+    # # clean up
+    # if os.path.exists(collection_dir + "/temp"):
+    #     shutil.rmtree(collection_dir + "/temp")
 
-    extract_json.export_json(work_dir, collection_id, 'web-app/static/data')
+    extract_json.export_json(work_dir, os.path.join(webapp_dir, 'static', 'data'),
+                             collection_id, collection_name)
     logger.info('Congratulations, collection {} is imported to web-app!'.format(collection_id))
 
 
 def main(arguments=sys.argv[1:]):
     parser = argparse.ArgumentParser(
-        prog='amr_viz',
+        prog='amrviz',
         description='Tool for managing and analyzing antibiotic resistant bacterial datasets')
-    subparsers = parser.add_subparsers(title='sub command', help='sub command help')
+    parser.add_argument('-V', '--version', action='version', version=__version__)
 
+    subparsers = parser.add_subparsers(title='sub command', help='sub command help')
     version_cmd = subparsers.add_parser(
-        'version', description='Print version of this and other binaries',
-        help='Print version of this and other binaries',
+        'dep', description='Check dependency versions',
+        help='Print versions dependencies if exist',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     version_cmd.set_defaults(func=version_func)
 
@@ -222,16 +224,18 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-c', '--collection-id', help='Collection ID', required=True, type=str)
+    pa_cmd.add_argument('-n', '--collection-name', help='Collection name', type=str, default='')
     pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
-    pa_cmd.add_argument('--work-dir', help='Working folder', default='data/work')
+    pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
+    pa_cmd.add_argument('--webapp-dir', help='Webapp directory', default='web-app')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-
 
     start_cmd = subparsers.add_parser(
         'start', description='Start amr_viz server', help='Start server',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     start_cmd.set_defaults(func=start_server_func)
     start_cmd.add_argument('-p', '--port', help='The port the server is running on', default=3000, type=int)
+    start_cmd.add_argument('--webapp-dir', help='Webapp directory', default='web-app')
 
     args = parser.parse_args(arguments)
     return args.func(args)

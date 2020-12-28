@@ -64,10 +64,12 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
         memory=int(memory), threads=threads, path_out=path_out)
 
     if 'trim' in sample and sample['trim']:
-        cmd += ' --trim'
+        cmd += ' --trim --depth 250'
+    else:
+        cmd += ' --depth 150'
 
     pe_files = sample['files'].split(';')
-    if len(pe_files) > 0:
+    if len(pe_files) > 1:
         pe1 = pe_files[0]
         pe2 = pe_files[1]
         cmd += ' --force  --R1 {pe1} --R2 {pe2}'.format(pe1=pe1, pe2=pe2)

@@ -14,17 +14,18 @@ import base64
 import pandas as pd
 
 
-def export_json(inp_dir, collectionID, exp_dir):
-    updateCollectionHistory(exp_dir, collectionID, collectionID, "Not Ready")
+def export_json(work_dir, collection_id, exp_dir):
+    update_collection_history(exp_dir, collection_id, collection_id, "Not Ready")
     # look for dump file:
-    if not os.path.isfile(inp_dir + "/collections/" + collectionID + "/" + collectionID + "_dump.json"):
-        print("Dump file " + inp_dir + "/" + collectionID + "/" + collectionID + "_dump.json" + " not found!")
-        return
-    dumpfile = os.path.join(inp_dir +"/collections/" + collectionID + "/" + collectionID + "_dump.json")
-    exp_dir_current = os.path.join(exp_dir, collectionID)
+    dump_file = os.path.join(work_dir, 'collections', collection_id, collection_id + '_dump.json')
+    if not os.path.isfile(dump_file):
+        raise Exception("Dump file {} not found!".format(dump_file))
+
+    exp_dir_current = os.path.join(exp_dir, collection_id)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)
-    report = json.load(open(dumpfile))
+    report = json.load(open(dump_file))
+
 
     # export single samples
     samples = []
@@ -421,38 +422,48 @@ def exportAlignment(gene, file_xmfa, exp_dir):
     # return aligments
 
 
-def updateCollectionHistory(export_dir, collectionID, collectionName, status):
-    if not os.path.exists(export_dir + "/collections.json"):
+def update_collection_history(export_dir, collection_id, collection_name, status):
+    collection_json = os.path.join(export_dir, 'collections.json')
+    if not os.path.exists(collection_json):
         # make the empty collection
-        emp_arr = {collections: []}
-        json.dump(emp_arr, open(export_dir + "/collections.json", 'w'))
-    print(export_dir + "/collections.json")
-    collections = json.load(open(export_dir + "/collections.json"))
-    isExist = False
-    for key in collections["collections"]:
-        print(key["collectionID"])
-        if key["collectionID"] == collectionID:
-            key["collectionName"] = collectionName
-            key["status"] = status
-            isExist = True
-    if not isExist:
+        collections = {'collections': []}
+        with open(collection_json, 'w') as fn:
+            json.dump(collections, fn)
+
+    with open(collection_json) as fn:
+        collections = json.load(fn)
+
+    # TODO: what the following block does?. what if exist
+    is_exist = False
+    for col in collections["collections"]:
+        if col["collection_id"] == collection_id:
+            col["collection_name"] = collection_name
+            col["status"] = status
+            is_exist = True
+
+    if not is_exist:
         collections["collections"].append(
-            {"collectionID": collectionID, "collectionName": collectionName, "status": status})
-    json.dump(collections, open(export_dir + "/collections.json", 'w'))
+            {"collection_id": collection_id,
+             "collection_name": collection_name,
+             "status": status})
+    with open(collection_json, 'w') as fn:
+        json.dump(collections, fn)
 
-
-def main(arguments=sys.argv[1:]):
-    parser = argparse.ArgumentParser(
-        prog='extract tools for amromics-viz',
-        description='extract tools for amromics-viz')
-
-    parser.add_argument('--id', help='Colletion ID', type=str)
-    parser.add_argument('--inp', help='The output folder of pipeline', type=str)
-    parser.add_argument('--out', help='The folder hold exported json data', default='export')
-
-    args = parser.parse_args()
-    export_json(args.inp, args.id, args.out)
-
-
-if __name__ == "__main__":
-    main()
+# #run_command('python scripts/extract_json.py --id '+args.id+' --inp data/output --out web-app/static/data' )
+#     export_json(args.inp, args.id, args.out)
+#
+# def main(arguments=sys.argv[1:]):
+#     parser = argparse.ArgumentParser(
+#         prog='extract tools for amromics-viz',
+#         description='extract tools for amromics-viz')
+#
+#     parser.add_argument('--id', help='Colletion ID', type=str)
+#     parser.add_argument('--inp', help='The output folder of pipeline', type=str)
+#     parser.add_argument('--out', help='The folder hold exported json data', default='export')
+#
+#     args = parser.parse_args()
+#     export_json(args.inp, args.id, args.out)
+#
+#
+# if __name__ == "__main__":
+#     main()

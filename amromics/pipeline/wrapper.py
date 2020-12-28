@@ -10,7 +10,7 @@ import pandas as pd
 import multiprocessing
 
 # TODOs:
-# - Can make it faster with using fastree (parsnps need to have this option specifically set
+# - Can make it faster with using fasttree (parsnps need to have this option specifically set
 # - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
 # - Can provide the genbank of the reference (using prokka annotation)
 # - Check if phylogeny for the same set of samples has run before (see roary).
@@ -58,27 +58,19 @@ def assemble_shovill(sample, base_dir, threads=8, memory=50, timing_log=None):
     if ret != 0:
         return None
 
-    #Read in list of contigs
-    contigs = list(SeqIO.parse( os.path.join(path_out,'contigs.fa'), "fasta"))
-
+    # Read in list of contigs
+    contigs = list(SeqIO.parse(os.path.join(path_out, 'contigs.fa'), "fasta"))
     contigs = sorted(contigs, key=len, reverse=True)
- 
-    
-
     with open(assembly_file, 'w') as f:
         for i, contig in enumerate(contigs):
-            contig.id=sample['id']+'_C'+str(i)
-
-            SeqIO.write(contig,assembly_file,"fasta")
-
-            contig.id = sample['id']+'_C'+str(i)  #((To-do: Why do we need to repeat this?))
+            contig.id = sample['id']+'_C'+str(i)  # TODO: Why do we need to repeat this #TN#
             contig.description = ''
-            SeqIO.write(contig, f, "fasta")  #((To-do: What is the difference between this and the SeqIO.write above?))
+            SeqIO.write(contig, f, "fasta")
     return assembly_file
+
 
 def get_assembly(sample, base_dir):
     """
-
     :param sample:
     :param base_dir:
     :return:
@@ -88,7 +80,7 @@ def get_assembly(sample, base_dir):
         os.makedirs(path_out)
     contigs = list(SeqIO.parse(sample['files'], "fasta"))
     assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
-    contigs = sorted(contigs, key=len, reverse=True)  #((To-do: Do not find "len" in the sample Ecoli59 files))
+    contigs = sorted(contigs, key=len, reverse=True)
 
     with open(assembly_file, 'w') as f:
         for i, contig in enumerate(contigs):
@@ -120,7 +112,6 @@ def run_single_sample(sample, base_dir='.', threads=8, memory=50, trim=False, ti
 
 
 def annotate_prokka(sample, base_dir='.', overwrite=False, threads=8, timing_log=None):
-
     path_out = os.path.join(base_dir, 'prokka')
     if not os.path.exists(path_out):
         os.makedirs(path_out)
@@ -375,6 +366,9 @@ def run_alignment(report, base_dir, overwrite=False, threads=8, timing_log=None)
 
 
 def pipeline_func(args):
+    """
+
+    """
     threads = args.threads
     if threads <= 0:
         threads = multiprocessing.cpu_count()
@@ -406,7 +400,7 @@ def pipeline_func(args):
 
     # run single sample pipeline
     for id in report['samples']:
-        sample_dir =  args.work_dir + '/samples/' + str(id)
+        sample_dir = args.work_dir + '/samples/' + str(id)
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         report['samples'][id]['execution']['out'] = {}

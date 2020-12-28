@@ -8,14 +8,14 @@ import os
 from Bio import SeqIO
 
 
-def export_json(work_dir, collection_id, exp_dir):
-    update_collection_history(exp_dir, collection_id, collection_id, "Not Ready")
+def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
+    update_collection_history(webapp_data_dir, collection_id, collection_name, "Not Ready")
     # look for dump file:
     dump_file = os.path.join(work_dir, 'collections', collection_id, collection_id + '_dump.json')
     if not os.path.isfile(dump_file):
         raise Exception("Dump file {} not found!".format(dump_file))
 
-    exp_dir_current = os.path.join(exp_dir, collection_id)
+    exp_dir_current = os.path.join(webapp_data_dir, collection_id)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)
     report = json.load(open(dump_file))
@@ -67,7 +67,7 @@ def export_json(work_dir, collection_id, exp_dir):
     set_result.append({'group': 'gene_alignments', 'data': export_msa(report, exp_dir_current)})
     collection_report = {"samples": report['samples'], "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
-    update_collection_history(exp_dir, collection_id, collection_id, "Ready")
+    update_collection_history(webapp_data_dir, collection_id, collection_id, "Ready")
 
 
 def exportAssembly(contigs_file_contents):

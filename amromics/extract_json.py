@@ -1,17 +1,11 @@
-import sys
-import argparse
-import logging
-import json
-import subprocess
-import csv
-import multiprocessing
-import os, shutil, glob
-from Bio.Seq import Seq
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-import datetime
+# -*- coding: utf-8 -*-
+
 import base64
-import pandas as pd
+import csv
+import json
+import os
+
+from Bio import SeqIO
 
 
 def export_json(work_dir, collection_id, exp_dir):
@@ -27,10 +21,8 @@ def export_json(work_dir, collection_id, exp_dir):
     report = json.load(open(dump_file))
 
     # export single samples
-    #samples = []
     for sample in report['samples']:
         result = []
-
         # handle assembly results
         ret_asm = {'group': 'CONTIG', 'data': exportAssembly(sample['assembly'])}
         result.append(ret_asm)
@@ -43,7 +35,7 @@ def export_json(work_dir, collection_id, exp_dir):
         result.append(ret_amr)
         ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(sample['plasmid'])}
         result.append(ret_plasmid)
-        ret_annotation = {'group': 'ANNOTATION', 'data': exportKnowgene(sample['annotation'])}
+        ret_annotation = {'group': 'ANNOTATION', 'data': export_known_genes(sample['annotation'])}
         result.append(ret_annotation)
         sample['result'] = result
         save_sample_result(sample, exp_dir_current)
@@ -63,16 +55,16 @@ def export_json(work_dir, collection_id, exp_dir):
     set_result = []
     if not os.path.exists(exp_dir_current + "/set"):
         os.makedirs(exp_dir_current + "/set")
-    set_result.append({'group': 'phylo_heatmap', 'data': exportAMRHeatmap(report, exp_dir_current)})
+    set_result.append({'group': 'phylo_heatmap', 'data': export_amr_heatmap(report, exp_dir_current)})
     set_result.append({'group': 'pan_sum',
-                       'data': exportPangenomeSumary(report['roary'] + '/summary_statistics.txt',
-                                                     exp_dir_current)})
+                       'data': export_pangenome_summary(report['roary'] + '/summary_statistics.txt',
+                                                        exp_dir_current)})
     set_result.append({'group': 'pan_cluster',
-                       'data': exportPangenomeCluster(report['roary'] + '/gene_presence_absence.csv',
-                                                      exp_dir_current)})
+                       'data': export_pangenome_cluster(report['roary'] + '/gene_presence_absence.csv',
+                                                        exp_dir_current)})
     set_result.append(
-        {'group': 'phylogeny_tree', 'data': exportPhylogenyTree(report['phylogeny'] + '/parsnp.tree')})
-    set_result.append({'group': 'gene_alignments', 'data': exportMultiAlignment(report, exp_dir_current)})
+        {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/parsnp.tree')})
+    set_result.append({'group': 'gene_alignments', 'data': export_msa(report, exp_dir_current)})
     collection_report = {"samples": report['samples'], "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
     update_collection_history(exp_dir, collection_id, collection_id, "Ready")
@@ -236,7 +228,7 @@ def find_plasmid(plasmid_file):
     return ret
 
 
-def exportKnowgene(annotation_folder):
+def export_known_genes(annotation_folder):
     # look for gff file
     gff_file = None
     for root, dirs, files in os.walk(annotation_folder):
@@ -290,7 +282,7 @@ def save_sample_result(sample, exp_dir):
     json.dump(sample, open(sample_dir + '/' + sample['id'] + ".json", 'w'))
 
 
-def exportPangenomeSumary(summary_file, exp_dir):
+def export_pangenome_summary(summary_file, exp_dir):
     f = open(summary_file)
     ret = {'group': []}
     lines = f.readlines()
@@ -305,7 +297,7 @@ def exportPangenomeSumary(summary_file, exp_dir):
     return "/set/pangenome_summary.json"
 
 
-def exportPangenomeCluster(pre_abs_file, exp_dir):
+def export_pangenome_cluster(pre_abs_file, exp_dir):
     ret = {}
     ret['genes'] = []
     with open(pre_abs_file) as tsvfile:
@@ -321,7 +313,7 @@ def exportPangenomeCluster(pre_abs_file, exp_dir):
     # return ret
 
 
-def exportAMRHeatmap(report, exp_dir):
+def export_amr_heatmap(report, exp_dir):
     set_genes = set()
     set_class = set()
     set_samples = set()
@@ -359,7 +351,7 @@ def exportAMRHeatmap(report, exp_dir):
     return "/set/amrheatmap.json"
 
 
-def exportPhylogenyTree(treefile):
+def export_phylogeny_tree(treefile):
     data = ''
     with open(treefile) as myfile:
         data = "".join(line.rstrip() for line in myfile)
@@ -369,22 +361,22 @@ def exportPhylogenyTree(treefile):
     return base64_message
 
 
-def exportMultiAlignment(report, exp_dir):
+def export_msa(report, exp_dir):
     list_genes = os.listdir(report['alignments'])
     alignments = {'alignments': []}
     for gene in list_genes:
         if os.path.isdir(report['alignments'] + '/' + gene):
             if not os.path.isfile(report['alignments'] + '/' + gene + '/parsnp.tree'):
                 continue
-            tree = exportPhylogenyTree(report['alignments'] + '/' + gene + '/parsnp.tree')
+            tree = export_phylogeny_tree(report['alignments'] + '/' + gene + '/parsnp.tree')
             aln = {'gene': gene, 'tree': tree,
-                   'samples': exportAlignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa',exp_dir)}
+                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa', exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments
 
 
-def exportAlignment(gene, file_xmfa, exp_dir):
+def export_alignment(gene, file_xmfa, exp_dir):
     f = open(file_xmfa)
     aligments = []
     s_dict = {}
@@ -456,21 +448,3 @@ def update_collection_history(export_dir, collection_id, collection_name, status
     with open(collection_json, 'w') as fn:
         json.dump(collections, fn)
 
-# #run_command('python scripts/extract_json.py --id '+args.id+' --inp data/output --out web-app/static/data' )
-#     export_json(args.inp, args.id, args.out)
-#
-# def main(arguments=sys.argv[1:]):
-#     parser = argparse.ArgumentParser(
-#         prog='extract tools for amromics-viz',
-#         description='extract tools for amromics-viz')
-#
-#     parser.add_argument('--id', help='Colletion ID', type=str)
-#     parser.add_argument('--inp', help='The output folder of pipeline', type=str)
-#     parser.add_argument('--out', help='The folder hold exported json data', default='export')
-#
-#     args = parser.parse_args()
-#     export_json(args.inp, args.id, args.out)
-#
-#
-# if __name__ == "__main__":
-#     main()

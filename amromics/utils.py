@@ -5,7 +5,10 @@ import re
 
 def valid_id(sid):
     """
-    Check if string can be a valid id, that is contains only alphanumerical and underscore characters
+    Check if string can be a valid id, that is, it can only the following characters:
+        - alphanumerical
+        - Underscores
+        - Dot
     Parameters
     ----------
     sid

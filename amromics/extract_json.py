@@ -67,7 +67,7 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
     set_result.append({'group': 'gene_alignments', 'data': export_msa(report, exp_dir_current)})
     collection_report = {"samples": report['samples'], "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
-    update_collection_history(webapp_data_dir, collection_id, collection_id, "Ready")
+    update_collection_history(webapp_data_dir, collection_id, collection_name, "Ready")
 
 
 def exportAssembly(contigs_file_contents):

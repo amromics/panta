@@ -75,6 +75,12 @@ def collection_pa_func(args):
 
     work_dir = args.work_dir
     webapp_dir = args.webapp_dir
+    webapp_static_dir = os.path.join(webapp_dir, 'static')
+    if not os.path.exists(webapp_static_dir):
+        raise Exception('Webapp directory {} not available'.format(webapp_dir))
+    webapp_data_dir = os.path.join(webapp_static_dir, 'data')
+    if not os.path.exists(webapp_data_dir):
+        os.makedirs(webapp_data_dir)
 
     threads = args.threads
     memory = args.memory
@@ -134,7 +140,7 @@ def collection_pa_func(args):
                     mt[k] = v
         sample = {
             'id': sample_id,
-            'name': row['sample_name'].strip(),
+            'name': row['sample_desc'].strip(),
             'input_type': row['input_type'].strip(),
             'files': ';'.join(input_files),  # Re-join to make sure no white characters slipped in
             'genus': row['genus'].strip(),
@@ -199,7 +205,7 @@ def collection_pa_func(args):
     # if os.path.exists(collection_dir + "/temp"):
     #     shutil.rmtree(collection_dir + "/temp")
 
-    extract_json.export_json(work_dir, os.path.join(webapp_dir, 'static', 'data'),
+    extract_json.export_json(work_dir, webapp_data_dir,
                              collection_id, collection_name)
     logger.info('Congratulations, collection {} is imported to web-app!'.format(collection_id))
 

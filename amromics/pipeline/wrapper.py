@@ -64,9 +64,9 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
         memory=int(memory), threads=threads, path_out=path_out)
 
     if 'trim' in sample and sample['trim']:
-        cmd += ' --trim --depth 250'
+        cmd += ' --trim --depth 200'
     else:
-        cmd += ' --depth 150'
+        cmd += ' --depth 120'
 
     pe_files = sample['files'].split(';')
     if len(pe_files) > 1:
@@ -538,10 +538,12 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
         gene_list = []
         for sample_column in sample_columns:
             if row[sample_column]:
-                gene_file = os.path.join(gene_file_dir, row[sample_column] + '.fasta')
-                SeqIO.write(dict_cds[row[sample_column]], gene_file, 'fasta')
-                gene_files.append(gene_file)
-                gene_list.append(row[sample_column])
+                # roary can pool together genes from the same sample and tab-separate them
+                for sample_gene in row[sample_column].split('\t'):
+                    gene_file = os.path.join(gene_file_dir, sample_gene + '.fasta')
+                    SeqIO.write(dict_cds[sample_gene], gene_file, 'fasta')
+                    gene_files.append(gene_file)
+                    gene_list.append(sample_gene)
                 # TODO: make sure all samples in this gene have not updated
 
         gene_list = sorted(gene_list)

@@ -2,6 +2,26 @@
 
 import re
 import subprocess
+import gzip
+
+
+def get_open_func(filepath):
+    """
+    Determine compression type (by looking the first 2 bytes) and return the
+    right open function to open the file
+    Parameters
+    ----------
+    filepath
+
+    Returns
+    -------
+
+    """
+    with open(filepath, 'rb') as f:
+        first_two_bytes = f.read(2)
+    if first_two_bytes == b'\x1f\x8b':
+        return gzip.open
+    return open
 
 
 def valid_id(sid):

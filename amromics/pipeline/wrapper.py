@@ -6,6 +6,7 @@ from Bio import SeqIO
 import datetime
 import pandas as pd
 import logging
+from amromics.utils import get_open_func
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s [%(name)s] %(levelname)s : %(message)s')
@@ -14,7 +15,6 @@ logger = logging.getLogger(__name__)
 # TODOs:
 # - Can make it faster with using fasttree (parsnps need to have this option specifically set
 # - By default, parsnp use bootstrap of 1000. See if we can change the value and get the boottrap values
-# - Can provide the genbank of the reference (using prokka annotation)
 
 
 def run_command(cmd, timing_log=None):
@@ -111,9 +111,13 @@ def get_assembly(sample, sample_dir, overwrite=False):
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
-    contigs = list(SeqIO.parse(sample['files'], "fasta"))
+    open_func = get_open_func(sample['files'])
+    with open_func(sample['files'], 'rt') as fn:
+        contigs = list(SeqIO.parse(fn, "fasta"))
+
     assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
     if os.path.isfile(assembly_file) and (not overwrite):
+        logger.info(f'Not overwrite {assembly_file}')
         return assembly_file
 
     contigs = sorted(contigs, key=len, reverse=True)

@@ -5,6 +5,17 @@ import subprocess
 import gzip
 
 
+def get_compress_type(filepath):
+    with open(filepath, 'rb') as f:
+        first_two_bytes = f.read(2)
+    if first_two_bytes == b'\x1f\x8b':
+        return 'gzip'
+    # TODO: fill in for bzip
+
+    # Dont know type
+    return None
+
+
 def get_open_func(filepath):
     """
     Determine compression type (by looking the first 2 bytes) and return the
@@ -17,9 +28,8 @@ def get_open_func(filepath):
     -------
 
     """
-    with open(filepath, 'rb') as f:
-        first_two_bytes = f.read(2)
-    if first_two_bytes == b'\x1f\x8b':
+    compress_type = get_compress_type(filepath)
+    if compress_type == 'gzip':
         return gzip.open
     return open
 

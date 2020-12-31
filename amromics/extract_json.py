@@ -3,7 +3,7 @@
 import base64
 import csv
 import json
-import os
+import os,shutil
 
 from Bio import SeqIO
 
@@ -25,6 +25,11 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
     exp_dir_current = os.path.join(webapp_data_dir, collection_id)
     if not os.path.exists(exp_dir_current):
         os.makedirs(exp_dir_current)
+    exp_dir_downloadfile = os.path.join(exp_dir_current, 'files')
+    if not os.path.exists(exp_dir_downloadfile):
+        os.makedirs(exp_dir_downloadfile)
+   # if (not os.path.isabs(exp_dir_downloadfile)):
+    #    exp_dir_downloadfile =os.path.join(os.path.dirname(__file__),exp_dir_downloadfile)
     report = json.load(open(dump_file))
 
     # export single samples
@@ -33,8 +38,8 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
 
         files=[]
         files.append({'name':'FASTA','file':copyFileToWeb(sample['assembly'],exp_dir_downloadfile)})
-	    files.append({'name':'GFF','file':copyFileToWeb(sample['annotation']+'/'+id+'.gff',exp_dir_downloadfile)})
-	    files.append({'name':'GBK','file':copyFileToWeb(sample['annotation']+'/'+id+'.gbk',exp_dir_downloadfile)})
+        files.append({'name':'GFF','file':copyFileToWeb(sample['annotation']+'/'+sample['id']+'.gff',exp_dir_downloadfile)})
+        files.append({'name':'GBK','file':copyFileToWeb(sample['annotation']+'/'+sample['id']+'.gbk',exp_dir_downloadfile)})
         result = []
         # handle assembly results
         ret_asm = {'group': 'CONTIG', 'data': exportAssembly(sample['assembly'])}
@@ -53,15 +58,15 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
         sample['result'] = result
         save_sample_result(sample, exp_dir_current)
         samples.append({
-            'id': report['samples'][id]['id'], \
-            'name': report['samples'][id]['name'],
-            'type': report['samples'][id]['type'],
-            'files': report['samples'][id]['files'],
-            'genus': report['samples'][id]['genus'],
-            'species': report['samples'][id]['species'],
-            'strain': report['samples'][id]['strain'],
-            'gram': report['samples'][id]['gram'],
-            'metadata': report['samples'][id]['metadata'],
+            'id': sample['id'], \
+            'name': sample['name'],
+            'type': sample['input_type'],
+            'files': sample['files'],
+            'genus': sample['genus'],
+            'species': sample['species'],
+            'strain': sample['strain'],
+            
+            'metadata': sample['metadata'],
             'download':files
 
         })

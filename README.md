@@ -1,3 +1,4 @@
+
 # AMR-Viz
 
 ## Welcome to AMR-Viz
@@ -64,6 +65,7 @@ git clone https://github.com/amromics-org/amromics-vis.git
 
 [comment]: # ((To-do: Document what this is for.))
 
+
 ```bash
 cd amromics-vis
 npm install
@@ -114,6 +116,7 @@ Please check the sample input file *data/samples/set1.tsv* for an example.
   + *metadata* is empty or in the format: key1:value1;key2:value2;...  
   For example: Geographic Location:Houston,USA;Insert Date:8/8/2017;Host Name:Human, Homo sapiens;ampicillin:Resistant;aztreonam:Resistant;ciprofloxacin:Resistant;gentamicin:Susceptible;tetracycline:Susceptible
 #### Run pipeline and export visualization data to web application
+
 ```bash
 python amromics-viz.py --id sample1 --input data/samples/set1.tsv -t 2 -m 16
 ```
@@ -133,5 +136,6 @@ Amromics-viz is currently maintained by Minh Duc Cao, Hoang Anh Nguyen and Le Du
 Amromics-viz is released under the accompanying BSD-like license.
 
 ((To-do: 1-Review license type. 2. Do we need a separate LICENSE.md file? 3-Add additional requirements for users regarding reference/acknowledgement/authorship etc. in publications))
+
 
 

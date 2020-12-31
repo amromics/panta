@@ -3,19 +3,26 @@
 import base64
 import csv
 import json
-import os,shutil
+import os
+import shutil
+import logging
 
 from Bio import SeqIO
+logger = logging.getLogger(__name__)
 
-def copyFileToWeb(orginal_file,web_dir):
+
+def copy_file_to_web(orginal_file, web_dir):
     try:
-        web_file=os.path.join(web_dir,os.path.basename(orginal_file))
+        web_file = os.path.join(web_dir, os.path.basename(orginal_file))
         shutil.copyfile(orginal_file, web_file)
         return web_file
     except:
-        print('copy file '+orginal_file+' error')
-        return ''
+        logger.error('copy file '+orginal_file+' error')
+        return None  # This wouldnt be executed
+
+
 def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
+
     update_collection_history(webapp_data_dir, collection_id, collection_name, "Not Ready")
     # look for dump file:
     dump_file = os.path.join(work_dir, 'collections', collection_id, collection_id + '_dump.json')
@@ -33,42 +40,37 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
     report = json.load(open(dump_file))
 
     # export single samples
-    samples = []
+    web_samples = []
     for sample in report['samples']:
+        sample_files = []
+        sample_files.append({'name': 'FASTA', 'file': copy_file_to_web(sample['assembly'], exp_dir_downloadfile)})
+        sample_files.append({'name': 'GFF', 'file': copy_file_to_web(
+            os.path.join(sample['annotation'], sample['id']+'.gff'), exp_dir_downloadfile)})
+        sample_files.append({'name': 'GBK', 'file': copy_file_to_web(
+            os.path.join(sample['annotation'], sample['id']+'.gbk'), exp_dir_downloadfile)})
 
-        files=[]
-        files.append({'name':'FASTA','file':copyFileToWeb(sample['assembly'],exp_dir_downloadfile)})
-        files.append({'name':'GFF','file':copyFileToWeb(sample['annotation']+'/'+sample['id']+'.gff',exp_dir_downloadfile)})
-        files.append({'name':'GBK','file':copyFileToWeb(sample['annotation']+'/'+sample['id']+'.gbk',exp_dir_downloadfile)})
-        result = []
-        # handle assembly results
-        ret_asm = {'group': 'CONTIG', 'data': exportAssembly(sample['assembly'])}
-        result.append(ret_asm)
-        # handle mgfglst results   gf
-        ret_mlst = {'group': 'MLST', 'data': extract_mlst(sample['mlst'])}
-        result.append(ret_mlst)
-        ret_vir = {'group': 'VIR', 'data': find_virulome(sample['virulome'])}
-        result.append(ret_vir)
-        ret_amr = {'group': 'AMR', 'data': find_amr(sample['resistome'])}
-        result.append(ret_amr)
-        ret_plasmid = {'group': 'PLASMID', 'data': find_plasmid(sample['plasmid'])}
-        result.append(ret_plasmid)
-        ret_annotation = {'group': 'ANNOTATION', 'data': export_known_genes(sample['annotation'])}
-        result.append(ret_annotation)
-        sample['result'] = result
+        sample_results = []
+        sample_results.append({'group': 'CONTIG', 'data': export_assembly(sample['assembly'])})
+        sample_results.append({'group': 'MLST', 'data': extract_mlst(sample['mlst'])})
+        sample_results.append({'group': 'VIR', 'data': find_virulome(sample['virulome'])})
+        sample_results.append({'group': 'AMR', 'data': find_amr(sample['resistome'])})
+        sample_results.append({'group': 'PLASMID', 'data': find_plasmid(sample['plasmid'])})
+        sample_results.append({'group': 'ANNOTATION', 'data': export_known_genes(sample['annotation'])})
+
+        sample['result'] = sample_results
+
+        # TODO: Quang to review if this function stores more than we need
         save_sample_result(sample, exp_dir_current)
-        samples.append({
-            'id': sample['id'], \
+        web_samples.append({
+            'id': sample['id'],
             'name': sample['name'],
             'type': sample['input_type'],
             'files': sample['files'],
             'genus': sample['genus'],
             'species': sample['species'],
             'strain': sample['strain'],
-            
             'metadata': sample['metadata'],
-            'download':files
-
+            'download': sample_files
         })
 
     set_result = []
@@ -84,12 +86,12 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
     set_result.append(
         {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/parsnp.tree')})
     set_result.append({'group': 'gene_alignments', 'data': export_msa(report, exp_dir_current)})
-    collection_report = {"samples": samples, "results": set_result}
+    collection_report = {"samples": web_samples, "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
     update_collection_history(webapp_data_dir, collection_id, collection_name, "Ready")
 
 
-def exportAssembly(contigs_file_contents):
+def export_assembly(contigs_file_contents):
     # contigs_file: contigs.fasta
     contigs_stat = {}
     contigs_stat['contigs'] = []
@@ -322,8 +324,11 @@ def export_pangenome_cluster(pre_abs_file, exp_dir):
     with open(pre_abs_file) as tsvfile:
         reader = csv.DictReader(tsvfile, delimiter=',', dialect='excel-tab')
         for row in reader:
-            gene = {'gene': row['Gene'], 'annotation': row['Annotation'], 'noisolates': row['No. isolates'],
-                    'nosequences': row['No. sequences'], 'length': row['Avg group size nuc']}
+            gene = {'gene': row['Gene'],
+                    'annotation': row['Annotation'],
+                    'noisolates': row['No. isolates'],
+                    'nosequences': row['No. sequences'],
+                    'length': row['Avg group size nuc']}
             ret['genes'].append(gene)
     save_path = exp_dir + "/set/pangenome_cluster.json"
     json.dump(ret, open(save_path, 'w'))
@@ -405,7 +410,6 @@ def export_alignment(gene, file_xmfa, exp_dir):
     line = f.readline()
     while line:
         if line.startswith('#'):
-
             if line.startswith('##SequenceIndex'):
                 t = line.strip().split(' ')
                 if not t[1] in s_dict:
@@ -419,11 +423,9 @@ def export_alignment(gene, file_xmfa, exp_dir):
         elif line.startswith('>'):
             t = line.split(' ')
             current_index = t[0].split(':')[0].replace('>', '')
-
             seq = ''
         else:
             seq = seq + line.strip()
-
             s_dict[current_index]['seq'] = seq
         # next line
         line = f.readline()

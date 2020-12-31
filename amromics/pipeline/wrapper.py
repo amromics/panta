@@ -8,8 +8,6 @@ import pandas as pd
 import logging
 from amromics.utils import get_open_func
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s [%(name)s] %(levelname)s : %(message)s')
 logger = logging.getLogger(__name__)
 
 # TODOs:

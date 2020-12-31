@@ -54,7 +54,7 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
     sample_id = sample['id']
     path_out = os.path.join(sample_dir, 'assembly')
     assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta')
-   
+
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     elif os.path.isfile(assembly_file) and (not overwrite):

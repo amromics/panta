@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import logging
+import gzip
 
 from Bio import SeqIO
 logger = logging.getLogger(__name__)
@@ -102,17 +103,18 @@ def export_assembly(contigs_file_contents):
     seq_dict = {}
     skew_list = []
     content_list = []
-    for seq in SeqIO.parse(contigs_file_contents, "fasta"):
-        current_contig = ''
-        nodename = seq.id
-        length = len(seq.seq)
-        contigs_stat['contigs'].append({'name': nodename, 'length': length})
-        current_contig = nodename
-        seq_dict[current_contig] = str(seq.seq)
-        genome_length = genome_length + length
-        for i in range(len(seq.seq)):
-            if seq.seq[i] in pattern:
-                num_gc = num_gc + 1
+    with gzip.open(contigs_file_contents, 'rt') as fn:
+        for seq in SeqIO.parse(fn, "fasta"):
+            current_contig = ''
+            nodename = seq.id
+            length = len(seq.seq)
+            contigs_stat['contigs'].append({'name': nodename, 'length': length})
+            current_contig = nodename
+            seq_dict[current_contig] = str(seq.seq)
+            genome_length = genome_length + length
+            for i in range(len(seq.seq)):
+                if seq.seq[i] in pattern:
+                    num_gc = num_gc + 1
 
                 # running window 1000 step 10 for skew
     for c in seq_dict.keys():
@@ -317,11 +319,14 @@ def export_pangenome_summary(summary_file, exp_dir):
 
     return "/set/pangenome_summary.json"
 
-
+import pandas as pd
 def export_pangenome_cluster(pre_abs_file, exp_dir):
     ret = {}
     ret['genes'] = []
-    with open(pre_abs_file) as tsvfile:
+    #gene_df = pd.read_csv(gene_cluster_file, dtype=str, compression='gzip')
+    #gene_df.fillna('', inplace=True)
+    # pd.
+    with gzip.open(pre_abs_file, 'rt') as tsvfile:
         reader = csv.DictReader(tsvfile, delimiter=',', dialect='excel-tab')
         for row in reader:
             gene = {'gene': row['Gene'],
@@ -394,14 +399,14 @@ def export_msa(report, exp_dir):
                 continue
             tree = export_phylogeny_tree(report['alignments'] + '/' + gene + '/parsnp.tree')
             aln = {'gene': gene, 'tree': tree,
-                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa', exp_dir)}
+                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa.gz', exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments
 
 
 def export_alignment(gene, file_xmfa, exp_dir):
-    f = open(file_xmfa)
+    f = gzip.open(file_xmfa, 'rt')
     aligments = []
     s_dict = {}
     recent_index = 0

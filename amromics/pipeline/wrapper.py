@@ -91,6 +91,11 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
             contig.description = ''
             SeqIO.write(contig, f, "fasta")
 
+    run_command('rm -f ' + os.path.join(path_out, 'spades.fasta'))
+    run_command('rm -f ' + os.path.join(path_out, 'contigs.fa'))
+    run_command('rm -f ' + os.path.join(path_out, 'contigs.gfa'))
+    run_command('gzip ' + os.path.join(path_out, 'shovill.log'))
+
     sample['updated'] = True
     return assembly_file
 
@@ -166,8 +171,8 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
         logger.info('GFF and GBK files found, skip annotating')
         return path_out
 
-    tmp_fasta = os.path.join(path_out, sample['id'] + '.fin')
-    cmd = 'zcat {} > {}'.format(sample['assembly'], tmp_fasta)
+    gunzip_fasta = os.path.join(path_out, sample['id'] + '.fin')
+    cmd = 'zcat {} > {}'.format(sample['assembly'], gunzip_fasta)
     run_command(cmd)
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
@@ -181,14 +186,14 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
     # Disable this for now so that we dont have to install signalp
     # if sample['gram']:
     #    cmd += ' --gram ' + sample['gram']
-    cmd += ' ' + tmp_fasta
+    cmd += ' ' + gunzip_fasta
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Command {} returns non-zero ()!'.format(cmd, ret))
 
     for file_name in glob.glob(os.path.join(path_out, '*')):
         ext = file_name[-3:]
-        if ext in ['gff', 'gbk', 'fna', 'ffn']:
+        if ext in ['gff', 'gbk', 'ffn']: #fna?
             run_command('gzip {}'.format(file_name))
         else:
             os.remove(file_name)
@@ -574,12 +579,6 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
     sample_columns = list(gene_df.columns)[14:]
     for _, row in gene_df.iterrows():
         gene_id = row['Gene']
-        gene_dir = os.path.join(alignment_dir, gene_id)
-        gene_file_dir = os.path.join(gene_dir, 'files')
-
-        if not os.path.exists(gene_file_dir):
-            os.makedirs(gene_file_dir)
-
         gene_list = []
         for sample_column in sample_columns:
             if row[sample_column]:
@@ -594,6 +593,7 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
+        gene_dir = os.path.join(alignment_dir, gene_id)
         # Check if done before
         gene_list_json = os.path.join(gene_dir, 'gene_list.json')
         # if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
@@ -604,6 +604,10 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
                     if gene_list == existing_gene_list:
                         logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
                         continue  # for _, row
+
+        gene_file_dir = os.path.join(gene_dir, 'files')
+        if not os.path.exists(gene_file_dir):
+            os.makedirs(gene_file_dir)
 
         gene_files = []
         for sample_gene in gene_list:
@@ -623,6 +627,7 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
             json.dump(gene_list, fn)
         run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.xmfa')))
         run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.ggr')))
+
         if os.path.exists(gene_file_dir):
             shutil.rmtree(gene_file_dir)
 

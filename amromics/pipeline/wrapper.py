@@ -630,6 +630,10 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
         if os.path.exists(gene_file_dir):
             shutil.rmtree(gene_file_dir)
+        #clean up
+        run_command('rm -f ' + os.path.join(gene_dir, '*.ini ') + os.path.join(gene_dir, '*block* '))
+        shutil.rmtree(os.path.join(gene_dir, 'blocks'), True)
+        shutil.rmtree(os.path.join(gene_dir, 'tmp'), True)
 
     report['alignments'] = alignment_dir
     return report

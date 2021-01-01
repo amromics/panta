@@ -76,7 +76,7 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
         pe2 = pe_files[1]
         cmd += ' --force  --R1 {pe1} --R2 {pe2}'.format(pe1=pe1, pe2=pe2)
     else:
-       raise Exception('Only support pair-end reads!')
+        raise Exception('Only support pair-end reads!')
 
     ret = run_command(cmd, timing_log)
     if ret != 0:
@@ -193,7 +193,7 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
 
     for file_name in glob.glob(os.path.join(path_out, '*')):
         ext = file_name[-3:]
-        if ext in ['gff', 'gbk', 'ffn']: #fna?
+        if ext in ['gff', 'gbk', 'ffn']: # fna?
             run_command('gzip {}'.format(file_name))
         else:
             os.remove(file_name)
@@ -380,6 +380,8 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
         the directory of the sample
     threads: int
         number of threads to use
+    memory: float
+        maximum memory
     timing_log: str
         log file
     Returns
@@ -390,7 +392,8 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
     sample['execution_start'] = str(datetime.datetime.now())
 
     if sample['input_type'] not in ['asm', 'assembly']:
-        sample['assembly'] = assemble_shovill(sample, sample_dir=sample_dir, threads=threads, memory=memory, timing_log=timing_log)
+        sample['assembly'] = assemble_shovill(
+            sample, sample_dir=sample_dir, threads=threads, memory=memory, timing_log=timing_log)
     else:
         sample['assembly'] = get_assembly(sample, sample_dir=sample_dir)
 
@@ -468,11 +471,9 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     if ret != 0:
         raise Exception('roary fail to run!')
 
-    for cmd in [
-        'gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
-        'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
-        'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv'),
-        ]:
+    for cmd in ['gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
+                'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
+                'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv')]:
         ret = run_command(cmd)
         if ret != 0:
             raise Exception('Error running {}'.format(cmd))
@@ -614,14 +615,13 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
             gene_file = os.path.join(gene_file_dir, sample_gene + '.fasta')
             SeqIO.write(dict_cds[sample_gene], gene_file, 'fasta')
             gene_files.append(gene_file)
-        # TODO: make sure all samples in this gene have not updated
 
         # Use the first gene as the reference
         cmd = 'parsnp -d {} -r {} -o {} -p {}'.format(
             ' '.join(gene_files[1:]), gene_files[0], gene_dir, threads)
         ret = run_command(cmd, timing_log)
-        #if ret != 0:
-        #    raise Exception('error')
+        # if ret != 0:
+        #     raise Exception('error')
 
         with open(gene_list_json, 'w') as fn:
             json.dump(gene_list, fn)

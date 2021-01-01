@@ -45,9 +45,9 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
         sample_files = []
         sample_files.append({'name': 'FASTA', 'file': copy_file_to_web(sample['assembly'], exp_dir_downloadfile)})
         sample_files.append({'name': 'GFF', 'file': copy_file_to_web(
-            os.path.join(sample['annotation'], sample['id']+'.gff'), exp_dir_downloadfile)})
+            os.path.join(sample['annotation'], sample['id']+'.gff.gz'), exp_dir_downloadfile)})
         sample_files.append({'name': 'GBK', 'file': copy_file_to_web(
-            os.path.join(sample['annotation'], sample['id']+'.gbk'), exp_dir_downloadfile)})
+            os.path.join(sample['annotation'], sample['id']+'.gbk.gz'), exp_dir_downloadfile)})
 
         sample_results = []
         sample_results.append({'group': 'CONTIG', 'data': export_assembly(sample['assembly'])})
@@ -81,7 +81,7 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
                        'data': export_pangenome_summary(report['roary'] + '/summary_statistics.txt',
                                                         exp_dir_current)})
     set_result.append({'group': 'pan_cluster',
-                       'data': export_pangenome_cluster(report['roary'] + '/gene_presence_absence.csv',
+                       'data': export_pangenome_cluster(report['roary'] + '/gene_presence_absence.csv.gz',
                                                         exp_dir_current)})
     set_result.append(
         {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/parsnp.tree')})

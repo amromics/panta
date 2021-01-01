@@ -2,11 +2,15 @@
 import json
 import os
 import shutil
-from Bio import SeqIO
+import glob
+import gzip
 import datetime
-import pandas as pd
 import logging
-from amromics.utils import get_open_func
+import pandas as pd
+
+from Bio import SeqIO
+
+from amromics.utils import get_open_func, get_compress_type
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +55,7 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
     """
     sample_id = sample['id']
     path_out = os.path.join(sample_dir, 'assembly')
-    assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta')
+    assembly_file = os.path.join(path_out, sample_id + '_contigs.fasta.gz')
 
     if not os.path.exists(path_out):
         os.makedirs(path_out)
@@ -81,7 +85,7 @@ def assemble_shovill(sample, sample_dir, threads=4, memory=50, overwrite=False, 
     # Read in list of contigs
     contigs = list(SeqIO.parse(os.path.join(path_out, 'contigs.fa'), "fasta"))
     contigs = sorted(contigs, key=len, reverse=True)
-    with open(assembly_file, 'w') as f:
+    with gzip.open(assembly_file, 'wt') as f:
         for i, contig in enumerate(contigs):
             contig.id = sample['id']+'_C'+str(i)
             contig.description = ''
@@ -111,16 +115,15 @@ def get_assembly(sample, sample_dir, overwrite=False):
 
     open_func = get_open_func(sample['files'])
     with open_func(sample['files'], 'rt') as fn:
-        contigs = list(SeqIO.parse(fn, "fasta"))
+        contigs = list(SeqIO.parse(fn, 'fasta'))
 
-    assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta')
+    assembly_file = os.path.join(path_out, sample['id'] + '_contigs.fasta.gz')
     if os.path.isfile(assembly_file) and (not overwrite):
         logger.info(f'Not overwrite {assembly_file}')
         return assembly_file
 
     contigs = sorted(contigs, key=len, reverse=True)
-
-    with open(assembly_file, 'w') as f:
+    with gzip.open(assembly_file, 'wt') as f:
         for i, contig in enumerate(contigs):
             contig.id = sample['id'] + '_C' + str(i)
             contig.description = ''
@@ -155,14 +158,17 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
     if not os.path.exists(path_out):
         os.makedirs(path_out)
 
-    gff_file_out = os.path.join(path_out, sample['id'] + '.gff')
-    gbk_file_out = os.path.join(path_out, sample['id'] + '.gbk')
+    gff_file_out = os.path.join(path_out, sample['id'] + '.gff.gz')
+    gbk_file_out = os.path.join(path_out, sample['id'] + '.gbk.gz')
 
     if os.path.isfile(gff_file_out) and os.path.isfile(gbk_file_out) and (not overwrite):
         # Dont run again if gff/gbk file exists
         logger.info('GFF and GBK files found, skip annotating')
         return path_out
 
+    tmp_fasta = os.path.join(path_out, sample['id'] + '.fin')
+    cmd = 'zcat {} > {}'.format(sample['assembly'], tmp_fasta)
+    run_command(cmd)
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
     if sample['genus']:
@@ -175,15 +181,23 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
     # Disable this for now so that we dont have to install signalp
     # if sample['gram']:
     #    cmd += ' --gram ' + sample['gram']
-    cmd += ' ' + sample['assembly']
+    cmd += ' ' + tmp_fasta
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Command {} returns non-zero ()!'.format(cmd, ret))
 
-    for ext in ['err', 'faa', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
-        file_name = os.path.join(path_out, sample['id'] + '.' + ext)
-        if os.path.isfile(file_name):
+    for file_name in glob.glob(os.path.join(path_out, '*')):
+        ext = file_name[-3:]
+        if ext in ['gff', 'gbk', 'fna', 'ffn']:
+            run_command('gzip {}'.format(file_name))
+        else:
             os.remove(file_name)
+
+    # for ext in ['err', 'faa', 'fsa', 'log', 'sqn', 'tbl', 'tsv', 'txt']:
+    #     # What about ffn and fna?
+    #     file_name = os.path.join(path_out, sample['id'] + '.' + ext)
+    #     if os.path.isfile(file_name):
+    #         os.remove(file_name)
 
     sample['updated'] = True
     return path_out
@@ -411,16 +425,13 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     -------
     """
 
-    gff_list = []
     for sample in report['samples']:
-        sample_id = sample['id']
-        gff_file = os.path.join(sample['annotation'], sample_id + '.gff')
-        assert os.path.isfile(gff_file)
-        gff_list.append(gff_file)
-        # If at least one sample has changed, we need to re-run roary
+        # Check if any sample has been updated
         overwrite = overwrite or sample['updated']
+    # any([overwrite] + [sample['updated'] for sample in report['samples']])
 
     roary_folder = os.path.join(collection_dir, 'roary')
+    temp_folder = os.path.join(collection_dir, 'temp_roary')
     roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
 
     # Check if roary has run for the same dataset ID and the same set of samples
@@ -428,6 +439,18 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     if os.path.isfile(roary_output) and (not overwrite):
         logger.info('roary has run and the input has not changed, skip roarying')
         return report
+
+    if not os.path.isdir(temp_folder):
+        os.makedirs(temp_folder)
+
+    gff_list = []
+    for sample in report['samples']:
+        sample_id = sample['id']
+        gffgz_file = os.path.join(sample['annotation'], sample_id + '.gff.gz')
+        gff_file = os.path.join(temp_folder, sample_id + '.gff')
+        if run_command('zcat {} > {}'.format(gffgz_file, gff_file)) != 0:
+            raise Exception('Cannot get {}'.format(gffgz_file))
+        gff_list.append(gff_file)
 
     # Make sure the directory is not there or roary will add timestamp
     if os.path.isfile(roary_folder):
@@ -439,6 +462,17 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('roary fail to run!')
+
+    for cmd in [
+        'gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
+        'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
+        'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv'),
+        ]:
+        ret = run_command(cmd)
+        if ret != 0:
+            raise Exception('Error running {}'.format(cmd))
+
+    shutil.rmtree(temp_folder)
     return report
 
 
@@ -477,14 +511,19 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
         logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
         return report
 
+    temp_folder = os.path.join(collection_dir, 'temp_phylo')
+    if not os.path.isdir(temp_folder):
+        os.makedirs(temp_folder)
     reference_genome = None
     sample_list = []
     for i, sample in enumerate(report['samples']):
+        fasta_file = os.path.join(temp_folder, sample['id'] + '.fasta')
+        cmd = 'zcat {} > {}'.format(sample['assembly'], fasta_file)
+        run_command(cmd)
         if i == 0:
-            reference_genome = sample['assembly']
+            reference_genome = fasta_file
         else:
-            sample_list.append(sample['assembly'])
-
+            sample_list.append(fasta_file)
     cmd = 'parsnp -r {} -d {} -o {} -p {}'.format(
         reference_genome,
         ' '.join(sample_list),
@@ -492,6 +531,9 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running parsnp')
+    run_command('gzip {}'.format(os.path.join(phylogeny_folder, 'parsnp.xmfa')))
+    run_command('gzip {}'.format(os.path.join(phylogeny_folder, 'parsnp.ggr')))
+    shutil.rmtree(temp_folder)
     return report
 
 
@@ -517,15 +559,16 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
         report object
     -------
     """
-    gene_cluster_file = report['roary'] + '/gene_presence_absence.csv'
+    gene_cluster_file = report['roary'] + '/gene_presence_absence.csv.gz'
     dict_cds = {}
     for sample in report['samples']:
-        for seq in SeqIO.parse(os.path.join(sample['annotation'], sample['id'] + '.ffn'), 'fasta'):
-            dict_cds[seq.id] = seq
+        with gzip.open(os.path.join(sample['annotation'], sample['id'] + '.ffn.gz'), 'rt') as fn:
+            for seq in SeqIO.parse(fn, 'fasta'):
+                dict_cds[seq.id] = seq
 
     # make folder contains sequences for each gene
     alignment_dir = os.path.join(collection_dir, 'alignments')
-    gene_df = pd.read_csv(gene_cluster_file, dtype=str)
+    gene_df = pd.read_csv(gene_cluster_file, dtype=str, compression='gzip')
     gene_df.fillna('', inplace=True)
 
     sample_columns = list(gene_df.columns)[14:]
@@ -536,17 +579,14 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
         if not os.path.exists(gene_file_dir):
             os.makedirs(gene_file_dir)
-        gene_files = []
+
         gene_list = []
         for sample_column in sample_columns:
             if row[sample_column]:
                 # roary can pool together genes from the same sample and tab-separate them
                 for sample_gene in row[sample_column].split('\t'):
-                    gene_file = os.path.join(gene_file_dir, sample_gene + '.fasta')
-                    SeqIO.write(dict_cds[sample_gene], gene_file, 'fasta')
-                    gene_files.append(gene_file)
                     gene_list.append(sample_gene)
-                # TODO: make sure all samples in this gene have not updated
+                    # TODO: make sure all samples in this gene have not updated
 
         gene_list = sorted(gene_list)
         # Only analyse if there are more than 3 genes
@@ -556,7 +596,7 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
         # Check if done before
         gene_list_json = os.path.join(gene_dir, 'gene_list.json')
-        #if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
+        # if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
         if not overwrite:
             if os.path.isfile(gene_list_json):
                 with open(gene_list_json) as fn:
@@ -565,14 +605,26 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
                         logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
                         continue  # for _, row
 
+        gene_files = []
+        for sample_gene in gene_list:
+            gene_file = os.path.join(gene_file_dir, sample_gene + '.fasta')
+            SeqIO.write(dict_cds[sample_gene], gene_file, 'fasta')
+            gene_files.append(gene_file)
+        # TODO: make sure all samples in this gene have not updated
+
         # Use the first gene as the reference
         cmd = 'parsnp -d {} -r {} -o {} -p {}'.format(
             ' '.join(gene_files[1:]), gene_files[0], gene_dir, threads)
         ret = run_command(cmd, timing_log)
         #if ret != 0:
         #    raise Exception('error')
+
         with open(gene_list_json, 'w') as fn:
             json.dump(gene_list, fn)
+        run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.xmfa')))
+        run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.ggr')))
+        if os.path.exists(gene_file_dir):
+            shutil.rmtree(gene_file_dir)
 
     report['alignments'] = alignment_dir
     return report

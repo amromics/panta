@@ -440,8 +440,8 @@ def export_alignment(gene, file_xmfa, exp_dir):
         aligments.append(sample)
     if not os.path.exists(exp_dir + "/set/alignments/"):
         os.makedirs(exp_dir + "/set/alignments/")
-    save_path = exp_dir + "/set/alignments/" + gene + ".json"
-    json.dump(aligments, open(save_path, 'w'))
+    save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"
+    json.dump(aligments, gzip.open(save_path, 'wt'))
 
     return "/set/alignments/" + gene + ".json"
     # return aligments

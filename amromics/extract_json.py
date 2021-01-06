@@ -443,7 +443,7 @@ def export_alignment(gene, file_xmfa, exp_dir):
     save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"
     json.dump(aligments, gzip.open(save_path, 'wt'))
 
-    return "/set/alignments/" + gene + ".json"
+    return "/set/alignments/" + gene + ".json.gz"
     # return aligments
 
 

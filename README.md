@@ -2,13 +2,6 @@
 # AMR-Viz
 
 
-[![CRAN](https://www.r-pkg.org/badges/version-ago/AMR)](https://cran.r-project.org/package=AMR)
-[![CRANlogs](https://cranlogs.r-pkg.org/badges/grand-total/AMR)](https://cran.r-project.org/package=AMR)
-![R-code-check](https://github.com/msberends/AMR/workflows/R-code-check/badge.svg?branch=master)
-[![CodeFactor](https://www.codefactor.io/repository/github/msberends/amr/badge)](https://www.codefactor.io/repository/github/msberends/amr)
-[![Codecov](https://codecov.io/gh/msberends/AMR/branch/master/graph/badge.svg)](https://codecov.io/gh/msberends/AMR?branch=master)
-
-
 ## Welcome to AMR-Viz
 
 **AMR-Viz** is a package for genomics analysis antimicrobial resistant bacteria. 
@@ -56,6 +49,7 @@ conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz \
       roary \
       iqtree \
       parsnp \
+      sra-tools \
       nodejs
 ```
 2. Setup nodejs

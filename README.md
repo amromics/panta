@@ -1,15 +1,21 @@
 
 # AMR-Viz
 
+
+[![CRAN](https://www.r-pkg.org/badges/version-ago/AMR)](https://cran.r-project.org/package=AMR)
+[![CRANlogs](https://cranlogs.r-pkg.org/badges/grand-total/AMR)](https://cran.r-project.org/package=AMR)
+![R-code-check](https://github.com/msberends/AMR/workflows/R-code-check/badge.svg?branch=master)
+[![CodeFactor](https://www.codefactor.io/repository/github/msberends/amr/badge)](https://www.codefactor.io/repository/github/msberends/amr)
+[![Codecov](https://codecov.io/gh/msberends/AMR/branch/master/graph/badge.svg)](https://codecov.io/gh/msberends/AMR?branch=master)
+
+
 ## Welcome to AMR-Viz
 
-**AMR-Viz** is a package for genomics analysis antimicrobial resistace (AMR). 
+**AMR-Viz** is a package for genomics analysis antimicrobial resistant bacteria. 
 The core of AMR-Viz is a pipeline that bundles the current best practice for 
-multiple aspeces of AMR analyses. The pipeline analysis results are 
+multiple aspects of AMR analyses. The pipeline analysis results are 
 represented and visualized via a web application. The web application also 
 provides efficient data management.
-
-[comment]: # (It also provided publication ready figures)
  
 AMR-Viz is written in python, and its web back-end is implemented with nodejs. 
 It includes the followings dependencies:
@@ -23,15 +29,16 @@ It includes the followings dependencies:
  * abricate (1.0.1 | Database: vfdb ecoli_vf ecoh card megares resfinder argannot ncbi plasmidfinder)
  * roary (3.13.0)
  * parsnp (1.5.3)
+ * iqtree (2.0.3)
 
 ## Installation
 
 The simplest method is installed via conda:
 
-0. Download and install the appropriate anaconda from 
-https://repo.anaconda.com/archive/
-1. Create a conda environment with all the neccesary dependencies to run 
-amromics-viz:
+0. Download and install the appropriate conda, such as anaconda from 
+   https://repo.anaconda.com/archive/
+   
+1. Create a conda environment with all the necessary dependencies: 
 ```bash
 conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz \
       python=3.7 \
@@ -47,6 +54,7 @@ conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz \
       abricate \
       shovill \
       roary \
+      iqtree \
       parsnp \
       nodejs
 ```
@@ -62,9 +70,6 @@ cloned directory.
 git clone https://github.com/amromics-org/amromics-vis.git
 ```
 4. (Optional) Setup and build web application using npm 
-
-[comment]: # ((To-do: Document what this is for.))
-
 
 ```bash
 cd amromics-vis
@@ -88,15 +93,34 @@ pipeline.
 Change the current working directory to the **amromics-vis** cloned directory 
 in the step 4 of Intallation above.
 ```bash
-cd web-app && live-server --port=3000  --entry-file=index.html
+./amrviz.py start [-p 3000] [--webapp-dir web-app]
 ```
 
 The web application is auto opened on the URL **localhost:3000** (or another 
-port if this port is occupied). ((To-do: Modify this to report to user if
-this port is occupied and instruct user to choose a different port.))
-
+port if this port is occupied). 
 
 ### To run the pipeline
+
+
+### Examples
+
+We prepare a dataset for amrviz which from public data base. To download the raw data,
+```bash
+cd examples/Kp24/raw
+./download.sh
+cd ../../
+```
+The following command will run that 24 samples through the pipeline, and import the results
+to the web-app for visualization:
+
+```bash
+./amrviz.py pa --time-log k24_time.log  -t 7 -m 25 -c KpClinicalGRBZ -i examples/Kp24/Kp24.tsv --work-dir data/work --webapp-dir web-app  -n "Collection of 24 clinical isolates from Greek and Brazil"
+```
+
+
+
+<!--
+
 #### Prepare input file
 - Data file inputted for analysis needs to be in *.tsv* format 
 ((To-do: Check if .tsv format is required)) and follows specific requirements. 
@@ -138,4 +162,4 @@ Amromics-viz is released under the accompanying BSD-like license.
 ((To-do: 1-Review license type. 2. Do we need a separate LICENSE.md file? 3-Add additional requirements for users regarding reference/acknowledgement/authorship etc. in publications))
 
 
-
+-->

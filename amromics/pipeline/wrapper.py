@@ -481,7 +481,6 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     shutil.rmtree(temp_folder)
     return report
 
-
 def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
     Run parsnp to create phylogeny tree. If the list of samples has not changed, and
@@ -541,7 +540,6 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
     run_command('gzip {}'.format(os.path.join(phylogeny_folder, 'parsnp.ggr')))
     shutil.rmtree(temp_folder)
     return report
-
 
 def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
@@ -634,6 +632,194 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
         run_command('rm -f ' + os.path.join(gene_dir, '*.ini ') + os.path.join(gene_dir, '*block* '))
         shutil.rmtree(os.path.join(gene_dir, 'blocks'), True)
         shutil.rmtree(os.path.join(gene_dir, 'tmp'), True)
+
+    report['alignments'] = alignment_dir
+    return report
+
+def run_roary_new(report, collection_dir='.', threads=8, overwrite=False, timing_log=None):
+    """
+    Run roary for pangenome analysis. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+
+    for sample in report['samples']:
+        # Check if any sample has been updated
+        overwrite = overwrite or sample['updated']
+    # any([overwrite] + [sample['updated'] for sample in report['samples']])
+
+    roary_folder = os.path.join(collection_dir, 'roary')
+    temp_folder = os.path.join(collection_dir, 'temp_roary')
+    roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
+
+    # Check if roary has run for the same dataset ID and the same set of samples
+    report['roary'] = roary_folder
+    if os.path.isfile(roary_output) and (not overwrite):
+        logger.info('roary has run and the input has not changed, skip roarying')
+        return report
+
+    if not os.path.isdir(temp_folder):
+        os.makedirs(temp_folder)
+
+    gff_list = []
+    for sample in report['samples']:
+        sample_id = sample['id']
+        gffgz_file = os.path.join(sample['annotation'], sample_id + '.gff.gz')
+        gff_file = os.path.join(temp_folder, sample_id + '.gff')
+        if run_command('zcat {} > {}'.format(gffgz_file, gff_file)) != 0:
+            raise Exception('Cannot get {}'.format(gffgz_file))
+        gff_list.append(gff_file)
+
+    # Make sure the directory is not there or roary will add timestamp
+    if os.path.isfile(roary_folder):
+        os.remove(roary_folder)
+    if os.path.exists(roary_folder):
+        shutil.rmtree(roary_folder)
+
+    cmd = 'roary -p {} -f {} -e --dont_delete_files -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        raise Exception('roary fail to run!')
+
+    for cmd in ['gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
+                'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
+                'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv')]:
+        ret = run_command(cmd)
+        if ret != 0:
+            raise Exception('Error running {}'.format(cmd))
+
+    shutil.rmtree(temp_folder)
+    return report
+
+def run_phylo(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+    """
+    Run iqtree to create phylogeny tree from core gene alignment
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+    phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
+    if not os.path.exists(phylogeny_folder):
+        os.makedirs(phylogeny_folder)
+    report['phylogeny'] = phylogeny_folder
+
+    phylogeny_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.treefile')
+    if os.path.isfile(phylogeny_file) and (not overwrite):
+        logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
+        return report
+    
+    alngz_file = os.path.join(report['roary'], 'core_gene_alignment.aln.gz')
+    aln_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln')
+    if run_command('zcat {} > {}'.format(alngz_file, aln_file)) != 0:
+        raise Exception('Cannot get {}'.format(alngz_file))
+    
+    cmd = 'iqtree -s {alignment} -B 1000 -T {threads}'.format(alignment=aln_file, threads=threads)
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        raise Exception('iqtree fail to create phylogeny tree from core gene alignment!')
+
+    if os.path.isfile(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.uniqueseq.phy')):
+        if run_command('gzip {}'.format(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.uniqueseq.phy'))) != 0:
+            raise Exception('Error running gzip')
+
+    # temporarily make a copy of tree file with 'parsnp.tree' name
+    shutil.copyfile(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.treefile'), 
+    os.path.join(phylogeny_folder, 'parsnp.tree'))
+
+    # clean up
+    if os.path.isfile(aln_file):
+        os.remove(aln_file) 
+
+    return report
+
+def run_align(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+    """
+    Run phylogenetic analysis of gene clusters.
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+    gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'
+    # make folder contains sequences for each gene
+    alignment_dir = os.path.join(collection_dir, 'alignments')
+    
+    gene_df = pd.read_csv(gene_cluster_file, sep='\t')
+    gene_df.fillna('', inplace=True)
+
+    # select only the gene clusters have at least 3 sequences
+    df_subset = gene_df.iloc[:,1:]
+    gene_df_filter = gene_df.loc[df_subset.sum(axis=1) >= 3,:]
+    
+    for _, row in gene_df_filter.iterrows():
+        gene_id = row['Gene']
+        gene_list = list(row[row == 1].index)
+
+        gene_dir = os.path.join(alignment_dir, gene_id)
+        if not os.path.exists(gene_dir):
+            os.makedirs(gene_dir)
+        gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
+        #os.system('cp {} {}'.format(gene_aln_file_roary,gene_aln_file))
+        shutil.copyfile(gene_aln_file_roary,gene_aln_file)
+        
+        # Check if done before
+        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
+        if not overwrite:
+            if os.path.isfile(gene_list_json):
+                with open(gene_list_json) as fn:
+                    existing_gene_list = json.load(fn)
+                    if gene_list == existing_gene_list:
+                        logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
+                        continue  # for _, row
+        
+        cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
+            alignment=gene_aln_file, threads=threads)
+        ret = run_command(cmd, timing_log)
+
+        with open(gene_list_json, 'w') as fn:
+            json.dump(gene_list, fn)        
 
     report['alignments'] = alignment_dir
     return report

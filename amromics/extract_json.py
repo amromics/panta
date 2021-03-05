@@ -92,6 +92,76 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
     update_collection_history(webapp_data_dir, collection_id, collection_name, "Ready")
 
 
+def export__json(work_dir, webapp_data_dir, collection_id, collection_name=''):
+
+    update_collection_history(webapp_data_dir, collection_id, collection_name, "Not Ready")
+    # look for dump file:
+    dump_file = os.path.join(work_dir, 'collections', collection_id, collection_id + '_dump.json')
+    if not os.path.isfile(dump_file):
+        raise Exception("Dump file {} not found!".format(dump_file))
+
+    exp_dir_current = os.path.join(webapp_data_dir, collection_id)
+    if not os.path.exists(exp_dir_current):
+        os.makedirs(exp_dir_current)
+    exp_dir_downloadfile = os.path.join(exp_dir_current, 'files')
+    if not os.path.exists(exp_dir_downloadfile):
+        os.makedirs(exp_dir_downloadfile)
+   # if (not os.path.isabs(exp_dir_downloadfile)):
+    #    exp_dir_downloadfile =os.path.join(os.path.dirname(__file__),exp_dir_downloadfile)
+    report = json.load(open(dump_file))
+
+    # export single samples
+    web_samples = []
+    for sample in report['samples']:
+        sample_files = []
+        sample_files.append({'name': 'FASTA', 'file': copy_file_to_web(sample['assembly'], exp_dir_downloadfile)})
+        sample_files.append({'name': 'GFF', 'file': copy_file_to_web(
+            os.path.join(sample['annotation'], sample['id']+'.gff.gz'), exp_dir_downloadfile)})
+        sample_files.append({'name': 'GBK', 'file': copy_file_to_web(
+            os.path.join(sample['annotation'], sample['id']+'.gbk.gz'), exp_dir_downloadfile)})
+
+        sample_results = []
+        sample_results.append({'group': 'CONTIG', 'data': export_assembly(sample['assembly'])})
+        sample_results.append({'group': 'MLST', 'data': extract_mlst(sample['mlst'])})
+        sample_results.append({'group': 'VIR', 'data': find_virulome(sample['virulome'])})
+        sample_results.append({'group': 'AMR', 'data': find_amr(sample['resistome'])})
+        sample_results.append({'group': 'PLASMID', 'data': find_plasmid(sample['plasmid'])})
+        sample_results.append({'group': 'ANNOTATION', 'data': export_known_genes(sample['annotation'])})
+
+        sample['result'] = sample_results
+
+        # TODO: Quang to review if this function stores more than we need
+        save_sample_result(sample, exp_dir_current)
+        web_samples.append({
+            'id': sample['id'],
+            'name': sample['name'],
+            'type': sample['input_type'],
+            'files': sample['files'],
+            'genus': sample['genus'],
+            'species': sample['species'],
+            'strain': sample['strain'],
+            'metadata': sample['metadata'],
+            'download': sample_files
+        })
+
+    set_result = []
+    if not os.path.exists(exp_dir_current + "/set"):
+        os.makedirs(exp_dir_current + "/set")
+    set_result.append({'group': 'phylo_heatmap', 'data': export_amr_heatmap(report, exp_dir_current)})
+    set_result.append({'group': 'pan_sum',
+                       'data': export_pangenome_summary(report['roary'] + '/summary_statistics.txt',
+                                                        exp_dir_current)})
+    set_result.append({'group': 'pan_cluster',
+                       'data': export_pangenome_cluster(report['roary'] + '/gene_presence_absence.csv.gz',
+                                                        exp_dir_current)})
+    set_result.append(
+        {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/core_gene_alignment.aln.treefile')})
+    set_result.append({'group': 'gene_alignments', 'data': export__msa(report, exp_dir_current)})
+    collection_report = {"samples": web_samples, "results": set_result}
+    json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
+    update_collection_history(webapp_data_dir, collection_id, collection_name, "Ready")
+
+
 def export_assembly(contigs_file_contents):
     # contigs_file: contigs.fasta
     contigs_stat = {}
@@ -405,6 +475,22 @@ def export_msa(report, exp_dir):
     return alignments
 
 
+def export__msa(report, exp_dir):
+    list_genes = os.listdir(report['alignments'])
+    alignments = {'alignments': []}
+    for gene in list_genes:
+        if os.path.isdir(report['alignments'] + '/' + gene):
+            tree_file = report['alignments'] + '/' + gene + '/' + gene + '.fa.aln.treefile'
+            if not os.path.isfile(tree_file):
+                continue
+            tree = export_phylogeny_tree(tree_file)
+            aln = {'gene': gene, 'tree': tree,
+                   'samples': export__alignment(gene, report['alignments'] + '/' + gene + '/' + gene + '.fa.aln', exp_dir)}
+            alignments['alignments'].append(aln)
+
+    return alignments
+
+
 def export_alignment(gene, file_xmfa, exp_dir):
     f = gzip.open(file_xmfa, 'rt')
     aligments = []
@@ -438,6 +524,21 @@ def export_alignment(gene, file_xmfa, exp_dir):
     for sid in s_dict:
         sample = {'sample': s_dict[sid]['id'], 'seq': s_dict[sid]['seq'].upper().replace('=', '')}
         aligments.append(sample)
+    if not os.path.exists(exp_dir + "/set/alignments/"):
+        os.makedirs(exp_dir + "/set/alignments/")
+    save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"
+    json.dump(aligments, gzip.open(save_path, 'wt'))
+
+    return "/set/alignments/" + gene + ".json.gz"
+    # return aligments
+
+
+def export__alignment(gene, file_aln, exp_dir):
+    aligments = []
+    for record in SeqIO.parse(file_aln, "fasta"):
+        sample = {'sample': record.id, 'seq': str(record.seq)}
+        aligments.append(sample)
+
     if not os.path.exists(exp_dir + "/set/alignments/"):
         os.makedirs(exp_dir + "/set/alignments/")
     save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"

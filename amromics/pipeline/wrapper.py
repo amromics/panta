@@ -814,6 +814,9 @@ def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_lo
         
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
+        if not os.path.isfile(gene_aln_file_roary):
+            logger.info('{} does not exist'.format(gene_aln_file_roary))
+            continue
         shutil.copyfile(gene_aln_file_roary,gene_aln_file)
 
         cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(

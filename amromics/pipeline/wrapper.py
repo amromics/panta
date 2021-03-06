@@ -819,9 +819,13 @@ def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_lo
             continue
         shutil.copyfile(gene_aln_file_roary,gene_aln_file)
 
-        cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
-            alignment=gene_aln_file, threads=threads)
-        ret = run_command(cmd, timing_log)
+#        cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
+#            alignment=gene_aln_file, threads=threads)
+#        ret = run_command(cmd, timing_log)
+
+        cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
+            alignment=gene_aln_file, threads=threads, tree=gene_aln_file+'.treefile')
+        ret = run_command(cmd, timing_log) 
 
 #        # clean up
 #        if os.path.isfile(gene_aln_file):

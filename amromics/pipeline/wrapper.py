@@ -751,14 +751,6 @@ def run__phylogeny(report, collection_dir, threads=8, overwrite=False, timing_lo
     if ret != 0:
         raise Exception('iqtree fail to create phylogeny tree from core gene alignment!')
 
-#    if os.path.isfile(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.uniqueseq.phy')):
-#        if run_command('gzip {}'.format(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.uniqueseq.phy'))) != 0:
-#            raise Exception('Error running gzip')
-
-    # temporarily make a copy of tree file with 'parsnp.tree' name
-#    shutil.copyfile(os.path.join(phylogeny_folder, 'core_gene_alignment.aln.treefile'), 
-#    os.path.join(phylogeny_folder, 'parsnp.tree'))
-
     # clean up
     if os.path.isfile(aln_file):
         os.remove(aln_file) 
@@ -788,15 +780,11 @@ def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_lo
     """
     alignment_dir = os.path.join(collection_dir, 'alignments')
     gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
-    gene_df = pd.read_csv(gene_cluster_file, sep='\t')
+    gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
     gene_df.fillna('', inplace=True)
-
-    # select the gene clusters have at least 3 sequences
-    df_subset = gene_df.iloc[:,1:]
-    gene_df_filter = gene_df.loc[df_subset.sum(axis=1) >= 3,:]
     
-    for _, row in gene_df_filter.iterrows():
-        gene_id = row['Gene']
+    for _, row in gene_df.iterrows():
+        gene_id = row.name
         gene_dir = os.path.join(alignment_dir, gene_id)
         if not os.path.exists(gene_dir):
             os.makedirs(gene_dir)
@@ -817,19 +805,20 @@ def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_lo
         if not os.path.isfile(gene_aln_file_roary):
             logger.info('{} does not exist'.format(gene_aln_file_roary))
             continue
-        shutil.copyfile(gene_aln_file_roary,gene_aln_file)
+        shutil.move(gene_aln_file_roary,gene_aln_file)
 
-#        cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
-#            alignment=gene_aln_file, threads=threads)
-#        ret = run_command(cmd, timing_log)
+        # Only analyse if there are more than 3 genes
+        if row.sum() < 3:
+            logger.info('There are too few genes for {} skipping'.format(gene_id))
+            continue
+
+        #cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
+        #    alignment=gene_aln_file, threads=threads)
+        #ret = run_command(cmd, timing_log)
 
         cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
             alignment=gene_aln_file, threads=threads, tree=gene_aln_file+'.treefile')
         ret = run_command(cmd, timing_log) 
-
-#        # clean up
-#        if os.path.isfile(gene_aln_file):
-#            os.remove(gene_aln_file) 
 
         with open(gene_list_json, 'w') as fn:
             json.dump(gene_list, fn)        

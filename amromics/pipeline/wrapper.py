@@ -672,7 +672,7 @@ def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, tim
         return report
 
     aln_file = os.path.join(report['roary'], 'core_gene_alignment.aln.gz')
-    cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads}'.format(
+    cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads} -czb -keep-ident'.format(
         alignment=aln_file, prefix=phylogeny_folder+'/core_gene_alignment', threads=threads)
     ret = run_command(cmd, timing_log)
     if ret != 0:
@@ -736,13 +736,13 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        #cmd = 'iqtree -s {alignment} --prefix {prefix} -m GTR -T {threads} -quiet'.format(
-        #    alignment=gene_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
-        #ret = run_command(cmd, timing_log)
+        cmd = 'iqtree -s {alignment} --prefix {prefix} -m GTR -T {threads} -quiet -czb -keep-ident'.format(
+            alignment=gene_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
+        ret = run_command(cmd, timing_log)
 
-        cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
-            alignment=gene_aln_file, threads=threads, tree=gene_dir+'/'+gene_id+'.treefile')
-        ret = run_command(cmd, timing_log) 
+        #cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
+        #    alignment=gene_aln_file, threads=threads, tree=gene_dir+'/'+gene_id+'.treefile')
+        #ret = run_command(cmd, timing_log) 
 
         with open(gene_list_json, 'w') as fn:
             json.dump(gene_list, fn)        
@@ -813,7 +813,7 @@ def run_protein_phylogeny(report, collection_dir, threads=8, overwrite=False, ti
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = 'iqtree -s {alignment} --prefix {prefix} -m LG -T {threads} -quiet'.format(
+        cmd = 'iqtree -s {alignment} --prefix {prefix} -m LG -T {threads} -quiet -czb -keep-ident'.format(
             alignment=protein_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
         ret = run_command(cmd, timing_log)
 

@@ -706,6 +706,7 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
     
     for _, row in gene_df.iterrows():
         gene_id = row.name
+        gene_id = gene_id.replace('-','_') # fix inconsistency of gene id
         gene_dir = os.path.join(alignment_dir, gene_id)
         if not os.path.exists(gene_dir):
             os.makedirs(gene_dir)

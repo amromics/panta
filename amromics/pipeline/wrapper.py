@@ -711,7 +711,7 @@ def run__roary(report, collection_dir='.', threads=8, overwrite=False, timing_lo
     return report
 
 
-def run__phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
     Run iqtree to create phylogeny tree from core gene alignment
 
@@ -740,11 +740,9 @@ def run__phylogeny(report, collection_dir, threads=8, overwrite=False, timing_lo
     if os.path.isfile(phylogeny_file) and (not overwrite):
         logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
         return report
-    
-    alngz_file = os.path.join(report['roary'], 'core_gene_alignment.aln.gz')
-    aln_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln')
-    if run_command('zcat {} > {}'.format(alngz_file, aln_file)) != 0:
-        raise Exception('Cannot get {}'.format(alngz_file))
+
+    aln_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.gz')
+    shutil.copyfile(os.path.join(report['roary'], 'core_gene_alignment.aln.gz'), aln_file)
     
     cmd = 'iqtree -s {alignment} -B 1000 -T {threads}'.format(alignment=aln_file, threads=threads)
     ret = run_command(cmd, timing_log)

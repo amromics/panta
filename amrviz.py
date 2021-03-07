@@ -196,7 +196,7 @@ def collection_pa_func(args):
         json.dump(dataset_sample_ids, fn)
 
     report = wrapper.run__roary(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run__phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
+    report = wrapper.run_phylogeny_iqtree(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
     report = wrapper.run__alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
     with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
         json.dump(report, fn)

@@ -9,8 +9,10 @@ import logging
 import pandas as pd
 
 from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 
-from amromics.utils import get_open_func, get_compress_type
+from amromics.utils import get_open_func, get_compress_type, translate_dna
 
 logger = logging.getLogger(__name__)
 
@@ -735,12 +737,89 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
             continue
 
         #cmd = 'iqtree -s {alignment} --prefix {prefix} -m GTR -T {threads} -quiet'.format(
-        #    alignment=gene_aln_file, prefix=gene_id, threads=threads)
+        #    alignment=gene_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
         #ret = run_command(cmd, timing_log)
 
         cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
             alignment=gene_aln_file, threads=threads, tree=gene_dir+'/'+gene_id+'.treefile')
         ret = run_command(cmd, timing_log) 
+
+        with open(gene_list_json, 'w') as fn:
+            json.dump(gene_list, fn)        
+
+    report['alignments'] = alignment_dir
+    return report
+
+
+def run_protein_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+    """
+    Run phylogenetic analysis of gene clusters by protein alignment
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+    alignment_dir = os.path.join(collection_dir, 'alignments')
+    gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
+    gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
+    gene_df.fillna('', inplace=True)
+    
+    for _, row in gene_df.iterrows():
+        gene_id = row.name
+        gene_id = gene_id.replace('-','_') # fix inconsistency of gene id
+        gene_dir = os.path.join(alignment_dir, gene_id)
+        if not os.path.exists(gene_dir):
+            os.makedirs(gene_dir)
+        
+        # Check if done before
+        gene_list = list(row[row == 1].index)
+        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
+        if not overwrite:
+            if os.path.isfile(gene_list_json):
+                with open(gene_list_json) as fn:
+                    existing_gene_list = json.load(fn)
+                    if gene_list == existing_gene_list:
+                        logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
+                        continue  # for _, row
+        
+        gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
+        if not os.path.isfile(gene_aln_file_roary):
+            logger.info('{} does not exist'.format(gene_aln_file_roary))
+            continue
+        shutil.move(gene_aln_file_roary,gene_aln_file)
+        
+        # translate to protein alignment
+        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa')
+        for record in SeqIO.parse(gene_aln_file, 'fasta'):
+            trans = translate_dna(str(record.seq))
+            new_record = SeqRecord(Seq(trans), id=record.id,)
+            SeqIO.write(new_record, open(protein_aln_file, 'a'), 'fasta')
+
+        # Only analyse if there are more than 3 genes
+        if row.sum() < 3:
+            logger.info('There are too few genes for {} skipping'.format(gene_id))
+            continue
+
+        cmd = 'iqtree -s {alignment} --prefix {prefix} -m LG -T {threads} -quiet'.format(
+            alignment=protein_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
+        ret = run_command(cmd, timing_log)
+
+        #cmd = 'fasttree -lg -quiet {alignment} > {tree}'.format(
+        #    alignment=protein_aln_file, threads=threads, tree=gene_dir+'/'+gene_id+'.treefile')
+        #ret = run_command(cmd, timing_log) 
 
         with open(gene_list_json, 'w') as fn:
             json.dump(gene_list, fn)        

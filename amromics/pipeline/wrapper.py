@@ -666,7 +666,7 @@ def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, tim
         os.makedirs(phylogeny_folder)
     report['phylogeny'] = phylogeny_folder
 
-    phylogeny_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.treefile')
+    phylogeny_file = os.path.join(phylogeny_folder, 'core_gene_alignment.treefile')
     if os.path.isfile(phylogeny_file) and (not overwrite):
         logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
         return report

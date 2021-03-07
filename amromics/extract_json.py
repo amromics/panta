@@ -409,7 +409,8 @@ def export_msa(report, exp_dir):
 def export_alignment(gene, file_aln, exp_dir):
     aligments = []
     for record in SeqIO.parse(file_aln, "fasta"):
-        sample = {'sample': record.id, 'seq': str(record.seq)}
+        seq = str(record.seq).upper()
+        sample = {'sample': record.id, 'seq': seq}
         aligments.append(sample)
 
     if not os.path.exists(exp_dir + "/set/alignments/"):

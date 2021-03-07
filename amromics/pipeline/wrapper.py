@@ -466,7 +466,7 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     if os.path.exists(roary_folder):
         shutil.rmtree(roary_folder)
 
-    cmd = 'roary -p {} -f {} -e -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
+    cmd = 'roary -p {} -f {} -e --dont_delete_files -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('roary fail to run!')
@@ -639,78 +639,6 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
     return report
 
 
-def run__roary(report, collection_dir='.', threads=8, overwrite=False, timing_log=None):
-    """
-    Run roary for pangenome analysis. If the list of samples has not changed, and
-    none of the samples has changed, the existing tree will be kept unless overwrite is
-    set to True
-
-    Parameters
-    ----------
-    report: object
-        A report object
-    collection_dir: str
-        working directory of the collection
-    threads: int
-        number of threads to use
-    overwrite: bool
-        whether to overwrite existing result even if input did not change
-    timing_log: str
-        file to log timing
-    Returns
-        report object
-    -------
-    """
-
-    for sample in report['samples']:
-        # Check if any sample has been updated
-        overwrite = overwrite or sample['updated']
-    # any([overwrite] + [sample['updated'] for sample in report['samples']])
-
-    roary_folder = os.path.join(collection_dir, 'roary')
-    temp_folder = os.path.join(collection_dir, 'temp_roary')
-    roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
-
-    # Check if roary has run for the same dataset ID and the same set of samples
-    report['roary'] = roary_folder
-    if os.path.isfile(roary_output) and (not overwrite):
-        logger.info('roary has run and the input has not changed, skip roarying')
-        return report
-
-    if not os.path.isdir(temp_folder):
-        os.makedirs(temp_folder)
-
-    gff_list = []
-    for sample in report['samples']:
-        sample_id = sample['id']
-        gffgz_file = os.path.join(sample['annotation'], sample_id + '.gff.gz')
-        gff_file = os.path.join(temp_folder, sample_id + '.gff')
-        if run_command('zcat {} > {}'.format(gffgz_file, gff_file)) != 0:
-            raise Exception('Cannot get {}'.format(gffgz_file))
-        gff_list.append(gff_file)
-
-    # Make sure the directory is not there or roary will add timestamp
-    if os.path.isfile(roary_folder):
-        os.remove(roary_folder)
-    if os.path.exists(roary_folder):
-        shutil.rmtree(roary_folder)
-
-    cmd = 'roary -p {} -f {} -e --dont_delete_files -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        raise Exception('roary fail to run!')
-
-    for cmd in ['gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
-                'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
-                'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv')]:
-        ret = run_command(cmd)
-        if ret != 0:
-            raise Exception('Error running {}'.format(cmd))
-
-    shutil.rmtree(temp_folder)
-    return report
-
-
 def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
     Run iqtree to create phylogeny tree from core gene alignment
@@ -741,22 +669,17 @@ def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, tim
         logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
         return report
 
-    aln_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.gz')
-    shutil.copyfile(os.path.join(report['roary'], 'core_gene_alignment.aln.gz'), aln_file)
-    
-    cmd = 'iqtree -s {alignment} -B 1000 -T {threads}'.format(alignment=aln_file, threads=threads)
+    aln_file = os.path.join(report['roary'], 'core_gene_alignment.aln.gz')
+    cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads}'.format(
+        alignment=aln_file, prefix=phylogeny_folder+'/core_gene_alignment', threads=threads)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('iqtree fail to create phylogeny tree from core gene alignment!')
 
-    # clean up
-    if os.path.isfile(aln_file):
-        os.remove(aln_file) 
-
     return report
 
 
-def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
     Run phylogenetic analysis of gene clusters
 
@@ -810,12 +733,12 @@ def run__alignment(report, collection_dir, threads=8, overwrite=False, timing_lo
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        #cmd = 'iqtree -s {alignment} -m GTR -T {threads} -quiet'.format(
-        #    alignment=gene_aln_file, threads=threads)
+        #cmd = 'iqtree -s {alignment} --prefix {prefix} -m GTR -T {threads} -quiet'.format(
+        #    alignment=gene_aln_file, prefix=gene_id, threads=threads)
         #ret = run_command(cmd, timing_log)
 
         cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
-            alignment=gene_aln_file, threads=threads, tree=gene_aln_file+'.treefile')
+            alignment=gene_aln_file, threads=threads, tree=gene_dir+'/'+gene_id+'.treefile')
         ret = run_command(cmd, timing_log) 
 
         with open(gene_list_json, 'w') as fn:

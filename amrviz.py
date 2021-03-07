@@ -195,9 +195,9 @@ def collection_pa_func(args):
     with open(sample_set_file, 'w') as fn:
         json.dump(dataset_sample_ids, fn)
 
-    report = wrapper.run__roary(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
+    report = wrapper.run_roary(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
     report = wrapper.run_phylogeny_iqtree(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run__alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
+    report = wrapper.run_gene_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
     with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
         json.dump(report, fn)
 
@@ -205,7 +205,7 @@ def collection_pa_func(args):
     # if os.path.exists(collection_dir + "/temp"):
     #     shutil.rmtree(collection_dir + "/temp")
 
-    extract_json.export__json(work_dir, webapp_data_dir,
+    extract_json.export_json(work_dir, webapp_data_dir,
                              collection_id, collection_name)
     logger.info('Congratulations, collection {} is imported to web-app!'.format(collection_id))
 

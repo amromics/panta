@@ -85,7 +85,7 @@ def export_json(work_dir, webapp_data_dir, collection_id, collection_name=''):
                        'data': export_pangenome_cluster(report['roary'] + '/gene_presence_absence.csv.gz',
                                                         exp_dir_current)})
     set_result.append(
-        {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/parsnp.tree')})
+        {'group': 'phylogeny_tree', 'data': export_phylogeny_tree(report['phylogeny'] + '/core_gene_alignment.treefile')})
     set_result.append({'group': 'gene_alignments', 'data': export_msa(report, exp_dir_current)})
     collection_report = {"samples": web_samples, "results": set_result}
     json.dump(collection_report, open(exp_dir_current + '/set.json', 'w'))
@@ -395,49 +395,24 @@ def export_msa(report, exp_dir):
     alignments = {'alignments': []}
     for gene in list_genes:
         if os.path.isdir(report['alignments'] + '/' + gene):
-            if not os.path.isfile(report['alignments'] + '/' + gene + '/parsnp.tree'):
+            tree_file = report['alignments'] + '/' + gene + '/' + gene + '.treefile'
+            if not os.path.isfile(tree_file):
                 continue
-            tree = export_phylogeny_tree(report['alignments'] + '/' + gene + '/parsnp.tree')
+            tree = export_phylogeny_tree(tree_file)
             aln = {'gene': gene, 'tree': tree,
-                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/parsnp.xmfa.gz', exp_dir)}
+                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/' + gene + '.fa.aln', exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments
 
 
-def export_alignment(gene, file_xmfa, exp_dir):
-    f = gzip.open(file_xmfa, 'rt')
+def export_alignment(gene, file_aln, exp_dir):
     aligments = []
-    s_dict = {}
-    recent_index = 0
-    current_index = 0
-    seq = ''
-    line = f.readline()
-    while line:
-        if line.startswith('#'):
-            if line.startswith('##SequenceIndex'):
-                t = line.strip().split(' ')
-                if not t[1] in s_dict:
-                    s_dict[t[1]] = {}
-                    recent_index = t[1]
-            if line.startswith('##SequenceFile'):
-                t = line.strip().split(' ')
-                sampleid = t[1].replace('.fasta.ref', '')
-                sampleid = sampleid.replace('.fasta', '')
-                s_dict[recent_index]['id'] = sampleid
-        elif line.startswith('>'):
-            t = line.split(' ')
-            current_index = t[0].split(':')[0].replace('>', '')
-            seq = ''
-        else:
-            seq = seq + line.strip()
-            s_dict[current_index]['seq'] = seq
-        # next line
-        line = f.readline()
-    f.close()
-    for sid in s_dict:
-        sample = {'sample': s_dict[sid]['id'], 'seq': s_dict[sid]['seq'].upper().replace('=', '')}
+    for record in SeqIO.parse(file_aln, "fasta"):
+        seq = str(record.seq).upper()
+        sample = {'sample': record.id, 'seq': seq}
         aligments.append(sample)
+
     if not os.path.exists(exp_dir + "/set/alignments/"):
         os.makedirs(exp_dir + "/set/alignments/")
     save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"

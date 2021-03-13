@@ -174,7 +174,7 @@ def annotate_prokka(sample, sample_dir,  threads=8, overwrite=False, timing_log=
         return path_out
 
     gunzip_fasta = os.path.join(path_out, sample['id'] + '.fin')
-    cmd = 'zcat {} > {}'.format(sample['assembly'], gunzip_fasta)
+    cmd = 'gunzip -c {} > {}'.format(sample['assembly'], gunzip_fasta)
     run_command(cmd)
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=sample['id'], path=path_out)
@@ -458,7 +458,7 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
         sample_id = sample['id']
         gffgz_file = os.path.join(sample['annotation'], sample_id + '.gff.gz')
         gff_file = os.path.join(temp_folder, sample_id + '.gff')
-        if run_command('zcat {} > {}'.format(gffgz_file, gff_file)) != 0:
+        if run_command('gunzip -c {} > {}'.format(gffgz_file, gff_file)) != 0:
             raise Exception('Cannot get {}'.format(gffgz_file))
         gff_list.append(gff_file)
 
@@ -526,7 +526,7 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
     sample_list = []
     for i, sample in enumerate(report['samples']):
         fasta_file = os.path.join(temp_folder, sample['id'] + '.fasta')
-        cmd = 'zcat {} > {}'.format(sample['assembly'], fasta_file)
+        cmd = 'gunzip -c {} > {}'.format(sample['assembly'], fasta_file)
         run_command(cmd)
         if i == 0:
             reference_genome = fasta_file

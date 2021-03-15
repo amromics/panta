@@ -643,7 +643,9 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
 
 def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Run iqtree to create phylogeny tree from core gene alignment
+    Run iqtree to create phylogeny tree from core gene alignment. If the list of samples has 
+    not changed, and none of the samples has changed, the existing tree will be kept unless 
+    overwrite is set to True
 
     Parameters
     ----------
@@ -683,7 +685,9 @@ def run_phylogeny_iqtree(report, collection_dir, threads=8, overwrite=False, tim
 
 def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Run phylogenetic analysis of gene clusters
+    Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
 
     Parameters
     ----------
@@ -753,7 +757,9 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
 
 def run_protein_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Run phylogenetic analysis of gene clusters by protein alignment
+    Run phylogenetic analysis of gene clusters from protein alignment. If the list of samples 
+    has not changed, and none of the samples has changed, the existing tree will be kept 
+    unless overwrite is set to True
 
     Parameters
     ----------
@@ -828,9 +834,11 @@ def run_protein_phylogeny(report, collection_dir, threads=8, overwrite=False, ti
     return report
 
 
-def run_gene_phylogeny_parellel(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+def run_gene_phylogeny_parallel(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Run phylogenetic analysis of gene clusters
+    Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
+    none of the samples has changed, the existing tree will be kept unless overwrite is
+    set to True
 
     Parameters
     ----------
@@ -887,7 +895,7 @@ def run_gene_phylogeny_parellel(report, collection_dir, threads=8, overwrite=Fal
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -T {threads} -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
+        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         

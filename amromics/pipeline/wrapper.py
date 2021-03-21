@@ -730,10 +730,11 @@ def run_gene_phylogeny_nucleotide(report, collection_dir, threads=8, overwrite=F
         
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
 
         # Only analyse if there are more than 3 genes
         if row.sum() < 3:
@@ -802,10 +803,11 @@ def run_gene_phylogeny_protein(report, collection_dir, threads=8, overwrite=Fals
         
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
         
         # translate to protein alignment
         protein_aln_file = os.path.join(gene_dir, gene_id + '.faa')
@@ -886,9 +888,11 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
 
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
 
         # Only analyse if there are more than 3 genes
         if row.sum() < 3:
@@ -899,7 +903,7 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -a {cmds_file}"
+    cmd = f"parallel -v -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
@@ -957,10 +961,11 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
 
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
         
         # translate to protein alignment
         protein_aln_file = os.path.join(gene_dir, gene_id + '.faa')
@@ -978,7 +983,7 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
         #cmd = f"fasttree -lg -quiet {protein_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -a {cmds_file}"
+    cmd = f"parallel -v -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report

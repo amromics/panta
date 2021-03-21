@@ -256,45 +256,45 @@ def export_known_genes(annotation_folder):
     gff_file = None
     for root, dirs, files in os.walk(annotation_folder):
         for _file in files:
-            if _file.endswith('.gff'):
+            if _file.endswith('.gff.gz'):
                 gff_file = os.path.abspath(str(root) + '/' + _file)
     if gff_file is None:
         return ''
     knowgene = {'genes': []}
-    f = open(gff_file)
-    line = f.readline()
-    while line:
-        if not line.startswith('##'):
-            token = line.split('\t')
-            if token[1] == 'prokka':
-                # start new gene record
-                # collect position,strain and gene name:
-                contig = token[0]
-                start = int(token[3])
-                end = int(token[4])
-                strain = token[6]
-                tok_des = token[8].split(';')
-                name = ''
-                for s in tok_des:
-                    if s.startswith('Name='):
-                        name = s.split('=')[1]
-                # collect type and product
-                line = f.readline()
-                token2 = line.split('\t')
-                gene_type = token2[2]
-                tok_des2 = token2[8].split(';')
-                product = ''
-                for s in tok_des2:
-                    if s.startswith('product='):
-                        product = s.split('=')[1].strip().replace('\'', '')
-                hit = {'contig': contig, 'start': start, 'end': end, 'strain': strain, 'name': name, 'type': gene_type,
-                       'product': product}
-                knowgene['genes'].append(hit)
-        if line.startswith('##FASTA'):
-            break
-        # next line
+    #f = open(gff_file)
+    with gzip.open(gff_file, 'rt') as f:
         line = f.readline()
-    f.close()
+        while line:
+            if not line.startswith('##'):
+                token = line.split('\t')
+                if token[1] == 'prokka':
+                    # start new gene record
+                    # collect position,strain and gene name:
+                    contig = token[0]
+                    start = int(token[3])
+                    end = int(token[4])
+                    strain = token[6]
+                    tok_des = token[8].split(';')
+                    name = ''
+                    for s in tok_des:
+                        if s.startswith('Name='):
+                            name = s.split('=')[1]
+                            # collect type and product
+                    line = f.readline()
+                    token2 = line.split('\t')
+                    gene_type = token2[2]
+                    tok_des2 = token2[8].split(';')
+                    product = ''
+                    for s in tok_des2:
+                        if s.startswith('product='):
+                            product = s.split('=')[1].strip().replace('\'', '')
+                    hit = {'contig': contig, 'start': start, 'end': end, 'strain': strain, 'name': name, 'type': gene_type,'product': product}
+                    knowgene['genes'].append(hit)
+            if line.startswith('##FASTA'):
+                break
+            # next line
+            line = f.readline()
+
     return knowgene
 
 

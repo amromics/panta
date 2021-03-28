@@ -442,7 +442,7 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
 
     roary_folder = os.path.join(collection_dir, 'roary')
     temp_folder = os.path.join(collection_dir, 'temp_roary')
-    roary_output = os.path.join(roary_folder, 'core_alignment_header.embl')
+    roary_output = os.path.join(roary_folder, 'summary_statistics.txt')
 
     # Check if roary has run for the same dataset ID and the same set of samples
     report['roary'] = roary_folder
@@ -468,17 +468,15 @@ def run_roary(report, collection_dir='.', threads=8, overwrite=False, timing_log
     if os.path.exists(roary_folder):
         shutil.rmtree(roary_folder)
 
-    cmd = 'roary -p {} -f {} -e --dont_delete_files -n -v '.format(threads, roary_folder) + ' '.join(gff_list)
+    cmd = 'roary -p {} -f {} -v '.format(threads, roary_folder) + ' '.join(gff_list)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('roary fail to run!')
 
-    for cmd in ['gzip ' + os.path.join(roary_folder, 'core_gene_alignment.aln'),
-                'gzip ' + os.path.join(roary_folder, 'pan_genome_reference.fa'),
-                'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv')]:
-        ret = run_command(cmd)
-        if ret != 0:
-            raise Exception('Error running {}'.format(cmd))
+    cmd = 'gzip ' + os.path.join(roary_folder, 'gene_presence_absence.csv')
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running {}'.format(cmd))
 
     shutil.rmtree(temp_folder)
     return report
@@ -545,11 +543,9 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
     return report
 
 
-def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
-    none of the samples has changed, the existing tree will be kept unless overwrite is
-    set to True
+    Create protein sequences and nucleotide sequences for each gene cluster
 
     Parameters
     ----------
@@ -568,20 +564,36 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
     -------
     """
     gene_cluster_file = report['roary'] + '/gene_presence_absence.csv.gz'
-    dict_cds = {}
+    dict_nucleotide = {}
+    dict_protein = {}
     for sample in report['samples']:
         with gzip.open(os.path.join(sample['annotation'], sample['id'] + '.ffn.gz'), 'rt') as fn:
-            for seq in SeqIO.parse(fn, 'fasta'):
-                dict_cds[seq.id] = seq
+            for seq_record in SeqIO.parse(fn, 'fasta'):
+                dict_nucleotide[seq_record.id] = seq_record
+        with gzip.open(os.path.join(sample['annotation'], sample['id'] + '.gbk.gz'), 'rt') as fn:
+            for seq_record in SeqIO.parse(fn, 'genbank'):
+                for feature in seq_record.features:
+                    if feature.type != 'CDS':
+                        continue
+                    protein_id = feature.qualifiers['locus_tag'][0]
+                    protein_seq = feature.qualifiers['translation'][0]
+                    protein_seq_record = SeqRecord(Seq(protein_seq), id = protein_id, description = '')
+                    dict_protein[protein_id] = protein_seq_record
 
     # make folder contains sequences for each gene
     alignment_dir = os.path.join(collection_dir, 'alignments')
+    if not os.path.exists(alignment_dir):
+        os.makedirs(alignment_dir)
+
     gene_df = pd.read_csv(gene_cluster_file, dtype=str, compression='gzip')
     gene_df.fillna('', inplace=True)
-
     sample_columns = list(gene_df.columns)[14:]
     for _, row in gene_df.iterrows():
         gene_id = row['Gene']
+        gene_dir = os.path.join(alignment_dir, gene_id)
+        if not os.path.exists(gene_dir):
+            os.makedirs(gene_dir)
+
         gene_list = []
         for sample_column in sample_columns:
             if row[sample_column]:
@@ -589,57 +601,78 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
                 for sample_gene in row[sample_column].split('\t'):
                     gene_list.append(sample_gene)
                     # TODO: make sure all samples in this gene have not updated
-
         gene_list = sorted(gene_list)
-        # Only analyse if there are more than 3 genes
-        if len(gene_list) < 3:
-            logger.info('There are too few genes for {} skipping'.format(gene_id))
-            continue
 
-        gene_dir = os.path.join(alignment_dir, gene_id)
-        # Check if done before
-        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
-        # if os.path.isfile(os.path.join(gene_dir, 'parsnp.tree')) and (not overwrite):
-        if not overwrite:
-            if os.path.isfile(gene_list_json):
-                with open(gene_list_json) as fn:
-                    existing_gene_list = json.load(fn)
-                    if gene_list == existing_gene_list:
-                        logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
-                        continue  # for _, row
-
-        gene_file_dir = os.path.join(gene_dir, 'files')
-        if not os.path.exists(gene_file_dir):
-            os.makedirs(gene_file_dir)
-
-        gene_files = []
+        protein_seq_file = os.path.join(gene_dir, gene_id + '.faa')
+        if os.path.isfile(protein_seq_file):
+            os.remove(protein_seq_file)
+        nucleotide_seq_file = os.path.join(gene_dir, gene_id + '.fna')
+        if os.path.isfile(nucleotide_seq_file):
+            os.remove(nucleotide_seq_file)
+        protein_seq_fh = open(protein_seq_file, 'a')
+        nucleotide_seq_fh = open(nucleotide_seq_file, 'a')
         for sample_gene in gene_list:
-            gene_file = os.path.join(gene_file_dir, sample_gene + '.fasta')
-            SeqIO.write(dict_cds[sample_gene], gene_file, 'fasta')
-            gene_files.append(gene_file)
+            SeqIO.write(dict_nucleotide[sample_gene], nucleotide_seq_fh, 'fasta')
+            SeqIO.write(dict_protein[sample_gene], protein_seq_fh, 'fasta')
+        protein_seq_fh.close()
+        nucleotide_seq_fh.close()
 
-        # Use the first gene as the reference
-        cmd = 'parsnp -d {} -r {} -o {} -p {}'.format(
-            ' '.join(gene_files[1:]), gene_files[0], gene_dir, threads)
-        ret = run_command(cmd, timing_log)
-        # if ret != 0:
-        #     raise Exception('error')
-
-        with open(gene_list_json, 'w') as fn:
-            json.dump(gene_list, fn)
-        run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.xmfa')))
-        run_command('gzip {}'.format(os.path.join(gene_dir, 'parsnp.ggr')))
-
-        if os.path.exists(gene_file_dir):
-            shutil.rmtree(gene_file_dir)
-        #clean up
-        run_command('rm -f ' + os.path.join(gene_dir, '*.ini ') + os.path.join(gene_dir, '*block* '))
-        shutil.rmtree(os.path.join(gene_dir, 'blocks'), True)
-        shutil.rmtree(os.path.join(gene_dir, 'tmp'), True)
+    del dict_nucleotide
+    del dict_protein
 
     report['alignments'] = alignment_dir
     return report
 
+
+def run_gene_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+    """
+    Align protein sequence by mafft
+
+    Parameters
+    ----------
+    report: object
+        A report object
+    collection_dir: str
+        working directory of the collection
+    threads: int
+        number of threads to use
+    overwrite: bool
+        whether to overwrite existing result even if input did not change
+    timing_log: str
+        file to log timing
+    Returns
+        report object
+    -------
+    """
+    alignment_dir = os.path.join(collection_dir, 'alignments')
+    gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
+    gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
+    gene_df.fillna('', inplace=True)
+
+    cmds_file = os.path.join(alignment_dir,"align_cmds.txt")
+    cmds = open(cmds_file,'w')
+    for _, row in gene_df.iterrows():
+        gene_id = row.name
+        gene_id = gene_id.replace('-','_') # fix inconsistency of gene id
+        gene_dir = os.path.join(alignment_dir, gene_id)
+
+        gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
+        if not os.path.isfile(gene_seq_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
+            continue
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
+        # Only align if there are at least 2 sequences
+        if row.sum() < 2:
+            logger.info('There are too few sequences for {} skipping'.format(gene_id))
+            continue
+        
+        cmd = f"mafft --auto --quiet {gene_seq_file} > {gene_aln_file}"
+        cmds.write(cmd + '\n')
+        
+    cmd = f"parallel -v -a {cmds_file}"
+    ret = run_command(cmd, timing_log)
+    report['alignments'] = alignment_dir
+    return report
 
 def run_species_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
@@ -859,37 +892,29 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
     -------
     """
     alignment_dir = os.path.join(collection_dir, 'alignments')
-    if not os.path.exists(alignment_dir):
-        os.makedirs(alignment_dir)
     gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
     gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
     gene_df.fillna('', inplace=True)
     
-    cmds_file = os.path.join(alignment_dir,"cmds.txt")
+    cmds_file = os.path.join(alignment_dir,"gene_phylo_cmds.txt")
     cmds = open(cmds_file,'w')
     for _, row in gene_df.iterrows():
         gene_id = row.name
         gene_id = gene_id.replace('-','_') # fix inconsistency of gene id
         gene_dir = os.path.join(alignment_dir, gene_id)
-        if not os.path.exists(gene_dir):
-            os.makedirs(gene_dir)
         
         # Check if done before
         gene_list = list(row[row == 1].index)
-        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
+        gene_list_json = os.path.join(gene_dir, 'gene_phylo.json')
         if not overwrite:
             if os.path.isfile(gene_list_json):
                 with open(gene_list_json) as fn:
                     existing_gene_list = json.load(fn)
                     if gene_list == existing_gene_list:
-                        logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
+                        logger.info('Alignment for gene {} done, skipping'.format(gene_id))
                         continue  # for _, row
-        gen_list_string = json.dumps(gene_list)
 
-        gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if os.path.isfile(gene_aln_file_roary):
-            shutil.move(gene_aln_file_roary,gene_aln_file)
         if not os.path.isfile(gene_aln_file):
             logger.info('{} does not exist'.format(gene_aln_file))
             continue
@@ -903,7 +928,7 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -v -a {cmds_file}"
+    cmd = f"parallel -v {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
@@ -949,15 +974,14 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
         
         # Check if done before
         gene_list = list(row[row == 1].index)
-        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
+        gene_list_json = os.path.join(gene_dir, 'gene_phylo.json')
         if not overwrite:
             if os.path.isfile(gene_list_json):
                 with open(gene_list_json) as fn:
                     existing_gene_list = json.load(fn)
                     if gene_list == existing_gene_list:
-                        logger.info('Phylogeny for gene {} done, skipping'.format(gene_id))
+                        logger.info('Alignment for gene {} done, skipping'.format(gene_id))
                         continue  # for _, row
-        gen_list_string = json.dumps(gene_list)
 
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
         gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
@@ -983,7 +1007,7 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
         #cmd = f"fasttree -lg -quiet {protein_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -v -a {cmds_file}"
+    cmd = f"parallel -v {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report

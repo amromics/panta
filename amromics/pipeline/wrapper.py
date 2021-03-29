@@ -564,68 +564,6 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
     return report
 
 
-def run_protein_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
-    """
-    Align protein sequence by mafft
-
-    Parameters
-    ----------
-    report: object
-        A report object
-    collection_dir: str
-        working directory of the collection
-    threads: int
-        number of threads to use
-    overwrite: bool
-        whether to overwrite existing result even if input did not change
-    timing_log: str
-        file to log timing
-    Returns
-        report object
-    -------
-    """
-    logger.info('Align protein sequence by mafft')
-    alignment_dir = os.path.join(collection_dir, 'alignments')
-    gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
-    gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
-    gene_df.fillna('', inplace=True)
-
-    cmds_file = os.path.join(alignment_dir,"align_cmds.txt")
-    cmds = open(cmds_file,'w')
-    for _, row in gene_df.iterrows():
-        gene_id = row.name
-        gene_dir = os.path.join(alignment_dir, gene_id)
-        # Only align if there are at least 2 sequences
-        if row.sum() < 2:
-            logger.info('There are too few sequences for {} skipping'.format(gene_id))
-            continue
-        # check if done before
-        gene_list = list(row[row == 1].index)
-        gene_list_json = os.path.join(gene_dir, 'align.json')
-        if not overwrite:
-            if os.path.isfile(gene_list_json):
-                with open(gene_list_json) as fn:
-                    existing_gene_list = json.load(fn)
-                    if gene_list == existing_gene_list:
-                        logger.info('Alignment for gene {} done, skipping'.format(gene_id))
-                        continue  # for _, row
-        gen_list_string = json.dumps(gene_list)
-
-        gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
-        if not os.path.isfile(gene_seq_file):
-            logger.info('{} does not exist'.format(gene_aln_file))
-            continue
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
-
-        cmd = f"mafft --auto --quiet {gene_seq_file} > {gene_aln_file} && echo '{gen_list_string}' > {gene_list_json}"
-        cmds.write(cmd + '\n')
-        
-    cmd = f"parallel -v -a {cmds_file}"
-    ret = run_command(cmd, timing_log)
-    report['alignments'] = alignment_dir
-    return report
-
-
 def add_gap(aln_remain, nu_remain, result):
     """
     Recursive function to add gap to nucleotide sequence according to 
@@ -657,9 +595,13 @@ def add_gap(aln_remain, nu_remain, result):
     [aln_remain, nu_remain, result] = add_gap(aln_remain, nu_remain, result)
     return [aln_remain, nu_remain, result]
 
-def create_nucleotide_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+
+def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Create nucleotide alignment according to protein alignment
+    Align protein sequence by mafft then create nucleotide alignment according 
+    to protein alignment. Run phylogenetic analysis of gene clusters. If the 
+    list of samples has not changed, and none of the samples has changed, the existing 
+    tree will be kept unless overwrite is set to True
 
     Parameters
     ----------
@@ -677,22 +619,48 @@ def create_nucleotide_alignment(report, collection_dir, threads=8, overwrite=Fal
         report object
     -------
     """
-    logger.info('Create nucleotide alignment')
+    logger.info('Align protein sequence by mafft')
     alignment_dir = os.path.join(collection_dir, 'alignments')
     gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
     gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
     gene_df.fillna('', inplace=True)
+
+    cmds_file = os.path.join(alignment_dir,"gene_phylo_cmds.txt")
+    cmds = open(cmds_file,'w')
+
     for _, row in gene_df.iterrows():
-        # Only run if there are at least 2 sequences
-        if row.sum() < 2:
-            continue
         gene_id = row.name
         gene_dir = os.path.join(alignment_dir, gene_id)
 
-        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
-        if not os.path.isfile(protein_aln_file):
+        # check if done before
+        gene_list = list(row[row == 1].index)
+        gene_list_json = os.path.join(gene_dir, 'gene_list.json')
+        if not overwrite:
+            if os.path.isfile(gene_list_json):
+                with open(gene_list_json) as fn:
+                    existing_gene_list = json.load(fn)
+                    if gene_list == existing_gene_list:
+                        logger.info('Alignment for gene {} done, skipping'.format(gene_id))
+                        continue  # for _, row
+        gen_list_string = json.dumps(gene_list)
+        
+        # protein alignment
+        # Only align if there are at least 2 sequences
+        if row.sum() < 2:
+            logger.info('There are too few sequences for {} skipping'.format(gene_id))
+            continue
+        gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
+        if not os.path.isfile(gene_seq_file):
             logger.info('{} does not exist'.format(protein_aln_file))
             continue
+        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
+
+        cmd = f"mafft --auto --quiet --thread {threads} {gene_seq_file} > {protein_aln_file}"
+        ret = run_command(cmd, timing_log)
+        if ret != 0:
+            raise Exception('mafft fail to run!')
+        
+        # create nucleotide alignment
         protein_dict = {}
         for seq_record in SeqIO.parse(protein_aln_file, 'fasta'):
             protein_dict[seq_record.id] = str(seq_record.seq)
@@ -715,70 +683,19 @@ def create_nucleotide_alignment(report, collection_dir, threads=8, overwrite=Fal
             SeqIO.write(new_record, nucleotide_aln_fh, 'fasta')
         nucleotide_aln_fh.close()
 
-    return report
-
-
-def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, overwrite=False, timing_log=None):
-    """
-    Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
-    none of the samples has changed, the existing tree will be kept unless overwrite is
-    set to True
-
-    Parameters
-    ----------
-    report: object
-        A report object
-    collection_dir: str
-        working directory of the collection
-    threads: int
-        number of threads to use
-    overwrite: bool
-        whether to overwrite existing result even if input did not change
-    timing_log: str
-        file to log timing
-    Returns
-        report object
-    -------
-    """
-    alignment_dir = os.path.join(collection_dir, 'alignments')
-    gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
-    gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
-    gene_df.fillna('', inplace=True)
-    
-    cmds_file = os.path.join(alignment_dir,"gene_phylo_cmds.txt")
-    cmds = open(cmds_file,'w')
-    for _, row in gene_df.iterrows():
-        gene_id = row.name
-        gene_dir = os.path.join(alignment_dir, gene_id)
-        
-        # Check if done before
-        gene_list = list(row[row == 1].index)
-        gene_list_json = os.path.join(gene_dir, 'tree.json')
-        if not overwrite:
-            if os.path.isfile(gene_list_json):
-                with open(gene_list_json) as fn:
-                    existing_gene_list = json.load(fn)
-                    if gene_list == existing_gene_list:
-                        logger.info('Alignment for gene {} done, skipping'.format(gene_id))
-                        continue  # for _, row
-        gen_list_string = json.dumps(gene_list)
-
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
-        if not os.path.isfile(gene_aln_file):
-            logger.info('{} does not exist'.format(gene_aln_file))
-            continue
-
+        # infer gene tree
         # Only analyse if there are more than 3 genes
         if row.sum() < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
+        cmd = f"iqtree -s {nucleotide_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
     cmd = f"parallel -v -a {cmds_file}"
     ret = run_command(cmd, timing_log)
+
     report['alignments'] = alignment_dir
     return report
 

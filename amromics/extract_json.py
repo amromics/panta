@@ -400,7 +400,7 @@ def export_msa(report, exp_dir):
                 continue
             tree = export_phylogeny_tree(tree_file)
             aln = {'gene': gene, 'tree': tree,
-                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/' + gene + '.fa.aln', exp_dir)}
+                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/' + gene + '.fna.aln', exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments

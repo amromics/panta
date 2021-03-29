@@ -647,7 +647,6 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
         # protein alignment
         # Only align if there are at least 2 sequences
         if row.sum() < 2:
-            logger.info('There are too few sequences for {} skipping'.format(gene_id))
             continue
         gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
         if not os.path.isfile(gene_seq_file):
@@ -682,27 +681,32 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
             new_record = SeqRecord(Seq(gap_added_nucleotide_seq), id = seq_id, description = '')
             SeqIO.write(new_record, nucleotide_aln_fh, 'fasta')
         nucleotide_aln_fh.close()
+        if row.sum() == 2:
+            with open(gene_list_json, 'w') as fn:
+                json.dump(gene_list, fn)
 
         # infer gene tree
         # Only analyse if there are more than 3 genes
         if row.sum() < 3:
-            logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
         cmd = f"iqtree -s {nucleotide_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -v -a {cmds_file}"
+    cmd = f"parallel -a {cmds_file}"
     ret = run_command(cmd, timing_log)
 
     report['alignments'] = alignment_dir
     return report
 
 
-def concatenate_gene_alignment(report, collection_dir, threads=8, overwrite=False, timing_log=None):
+def run_species_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Concatenate all the nucleotide alignment of core gene to create core gene alignment
+    Concatenate all the nucleotide alignment of core gene to create core gene alignment.
+    Run iqtree to create phylogeny tree from core gene alignment. If the list of samples has 
+    not changed, and none of the samples has changed, the existing tree will be kept unless 
+    overwrite is set to True
 
     Parameters
     ----------
@@ -720,12 +724,19 @@ def concatenate_gene_alignment(report, collection_dir, threads=8, overwrite=Fals
         report object
     -------
     """
-    logger.info('Concatenate nucleotide alignments')
     alignment_dir = os.path.join(collection_dir, 'alignments')
     phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
+    report['phylogeny'] = phylogeny_folder
     if not os.path.exists(phylogeny_folder):
         os.makedirs(phylogeny_folder)
 
+    # check if done before
+    phylogeny_file = os.path.join(phylogeny_folder, 'core_gene_alignment.treefile')
+    if os.path.isfile(phylogeny_file) and (not overwrite):
+        logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
+        return report
+
+    logger.info('Concatenate nucleotide alignments')
     gene_cluster_file = report['roary'] + '/gene_presence_absence.Rtab'   
     gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
     gene_df.fillna('', inplace=True)
@@ -768,42 +779,9 @@ def concatenate_gene_alignment(report, collection_dir, threads=8, overwrite=Fals
     if ret != 0:
         raise Exception('Error running {}'.format(cmd))
 
-    report['phylogeny'] = phylogeny_folder
-    return report
-
-
-def run_species_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log=None):
-    """
-    Run iqtree to create phylogeny tree from core gene alignment. If the list of samples has 
-    not changed, and none of the samples has changed, the existing tree will be kept unless 
-    overwrite is set to True
-
-    Parameters
-    ----------
-    report: object
-        A report object
-    collection_dir: str
-        working directory of the collection
-    threads: int
-        number of threads to use
-    overwrite: bool
-        whether to overwrite existing result even if input did not change
-    timing_log: str
-        file to log timing
-    Returns
-        report object
-    -------
-    """
-    phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
-
-    phylogeny_file = os.path.join(phylogeny_folder, 'core_gene_alignment.treefile')
-    if os.path.isfile(phylogeny_file) and (not overwrite):
-        logger.info('phylogeny tree exists and input has not changed, skip phylogeny analysis')
-        return report
-
-    aln_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.gz')
+    aln_gz_file = os.path.join(phylogeny_folder, 'core_gene_alignment.aln.gz')
     cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads} -czb -keep-ident'.format(
-        alignment=aln_file, prefix=phylogeny_folder+'/core_gene_alignment', threads=threads)
+        alignment=aln_gz_file, prefix=phylogeny_folder+'/core_gene_alignment', threads=threads)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('iqtree fail to create phylogeny tree from core gene alignment!')

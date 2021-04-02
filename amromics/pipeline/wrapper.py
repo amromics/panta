@@ -488,6 +488,7 @@ def run_phylogeny(report, collection_dir, threads=8, overwrite=False, timing_log
     Run parsnp to create phylogeny tree. If the list of samples has not changed, and
     none of the samples has changed, the existing tree will be kept unless overwrite is
     set to True
+
     Parameters
     ----------
     report: object
@@ -548,6 +549,7 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
     Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
     none of the samples has changed, the existing tree will be kept unless overwrite is
     set to True
+
     Parameters
     ----------
     report: object
@@ -643,6 +645,7 @@ def run_species_phylogeny(report, collection_dir, threads=8, overwrite=False, ti
     Run iqtree to create phylogeny tree from core gene alignment. If the list of samples has 
     not changed, and none of the samples has changed, the existing tree will be kept unless 
     overwrite is set to True
+
     Parameters
     ----------
     report: object
@@ -684,6 +687,7 @@ def run_gene_phylogeny_nucleotide(report, collection_dir, threads=8, overwrite=F
     Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
     none of the samples has changed, the existing tree will be kept unless overwrite is
     set to True
+
     Parameters
     ----------
     report: object
@@ -755,6 +759,7 @@ def run_gene_phylogeny_protein(report, collection_dir, threads=8, overwrite=Fals
     Run phylogenetic analysis of gene clusters from protein alignment. If the list of samples 
     has not changed, and none of the samples has changed, the existing tree will be kept 
     unless overwrite is set to True
+
     Parameters
     ----------
     report: object
@@ -833,6 +838,7 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
     Run phylogenetic analysis of gene clusters. If the list of samples has not changed, and
     none of the samples has changed, the existing tree will be kept unless overwrite is
     set to True
+
     Parameters
     ----------
     report: object
@@ -903,6 +909,7 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
     Run phylogenetic analysis of gene clusters from protein alignment. If the list of samples 
     has not changed, and none of the samples has changed, the existing tree will be kept 
     unless overwrite is set to True
+    
     Parameters
     ----------
     report: object

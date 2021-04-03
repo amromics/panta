@@ -590,7 +590,7 @@ def run_alignment(report, collection_dir, threads=8, overwrite=False, timing_log
                     # TODO: make sure all samples in this gene have not updated
 
         gene_list = sorted(gene_list)
-        # Only analyse if there are more than 3 genes
+        # Only analyse if there are at least 3 genes
         if len(gene_list) < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
@@ -673,7 +673,7 @@ def run_species_phylogeny(report, collection_dir, threads=8, overwrite=False, ti
         return report
 
     aln_file = os.path.join(report['roary'], 'core_gene_alignment.aln.gz')
-    cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads} -czb -keep-ident'.format(
+    cmd = 'iqtree -s {alignment} --prefix {prefix} -B 1000 -T {threads}'.format(
         alignment=aln_file, prefix=phylogeny_folder+'/core_gene_alignment', threads=threads)
     ret = run_command(cmd, timing_log)
     if ret != 0:
@@ -728,19 +728,19 @@ def run_gene_phylogeny_nucleotide(report, collection_dir, threads=8, overwrite=F
                         continue  # for _, row
         
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
 
-        # Only analyse if there are more than 3 genes
+        # Only analyse if there are at least 3 genes
         if row.sum() < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = 'iqtree -s {alignment} --prefix {prefix} -m GTR -T {threads} -quiet -czb -keep-ident'.format(
-            alignment=gene_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
+        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -T {threads} -quiet"
         ret = run_command(cmd, timing_log)
 
         #cmd = 'fasttree -nt -gtr -quiet {alignment} > {tree}'.format(
@@ -800,26 +800,26 @@ def run_gene_phylogeny_protein(report, collection_dir, threads=8, overwrite=Fals
                         continue  # for _, row
         
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
         
         # translate to protein alignment
-        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa')
+        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
         for record in SeqIO.parse(gene_aln_file, 'fasta'):
             trans = translate_dna(str(record.seq))
             new_record = SeqRecord(Seq(trans), id=record.id,)
             SeqIO.write(new_record, open(protein_aln_file, 'a'), 'fasta')
 
-        # Only analyse if there are more than 3 genes
+        # Only analyse if there are at least 3 genes
         if row.sum() < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = 'iqtree -s {alignment} --prefix {prefix} -m LG -T {threads} -quiet -czb -keep-ident'.format(
-            alignment=protein_aln_file, prefix=gene_dir+'/'+gene_id, threads=threads)
+        cmd = f"iqtree -s {protein_aln_file} --prefix {gene_dir+'/'+gene_id} -m LG -T {threads} -quiet"
         ret = run_command(cmd, timing_log)
 
         #cmd = 'fasttree -lg -quiet {alignment} > {tree}'.format(
@@ -884,17 +884,20 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
         gen_list_string = json.dumps(gene_list)
 
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
 
-        # Only analyse if there are more than 3 genes
+        # Only analyse if there are at least 3 genes
         if row.sum() < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
+        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet"
+        cmd += f" && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
@@ -902,7 +905,6 @@ def run_gene_phylogeny_nucleotide_parallel(report, collection_dir, threads=8, ov
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
-
 
 def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
@@ -955,25 +957,27 @@ def run_gene_phylogeny_protein_parallel(report, collection_dir, threads=8, overw
         gen_list_string = json.dumps(gene_list)
 
         gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fa.aln')
-        if not os.path.isfile(gene_aln_file_roary):
-            logger.info('{} does not exist'.format(gene_aln_file_roary))
+        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        if os.path.isfile(gene_aln_file_roary):
+            shutil.move(gene_aln_file_roary,gene_aln_file)
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
             continue
-        shutil.move(gene_aln_file_roary,gene_aln_file)
         
         # translate to protein alignment
-        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa')
+        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
         for record in SeqIO.parse(gene_aln_file, 'fasta'):
             trans = translate_dna(str(record.seq))
             new_record = SeqRecord(Seq(trans), id=record.id,)
             SeqIO.write(new_record, open(protein_aln_file, 'a'), 'fasta')
 
-        # Only analyse if there are more than 3 genes
+        # Only analyse if there are at least 3 genes
         if row.sum() < 3:
             logger.info('There are too few genes for {} skipping'.format(gene_id))
             continue
 
-        cmd = f"iqtree -s {protein_aln_file} --prefix {gene_dir+'/'+gene_id} -m LG -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
+        cmd = f"iqtree -s {protein_aln_file} --prefix {gene_dir+'/'+gene_id} -m LG -quiet"
+        cmd += f" && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -lg -quiet {protein_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         

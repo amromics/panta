@@ -1071,7 +1071,7 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
 def add_gap(aln_remain, nu_remain, result):
     """
     Recursive function to add gap to nucleotide sequence according to 
-    corresponding protein alignment sequence
+    protein alignment sequence
 
     Parameters
     ----------
@@ -1083,29 +1083,29 @@ def add_gap(aln_remain, nu_remain, result):
         gap added nucleotide sequence
     -------
     """
-    if aln_remain == "":
+    if aln_remain == None:
         result = result + nu_remain
         return [aln_remain, nu_remain, result]
     
     pos = aln_remain.find('-')
     if pos == -1:
         result = result + nu_remain
-        aln_remain = ""
-        nu_remain = ""
+        aln_remain = None
+        nu_remain = None
         return [aln_remain, nu_remain, result]
-    result = result + nu_remain[:pos * 3] +'---'
+    result = result + nu_remain[:pos * 3] + '---'
     nu_remain = nu_remain[pos * 3:]
-    aln_remain = aln_remain[pos+1:]
+    aln_remain = aln_remain[pos + 1:]
     [aln_remain, nu_remain, result] = add_gap(aln_remain, nu_remain, result)
     return [aln_remain, nu_remain, result]
 
 
 def run_gene_analysis(report, collection_dir, threads=8, overwrite=False, timing_log=None):
     """
-    Align protein sequence by mafft then create nucleotide alignment according 
-    to protein alignment. Run phylogenetic analysis of gene clusters. If the 
-    list of samples has not changed, and none of the samples has changed, the existing 
-    tree will be kept unless overwrite is set to True
+    Align protein sequence by mafft, then create nucleotide alignment according to protein 
+    alignment. Run phylogenetic analysis of gene clusters. If the list of samples has not 
+    changed, and none of the samples has changed, the existing tree will be kept unless 
+    overwrite is set to True
 
     Parameters
     ----------
@@ -1149,8 +1149,7 @@ def run_gene_analysis(report, collection_dir, threads=8, overwrite=False, timing
         gen_list_string = json.dumps(gene_list)
         
         # protein alignment
-        # Only align if there are at least 2 sequences
-        if row.sum() < 2:
+        if row.sum() < 2: # Only align if there are at least 2 sequences
             continue
         gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
         if not os.path.isfile(gene_seq_file):
@@ -1190,11 +1189,10 @@ def run_gene_analysis(report, collection_dir, threads=8, overwrite=False, timing
                 json.dump(gene_list, fn)
 
         # infer gene tree
-        # Only analyse if there are more than 3 genes
-        if row.sum() < 3:
+        if row.sum() < 3: # Only analyse if there are at least 3 genes
             continue
-
-        cmd = f"iqtree -s {nucleotide_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -czb -keep-ident && echo '{gen_list_string}' > {gene_list_json}"
+        cmd = f"iqtree -s {nucleotide_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet"
+        cmd += f" && echo '{gen_list_string}' > {gene_list_json}"
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         

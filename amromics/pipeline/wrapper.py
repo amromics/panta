@@ -1010,22 +1010,12 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
     logger.info('Get sequences for clusters')
     gene_cluster_file = report['roary'] + '/gene_presence_absence.csv.gz'
     dict_nucleotide = {}
-    dict_protein = {}
     for sample in report['samples']:
         with gzip.open(os.path.join(sample['annotation'], sample['id'] + '.ffn.gz'), 'rt') as fn:
             for seq_record in SeqIO.parse(fn, 'fasta'):
                 seq_record.seq = seq_record.seq[:-3]
                 seq_record = SeqRecord(seq_record.seq, id=seq_record.id, description = '')
                 dict_nucleotide[seq_record.id] = seq_record
-        with gzip.open(os.path.join(sample['annotation'], sample['id'] + '.gbk.gz'), 'rt') as fn:
-            for seq_record in SeqIO.parse(fn, 'genbank'):
-                for feature in seq_record.features:
-                    if feature.type != 'CDS':
-                        continue
-                    protein_id = feature.qualifiers['locus_tag'][0]
-                    protein_seq = feature.qualifiers['translation'][0]
-                    protein_seq_record = SeqRecord(Seq(protein_seq), id = protein_id, description = '')
-                    dict_protein[protein_id] = protein_seq_record
 
     # make folder contains sequences for each gene
     alignment_dir = os.path.join(collection_dir, 'alignments')
@@ -1059,8 +1049,12 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
         protein_seq_fh = open(protein_seq_file, 'a')
         nucleotide_seq_fh = open(nucleotide_seq_file, 'a')
         for sample_gene in gene_list:
-            SeqIO.write(dict_nucleotide[sample_gene], nucleotide_seq_fh, 'fasta')
-            SeqIO.write(dict_protein[sample_gene], protein_seq_fh, 'fasta')
+            nu_seq_record = dict_nucleotide[sample_gene]
+            SeqIO.write(nu_seq_record, nucleotide_seq_fh, 'fasta')
+            
+            pro_seq = nu_seq_record.seq.translate(table=11)
+            pro_seq_record = SeqRecord(pro_seq, id = nu_seq_record.id, description = '')
+            SeqIO.write(pro_seq_record, protein_seq_fh, 'fasta')
         protein_seq_fh.close()
         nucleotide_seq_fh.close()
 

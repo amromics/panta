@@ -716,12 +716,12 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
     
     cmds_file = os.path.join(alignment_dir,"phylo_cmds")
     cmds = open(cmds_file,'w')
-    for _, row in gene_df.iterrows():
+    for gene_id, row in gene_df.iterrows():
         # Only analyse if there are at least 3 genes
         if row.sum() < 3:
             continue
             
-        gene_id = row.name
+        gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
         if not os.path.exists(gene_dir):
             os.makedirs(gene_dir)
@@ -750,7 +750,7 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
         #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -a {cmds_file}"
+    cmd = f"parallel -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
@@ -797,6 +797,7 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
     sample_columns = list(gene_df.columns)[14:]
     for _, row in gene_df.iterrows():
         gene_id = row['Gene']
+        gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
         if not os.path.exists(gene_dir):
             os.makedirs(gene_dir)
@@ -854,12 +855,12 @@ def run_protein_alignment(report, collection_dir, threads=8, overwrite=False, ti
 
     cmds_file = os.path.join(alignment_dir,"align_cmds")
     cmds = open(cmds_file,'w')
-    for _, row in gene_df.iterrows():
+    for gene_id, row in gene_df.iterrows():
         # Only align if there are at least 2 sequences
         if row.sum() < 2:
             continue
 
-        gene_id = row.name
+        gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
 
         # check if done before
@@ -875,7 +876,7 @@ def run_protein_alignment(report, collection_dir, threads=8, overwrite=False, ti
         cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
         cmds.write(cmd + '\n')
         
-    cmd = f"parallel -a {cmds_file}"
+    cmd = f"parallel -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
@@ -908,11 +909,11 @@ def create_nucleotide_alignment(report, collection_dir, threads=8, overwrite=Fal
     gene_df = pd.read_csv(gene_cluster_file, sep='\t', index_col='Gene')
     gene_df.fillna('', inplace=True)
     
-    for _, row in gene_df.iterrows():
+    for gene_id, row in gene_df.iterrows():
         # Only run if there are at least 2 sequences
         if row.sum() < 2:
             continue
-        gene_id = row.name
+        gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
 
         # check if done before
@@ -991,11 +992,11 @@ def create_core_gene_alignment(report, collection_dir, threads=8, overwrite=Fals
         seq_dict[sample['id']]= ''
     sample_list = seq_dict.keys()
     number_sample = len(sample_list)
-    for _, row in gene_df.iterrows():
+    for gene_id, row in gene_df.iterrows():
         # Only run if it is core gene
         if row.sum() != number_sample :
             continue
-        gene_id = row.name
+        gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
 
         nucleotide_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')

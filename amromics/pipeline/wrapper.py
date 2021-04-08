@@ -992,10 +992,9 @@ def create_core_gene_alignment(report, collection_dir, threads=8, overwrite=Fals
     for sample in report['samples']:
         seq_dict[sample['id']]= ''
     sample_list = seq_dict.keys()
-    number_sample = len(sample_list)
     for gene_id, row in gene_df.iterrows():
         # Only run if it is core gene
-        if row.sum() != number_sample :
+        if len(row[row == 0]) != 0:
             continue
         gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)

@@ -738,7 +738,8 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
                 logger.info('{} does not exist'.format(gene_aln_file))
                 continue
 
-            cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -T 1"
+            cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -T 1 -B 1000 2> /dev/null"
+            cmd += f" || iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -T 1"
             # translate to protein alignment
             #protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
             #with open(protein_aln_file, 'w') as fh:

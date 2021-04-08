@@ -715,42 +715,42 @@ def run_gene_phylogeny(report, collection_dir, threads=8, overwrite=False, timin
     gene_df.fillna('', inplace=True)
     
     cmds_file = os.path.join(alignment_dir,"phylo_cmds")
-    cmds = open(cmds_file,'w')
-    for gene_id, row in gene_df.iterrows():
-        # Only analyse if there are at least 3 genes
-        if row.sum() < 3:
-            continue
-            
-        gene_id = re.sub(r'\W+', '', gene_id)
-        gene_dir = os.path.join(alignment_dir, gene_id)
-        if not os.path.exists(gene_dir):
-            os.makedirs(gene_dir)
-        # check if done before
-        iqtree_output = os.path.join(gene_dir, gene_id + '.treefile')
-        if (not overwrite) and os.path.isfile(iqtree_output):
-            continue
+    with open(cmds_file,'w') as cmds:
+        for gene_id, row in gene_df.iterrows():
+            # Only analyse if there are at least 3 genes
+            if row.sum() < 3:
+                continue
+                
+            gene_id = re.sub(r'\W+', '', gene_id)
+            gene_dir = os.path.join(alignment_dir, gene_id)
+            if not os.path.exists(gene_dir):
+                os.makedirs(gene_dir)
+            # check if done before
+            iqtree_output = os.path.join(gene_dir, gene_id + '.treefile')
+            if (not overwrite) and os.path.isfile(iqtree_output):
+                continue
 
-        gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
-        if os.path.isfile(gene_aln_file_roary):
-            shutil.move(gene_aln_file_roary,gene_aln_file)
-        if not os.path.isfile(gene_aln_file):
-            logger.info('{} does not exist'.format(gene_aln_file))
-            continue
+            gene_aln_file_roary = os.path.join(report['roary'],'pan_genome_sequences', gene_id + '.fa.aln')
+            gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+            if os.path.isfile(gene_aln_file_roary):
+                shutil.move(gene_aln_file_roary,gene_aln_file)
+            if not os.path.isfile(gene_aln_file):
+                logger.info('{} does not exist'.format(gene_aln_file))
+                continue
 
-        cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -T 1"
-        # translate to protein alignment
-        #protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
-        #with open(protein_aln_file, 'w') as fh:
-        #    for record in SeqIO.parse(gene_aln_file, 'fasta'):
-        #        trans = translate_dna(str(record.seq))
-        #        new_record = SeqRecord(Seq(trans), id=record.id,)
-        #        SeqIO.write(new_record, fh, 'fasta')
-        #cmd = f"iqtree -s {protein_aln_file} --prefix {gene_dir+'/'+gene_id} -m LG -quiet -T 1"
-        #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
-        cmds.write(cmd + '\n')
+            cmd = f"iqtree -s {gene_aln_file} --prefix {gene_dir+'/'+gene_id} -m GTR -quiet -T 1"
+            # translate to protein alignment
+            #protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
+            #with open(protein_aln_file, 'w') as fh:
+            #    for record in SeqIO.parse(gene_aln_file, 'fasta'):
+            #        trans = translate_dna(str(record.seq))
+            #        new_record = SeqRecord(Seq(trans), id=record.id,)
+            #        SeqIO.write(new_record, fh, 'fasta')
+            #cmd = f"iqtree -s {protein_aln_file} --prefix {gene_dir+'/'+gene_id} -m LG -quiet -T 1"
+            #cmd = f"fasttree -nt -gtr -quiet {gene_aln_file} > {gene_dir+'/'+gene_id+'.treefile'} && echo '{gen_list_string}' > {gene_list_json}"
+            cmds.write(cmd + '\n')
         
-    cmd = f"parallel -j {threads} -a {cmds_file}"
+    cmd = f"parallel --bar -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report
@@ -816,13 +816,13 @@ def get_gene_sequences(report, collection_dir, threads=8, overwrite=False, timin
                     gene_list.append(sample_gene)
         gene_list = sorted(gene_list)
 
-        with open(protein_seq_file, 'w') as protein_seq_fh, open(nucleotide_seq_file, 'w') as nucleotide_seq_fh:
+        with open(protein_seq_file, 'w') as prot_fh, open(nucleotide_seq_file, 'w') as nucl_fh:
             for sample_gene in gene_list:
                 nu_seq_record = dict_nucleotide[sample_gene]
-                SeqIO.write(nu_seq_record, nucleotide_seq_fh, 'fasta')
+                SeqIO.write(nu_seq_record, nucl_fh, 'fasta')
                 pro_seq = nu_seq_record.seq.translate(table=11)
                 pro_seq_record = SeqRecord(pro_seq, id = nu_seq_record.id, description = '')
-                SeqIO.write(pro_seq_record, protein_seq_fh, 'fasta')
+                SeqIO.write(pro_seq_record, prot_fh, 'fasta')
 
     return report
 
@@ -854,29 +854,29 @@ def run_protein_alignment(report, collection_dir, threads=8, overwrite=False, ti
     gene_df.fillna('', inplace=True)
 
     cmds_file = os.path.join(alignment_dir,"align_cmds")
-    cmds = open(cmds_file,'w')
-    for gene_id, row in gene_df.iterrows():
-        # Only align if there are at least 2 sequences
-        if row.sum() < 2:
-            continue
+    with open(cmds_file,'w') as cmds:
+        for gene_id, row in gene_df.iterrows():
+            # Only align if there are at least 2 sequences
+            if row.sum() < 2:
+                continue
 
-        gene_id = re.sub(r'\W+', '', gene_id)
-        gene_dir = os.path.join(alignment_dir, gene_id)
+            gene_id = re.sub(r'\W+', '', gene_id)
+            gene_dir = os.path.join(alignment_dir, gene_id)
 
-        # check if done before
-        gene_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
-        if (not overwrite) and os.path.isfile(gene_aln_file):
-            continue
+            # check if done before
+            gene_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
+            if (not overwrite) and os.path.isfile(gene_aln_file):
+                continue
+            
+            gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
+            if not os.path.isfile(gene_seq_file):
+                logger.info('{} does not exist'.format(gene_aln_file))
+                continue
+            
+            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
+            cmds.write(cmd + '\n')
         
-        gene_seq_file = os.path.join(gene_dir, gene_id + '.faa')
-        if not os.path.isfile(gene_seq_file):
-            logger.info('{} does not exist'.format(gene_aln_file))
-            continue
-        
-        cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
-        cmds.write(cmd + '\n')
-        
-    cmd = f"parallel -j {threads} -a {cmds_file}"
+    cmd = f"parallel --bar -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     report['alignments'] = alignment_dir
     return report

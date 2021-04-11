@@ -400,19 +400,24 @@ def export_msa(report, exp_dir):
                 continue
             tree = export_phylogeny_tree(tree_file)
             aln = {'gene': gene, 'tree': tree,
-                   'samples': export_alignment(gene, report['alignments'] + '/' + gene + '/' + gene + '.fna.aln', exp_dir)}
+                   'samples': export_alignment(gene, report['alignments'] + '/' + gene, exp_dir)}
             alignments['alignments'].append(aln)
 
     return alignments
 
 
-def export_alignment(gene, file_aln, exp_dir):
+def export_alignment(gene, aln_dir, exp_dir):
     aligments = []
-    for record in SeqIO.parse(file_aln, "fasta"):
+    nu_aln = os.path.join(aln_dir, gene + '.fna.aln')
+    nucl_dict = {}
+    for record in SeqIO.parse(nu_aln, "fasta"):
         seq = str(record.seq).upper()
-        sample = {'sample': record.id, 'seq': seq}
+        nucl_dict[record.id] = seq
+    pro_aln = os.path.join(aln_dir, gene + '.faa.aln')
+    for record in SeqIO.parse(pro_aln, "fasta"):
+        seq = str(record.seq).upper()
+        sample = {'sample': record.id, 'seq': nucl_dict[record.id], 'protein': seq}
         aligments.append(sample)
-
     if not os.path.exists(exp_dir + "/set/alignments/"):
         os.makedirs(exp_dir + "/set/alignments/")
     save_path = exp_dir + "/set/alignments/" + gene + ".json.gz"

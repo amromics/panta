@@ -386,6 +386,9 @@ def export_phylogeny_tree(treefile):
     nodes = t.search_nodes(dist=0, name='')
     for node in nodes:
         node.delete()
+    nodes = t.search_nodes(dist=0.000001, name='')
+    for node in nodes:
+        node.delete()
     data = t.write()
     message_bytes = data.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)

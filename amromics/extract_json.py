@@ -383,12 +383,9 @@ def export_amr_heatmap(report, exp_dir):
 
 def export_phylogeny_tree(treefile):
     t = Tree(treefile)
-    nodes = t.search_nodes(dist=0, name='')
-    for node in nodes:
-        node.delete()
-    nodes = t.search_nodes(dist=0.000001, name='')
-    for node in nodes:
-        node.delete()
+    for node in t.get_descendants():
+        if node.name == '' and node.dist < 0.00001:
+            node.delete()
     data = t.write()
     message_bytes = data.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)

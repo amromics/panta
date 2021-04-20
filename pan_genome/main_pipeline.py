@@ -7,43 +7,9 @@ import csv
 import logging
 from Bio import SeqIO
 import pandas as pd
-from pan_genome.utils import run_command
+from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
-
-
-def parse_cluster_file(cd_hit_cluster_file):
-    """
-    Parse cd-hit .clstr file
-
-    Parameters
-    -------
-    -------
-    """
-    
-    clusters = {}
-    with open(cd_hit_cluster_file, 'r') as fh:
-        for line in fh:
-            if re.match(r"^>", line) != None:
-                cluster_name = re.findall(r'^>(.+)$', line)
-                cluster_name = cluster_name[0]
-                clusters[cluster_name] = {}
-                clusters[cluster_name]['gene_names'] = []
-            else:
-                result = re.findall(r'[\d]+\t[\w]+, >(.+)\.\.\. (.+)$', line)
-                if len(result) == 1:
-                    gene_name = result[0][0]
-                    identity = result[0][1]
-                    if identity == '*':
-                        clusters[cluster_name]['representative'] = gene_name
-                    else:
-                        clusters[cluster_name]['gene_names'].append(gene_name)
-    # convert to a simple dictionary
-    clusters_new ={}
-    for cluster_name in clusters:
-        clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']
-
-    return clusters_new
 
 
 def run_cd_hit_iterative(report, threads, timing_log):
@@ -117,43 +83,7 @@ def run_cd_hit_iterative(report, threads, timing_log):
     return report
 
 
-def chunk_fasta_file(fasta_file, out_dir):
-    """
-    Take a fasta file and chunk it up into smaller files with the length of 200000
-
-    Parameters
-    -------
-    -------
-    """
-    if os.path.exists(out_dir):
-        shutil.rmtree(out_dir)
-        os.makedirs(out_dir)
-    else:
-        os.makedirs(out_dir)
-    
-    chunked_file_list = []
-    chunk_number = 0
-    current_chunk_length = 0
-    chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-    chunked_fh = open(chunked_file, 'w')
-    chunked_file_list.append(chunked_file)
-    for seq_record in SeqIO.parse(fasta_file, "fasta"):
-        if current_chunk_length > 200000:
-            chunked_fh.close()
-            chunk_number += 1
-            current_chunk_length = 0
-            chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-            chunked_file_list.append(chunked_file)
-            chunked_fh = open(chunked_file, 'w')
-            SeqIO.write(seq_record, chunked_fh, 'fasta')
-        chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-        SeqIO.write(seq_record, chunked_fh, 'fasta')
-        current_chunk_length += len(seq_record.seq)
-    chunked_fh.close()
-    return chunked_file_list
-
-
-def all_against_all_blast(report, threads, timing_log):
+def all_against_all_blast(out_dir, database_fasta, query_fasta, threads, timing_log):
     """
     Run all against all blast in parallel
 
@@ -161,21 +91,19 @@ def all_against_all_blast(report, threads, timing_log):
     -------
     -------
     """
-    out_dir = os.path.join(report['temp_dir'], 'blast')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
     # make blast database
-    fasta_file = report['cd_hit_cluster_fasta']
     blast_db = os.path.join(out_dir, 'output_contigs')
-    cmd = f"makeblastdb -in {fasta_file} -dbtype prot -out {blast_db} -logfile /dev/null"
+    cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running makeblastdb')
     
     # chunk fasta file
     chunk_dir = os.path.join(out_dir, 'chunk_files')
-    chunked_file_list = chunk_fasta_file(fasta_file, chunk_dir)
+    chunked_file_list = chunk_fasta_file(query_fasta, chunk_dir)
 
     # run parallel all-against-all blast
     blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")
@@ -192,17 +120,16 @@ def all_against_all_blast(report, threads, timing_log):
         raise Exception('Error running parallel all-against-all blast')
 
     # combining blast results
-    blast_result_file = os.path.join(report['temp_dir'], 'blast_results')
+    blast_result_file = os.path.join(out_dir, 'blast_results')
     if os.path.isfile(blast_result_file):
         os.remove(blast_result_file)
     for blast_output_file in blast_output_file_list:
         os.system(f'cat {blast_output_file} >> {blast_result_file}')
 
-    report['blast_result_file'] = blast_result_file
-    return report
+    return blast_result_file
 
 
-def cluster_with_mcl(report, threads, timing_log):
+def cluster_with_mcl(blast_results, out_dir, threads, timing_log):
     """
     Take blast results and outputs clustered results
 
@@ -210,15 +137,12 @@ def cluster_with_mcl(report, threads, timing_log):
     -------
     -------
     """
-    out_dir = report['temp_dir']
-    blast_results = report['blast_result_file']
-    output_mcl_file = os.path.join(out_dir, 'uninflated_mcl_clusters')
+    output_mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_results} 2> /dev/null | mcl - --abc -I 1.5 -o {output_mcl_file} > /dev/null 2>&1"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mcl')
-    report['uninflated_mcl_clusters'] = output_mcl_file
-    return report
+    return output_mcl_file
 
 
 def reinflate_clusters(report):

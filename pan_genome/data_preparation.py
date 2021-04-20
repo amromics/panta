@@ -77,7 +77,7 @@ def parse_gff_file(ggf_file, bed_out_file, fasta_out_file, sample_id, dictionary
             dictionary[gene_id]['contig'] = seq_id
 
 
-def extract_proteins(report, timing_log=None):
+def extract_proteins(report, gene_annotation, timing_log=None):
     """
     Take in GFF file and create protein sequences in FASTA format.
     Create json file contain annotation information of each gene_id
@@ -86,7 +86,6 @@ def extract_proteins(report, timing_log=None):
     -------
     -------
     """
-    gene_annotation = {}
     for sample in report['samples']:
         sample_id = sample['id']
         sample_dir = os.path.join(report['pan_genome'], 'samples', sample_id)

@@ -31,20 +31,35 @@ def run_main_pipeline(args):
     # Check if pan-genome has run
     pan_genome_output = os.path.join(pan_genome_folder,'summary_statistics.txt')
     if os.path.isfile(pan_genome_output) and (not overwrite):
-        report['summary'] = os.path.join(pan_genome_folder,'summary_statistics.txt')
-        return report
+        return
 
     if not os.path.exists(pan_genome_folder):
         os.makedirs(pan_genome_folder)
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    report = data_preparation.extract_proteins(report, timing_log=timing_log)
+    report = data_preparation.extract_proteins(
+        report, 
+        gene_annotation = {}, 
+        timing_log=timing_log
+        )
     report = data_preparation.combine_proteins(report, timing_log=timing_log)
 
     report = main_pipeline.run_cd_hit_iterative(report, threads=threads, timing_log=timing_log)
-    report = main_pipeline.all_against_all_blast(report, threads=threads, timing_log=timing_log)
-    report = main_pipeline.cluster_with_mcl(report, threads=threads, timing_log=timing_log)
+    
+    report['blast_result_file'] = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(report['temp_dir'], 'blast'),
+        database_fasta = report['cd_hit_cluster_fasta'],
+        query_fasta = report['cd_hit_cluster_fasta'],
+        threads=threads, 
+        timing_log=timing_log
+        )
+
+    report['uninflated_mcl_clusters'] = main_pipeline.cluster_with_mcl(
+        out_dir = report['temp_dir'],
+        blast_results = report['blast_result_file'],
+        threads=threads, 
+        timing_log=timing_log)
     report = main_pipeline.reinflate_clusters(report)
 
     report = post_analysis.split_paralogs(report)
@@ -56,10 +71,14 @@ def run_main_pipeline(args):
     report = output.create_summary(report)
     report = output.create_representative_fasta(report)
 
-    json.dump(report, open(os.path.join(report['pan_genome'], 'report.json'), 'w'), indent=4, sort_keys=True)
-
+    json.dump(report['gene_annotation'], open(os.path.join(report['pan_genome'], 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(report['inflated_unsplit_clusters'], open(os.path.join(report['pan_genome'], 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(report['samples'], open(os.path.join(report['pan_genome'], 'samples.json'), 'w'), indent=4, sort_keys=True)
 
 def run_add_sample_pipeline(args):
+    collection_dir = args.collection_dir
+    timing_log = args.time_log
+    threads = args.threads
     report = {}
     report['samples'] = []
     for path in args.inputs:
@@ -68,6 +87,82 @@ def run_add_sample_pipeline(args):
         sample = {'id':sample_id, 'input_file':path}
         report['samples'].append(sample)
 
+    pan_genome_folder = os.path.join(collection_dir, 'pan_genome')
+    temp_dir = os.path.join(collection_dir, 'new_temp')
+    report['pan_genome'] = pan_genome_folder
+    report['temp_dir'] = temp_dir
+
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    # Check if last collection exist
+    representative_fasta = os.path.join(pan_genome_folder, 'representative.fasta')
+    if not os.path.isfile(representative_fasta):
+        raise Exception(f'{representative_fasta} is not exist')
+    report['representative_fasta'] = representative_fasta
+
+    gene_annotation = json.load(open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'r'))
+    
+    old_clusters = json.load(open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'r'))
+    report = data_preparation.extract_proteins(
+        report, 
+        gene_annotation = gene_annotation, 
+        timing_log=timing_log
+        )
+    report = data_preparation.combine_proteins(report, timing_log=timing_log)
+
+    report = add_sample_pipeline.run_cd_hit_2d(report, threads=threads, timing_log=timing_log)
+
+    report['blast_1_result_file'] = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(report['temp_dir'], 'blast1'),
+        database_fasta = representative_fasta,
+        query_fasta = report['not_match_fasta_file'],
+        threads=threads, 
+        timing_log=timing_log
+        )
+
+    report['blast_remain_fasta'] = add_sample_pipeline.filter_fasta(
+        blast_result = report['blast_1_result_file'], 
+        fasta_file = report['not_match_fasta_file'], 
+        out_dir = temp_dir
+        )
+
+    report['blast_2_result_file'] = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(report['temp_dir'], 'blast2'),
+        database_fasta = report['blast_remain_fasta'],
+        query_fasta = report['blast_remain_fasta'],
+        threads=threads, 
+        timing_log=timing_log
+        )
+    
+    report['mcl_clusters'] = main_pipeline.cluster_with_mcl(
+        out_dir = report['temp_dir'],
+        blast_results = report['blast_2_result_file'],
+        threads=threads, 
+        timing_log=timing_log)
+
+    report['inflated_unsplit_clusters'] = add_sample_pipeline.reinflate_clusters(
+        old_clusters=old_clusters, 
+        cd_hit_2d_cluster=report['cd_hit_2d_cluster'], 
+        blast_1_result_file=report['blast_1_result_file'], 
+        mcl_clusters=report['mcl_clusters']
+        )
+    
+    old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))
+    report['samples'].extend(old_samples)
+
+    report = post_analysis.split_paralogs(report)
+    report = post_analysis.label_cluster(report)
+    report = post_analysis.annotate_cluster(report)
+
+    report = output.create_spreadsheet(report)
+    report = output.create_rtab(report)
+    report = output.create_summary(report)
+    report = output.create_representative_fasta(report)
+
+    json.dump(report['gene_annotation'], open(os.path.join(report['pan_genome'], 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(report['inflated_unsplit_clusters'], open(os.path.join(report['pan_genome'], 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(report['samples'], open(os.path.join(report['pan_genome'], 'samples.json'), 'w'), indent=4, sort_keys=True)
 
 def main():
     parser = argparse.ArgumentParser()

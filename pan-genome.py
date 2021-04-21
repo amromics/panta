@@ -14,6 +14,7 @@ def run_main_pipeline(args):
     timing_log = args.time_log
     threads = args.threads
     overwrite = args.over_write
+    dontsplit = args.dont_split
     
     report = {}
     report['samples'] = []
@@ -62,8 +63,12 @@ def run_main_pipeline(args):
         timing_log=timing_log)
     report = main_pipeline.reinflate_clusters(report)
 
-    report = post_analysis.split_paralogs(report)
-    report = post_analysis.label_cluster(report)
+    if dontsplit == False:
+        report = post_analysis.split_paralogs(report)
+        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['split_clusters'])
+    else:
+        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['inflated_unsplit_clusters'])
+    
     report = post_analysis.annotate_cluster(report)
 
     report = output.create_spreadsheet(report)
@@ -79,6 +84,8 @@ def run_add_sample_pipeline(args):
     collection_dir = args.collection_dir
     timing_log = args.time_log
     threads = args.threads
+    dontsplit = args.dont_split
+
     report = {}
     report['samples'] = []
     for path in args.inputs:
@@ -150,9 +157,13 @@ def run_add_sample_pipeline(args):
     
     old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))
     report['samples'].extend(old_samples)
-
-    report = post_analysis.split_paralogs(report)
-    report = post_analysis.label_cluster(report)
+    
+    if dontsplit == False:
+        report = post_analysis.split_paralogs(report)
+        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['split_clusters'])
+    else:
+        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['inflated_unsplit_clusters'])
+    
     report = post_analysis.annotate_cluster(report)
 
     report = output.create_spreadsheet(report)
@@ -178,6 +189,7 @@ def main():
     main_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
     main_cmd.add_argument('-w', '--over-write', help='over write', default=False, action='store_true')
+    main_cmd.add_argument('-s', '--dont-split', help='dont-split', default=False, action='store_true')
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -189,6 +201,7 @@ def main():
     add_cmd.add_argument('-c', '--collection-dir', help='Collection directory', required=True, type=str)
     add_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
+    add_cmd.add_argument('-s', '--dont-split', help='dont-split', default=True, action='store_false')
 
     args = parser.parse_args()
     args.func(args)

@@ -147,7 +147,7 @@ def split_paralogs(report):
     report['split_clusters'] = split_clusters
     return report
 
-def label_cluster(report):
+def label_cluster(unlabeled_clusters):
     """
     Add labels to the cluster
 
@@ -155,17 +155,12 @@ def label_cluster(report):
     -------
     -------
     """
-    unlabeled_clusters = report['split_clusters']
-
-    # Add labels to the clusters
     labeled_clusters = {}
     counter = 1
     for cluster in unlabeled_clusters:
         labeled_clusters['groups_' + str(counter)] = cluster
         counter += 1
-
-    report['labeled_clusters'] = labeled_clusters
-    return report
+    return labeled_clusters
 
 
 def annotate_cluster(report):

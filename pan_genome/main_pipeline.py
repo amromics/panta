@@ -112,7 +112,7 @@ def all_against_all_blast(out_dir, database_fasta, query_fasta, threads, timing_
         for chunked_file in chunked_file_list:
             blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
             blast_output_file_list.append(blast_output_file)
-            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads {threads} -outfmt 6 -max_target_seqs 2000 " + "| awk '{ if ($3 >= 98) print $0;}' 2> /dev/null 1> " + blast_output_file
+            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " + "| awk '{ if ($3 >= 95) print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
     cmd = f"parallel --bar -j {threads} -a {blast_cmds_file}"
     ret = run_command(cmd, timing_log)

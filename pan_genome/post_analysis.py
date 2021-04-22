@@ -99,12 +99,8 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_in
     
     return new_clusters
 
-def split_paralogs(report):
-    gene_annotation = report['gene_annotation']
-    unsplit_clusters = report['inflated_unsplit_clusters']
-
+def split_paralogs(gene_annotation, unsplit_clusters):
     clusters_not_paralogs = []
-
     # run iteratively
     out_clusters = unsplit_clusters
     for i in range(50):
@@ -144,17 +140,9 @@ def split_paralogs(report):
             break
 
     split_clusters = out_clusters
-    report['split_clusters'] = split_clusters
-    return report
+    return split_clusters
 
 def label_cluster(unlabeled_clusters):
-    """
-    Add labels to the cluster
-
-    Parameters
-    -------
-    -------
-    """
     labeled_clusters = {}
     counter = 1
     for cluster in unlabeled_clusters:
@@ -163,16 +151,7 @@ def label_cluster(unlabeled_clusters):
     return labeled_clusters
 
 
-def annotate_cluster(report):
-    """
-    Update the cluster name to the gene name
-
-    Parameters
-    -------
-    -------
-    """
-    clusters = report['labeled_clusters']
-    gene_annotation = report['gene_annotation']
+def annotate_cluster(clusters, gene_annotation):
     annotated_clusters = {}
     for cluster_name in clusters:
         cluster_new_name = cluster_name
@@ -204,5 +183,4 @@ def annotate_cluster(report):
         if cluster_new_name in annotated_clusters:
             cluster_new_name += '_' + datetime.now().strftime("%M%S%f")
         annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
-    report['annotated_clusters'] = annotated_clusters
-    return report
+    return annotated_clusters

@@ -12,34 +12,20 @@ from pan_genome.utils import *
 logger = logging.getLogger(__name__)
 
 
-def run_cd_hit_iterative(report, threads, timing_log):
-    """
-    Run CD-HIT iteratively
-
-    Parameters
-    -------
-    -------
-    """
-    temp_dir = report['temp_dir']
-    combined_faa_file = report['combined_faa_file']
-
-    remain_faa_file = os.path.join(temp_dir, 'remain.faa')
+def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_log=None):
+    remain_faa_file = os.path.join(out_dir, 'remain.faa')
     shutil.copyfile(combined_faa_file, remain_faa_file)
-    report['remain_faa_file'] = remain_faa_file
-
-    cd_hit_cluster_fasta = os.path.join(temp_dir, 'cluster')
-    cd_hit_cluster_file = os.path.join(temp_dir, 'cluster.clstr')
-
+    cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
+    cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
     excluded_cluster = []
-
-    greater_than_or_equal = True
-    number_of_samples = len(report['samples'])
     
+    greater_than_or_equal = True
+    number_of_samples = len(samples)
     lower = 0.98
     step = 0.005
     percent_match = 1
     while percent_match >= lower:
-        cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_cluster_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+        cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running cd-hit')
@@ -70,27 +56,16 @@ def run_cd_hit_iterative(report, threads, timing_log):
         shutil.move(cluster_filtered_faa_file, remain_faa_file)
         percent_match -= step
 
-    cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_cluster_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
-    clusters = parse_cluster_file(cd_hit_cluster_file)
+    cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
 
-    report['cd_hit_cluster_fasta'] = cd_hit_cluster_fasta
-    report['cd_hit_cluster_file'] = cd_hit_cluster_file
-    report['excluded_cluster'] = excluded_cluster
-    report['cd_hit_cluster'] = clusters
-    return report
+    return remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, excluded_cluster, cd_hit_clusters
 
 
-def all_against_all_blast(out_dir, database_fasta, query_fasta, threads, timing_log):
-    """
-    Run all against all blast in parallel
-
-    Parameters
-    -------
-    -------
-    """
+def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -120,44 +95,27 @@ def all_against_all_blast(out_dir, database_fasta, query_fasta, threads, timing_
         raise Exception('Error running parallel all-against-all blast')
 
     # combining blast results
-    blast_result_file = os.path.join(out_dir, 'blast_results')
-    if os.path.isfile(blast_result_file):
-        os.remove(blast_result_file)
+    blast_result = os.path.join(out_dir, 'blast_results')
+    if os.path.isfile(blast_result):
+        os.remove(blast_result)
     for blast_output_file in blast_output_file_list:
-        os.system(f'cat {blast_output_file} >> {blast_result_file}')
+        os.system(f'cat {blast_output_file} >> {blast_result}')
 
-    return blast_result_file
+    return blast_result
 
 
-def cluster_with_mcl(blast_results, out_dir, threads, timing_log):
-    """
-    Take blast results and outputs clustered results
-
-    Parameters
-    -------
-    -------
-    """
-    output_mcl_file = os.path.join(out_dir, 'mcl_clusters')
+def cluster_with_mcl(blast_results, out_dir, threads=4, timing_log=None):
+    mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_results} 2> /dev/null | mcl - --abc -I 1.5 -o {output_mcl_file} > /dev/null 2>&1"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mcl')
-    return output_mcl_file
+    return mcl_file
 
 
-def reinflate_clusters(report):
-    """
-    Take the clusters file from cd-hit and use it to reinflate the output of MCL
-
-    Parameters
-    -------
-    -------
-    """
+def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
     inflated_clusters = []
-    clusters = report['cd_hit_cluster']
-
     # Inflate genes from cdhit which were sent to mcl
-    mcl_file = report['uninflated_mcl_clusters']
     with open(mcl_file, 'r') as fh:
         for line in fh:
             inflated_genes = []
@@ -165,23 +123,20 @@ def reinflate_clusters(report):
             genes = line.split('\t')
             for gene in genes:
                 inflated_genes.append(gene)
-                if gene in clusters:
-                    inflated_genes.extend(clusters[gene])
-                    del clusters[gene]
+                if gene in cd_hit_clusters:
+                    inflated_genes.extend(cd_hit_clusters[gene])
+                    del cd_hit_clusters[gene]
             inflated_clusters.append(inflated_genes)
 
     # Inflate any clusters that were in the clusters file but not sent to mcl
-    for gene in clusters:
+    for gene in cd_hit_clusters:
         inflated_genes = []
         inflated_genes.append(gene)
-        inflated_genes.extend(clusters[gene])
+        inflated_genes.extend(cd_hit_clusters[gene])
         inflated_clusters.append(inflated_genes)
 
     # Add clusters which were excluded
-    excluded_cluster = report['excluded_cluster']
     for cluster in excluded_cluster:
         inflated_clusters.append(cluster)
 
-    report['inflated_unsplit_clusters'] = inflated_clusters
-    return report
-
+    return inflated_clusters

@@ -11,26 +11,19 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-def run_cd_hit_2d(report, threads, timing_log):
-    temp_dir = report['temp_dir']
-    combined_faa_file = report['combined_faa_file']
-    representative_fasta = report['representative_fasta']
-
-    not_match_fasta_file = os.path.join(temp_dir, 'cd_hit_2d')
-    cd_hit_cluster_file = os.path.join(temp_dir, 'cd_hit_2d.clstr')
+def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
+    not_match_fasta = os.path.join(out_dir, 'cd_hit_2d')
+    cd_hit_cluster_file = os.path.join(out_dir, 'cd_hit_2d.clstr')
     
     persent = 0.98
-    cmd = f'cd-hit-2d -i {representative_fasta} -i2 {combined_faa_file} -o {not_match_fasta_file} -s {persent} -c {persent} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s {persent} -c {persent} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
 
     clusters = parse_cluster_file(cd_hit_cluster_file)
 
-    report['not_match_fasta_file'] = not_match_fasta_file
-    report['cd_hit_cluster_file'] = cd_hit_cluster_file
-    report['cd_hit_2d_cluster'] = clusters
-    return report
+    return not_match_fasta, cd_hit_cluster_file, clusters
 
 def filter_fasta(blast_result, fasta_file, out_dir):
     with open(blast_result, 'r') as fh:

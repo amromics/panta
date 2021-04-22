@@ -10,182 +10,368 @@ logging.basicConfig(level=logging.DEBUG,
 logger = logging.getLogger(__name__)
 
 def run_main_pipeline(args):
-    collection_dir = args.collection_dir
+    pan_genome_folder = args.out_dir
     timing_log = args.time_log
     threads = args.threads
     overwrite = args.over_write
     dontsplit = args.dont_split
     
-    report = {}
-    report['samples'] = []
+    samples = []
     for path in args.inputs:
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
         sample = {'id':sample_id, 'input_file':path}
         report['samples'].append(sample)
     
-    pan_genome_folder = os.path.join(collection_dir, 'pan_genome')
-    temp_dir = os.path.join(collection_dir, 'temp')
-    report['pan_genome'] = pan_genome_folder
-    report['temp_dir'] = temp_dir
+    temp_dir = os.path.join(pan_genome_folder, 'temp')
+
+    if not os.path.exists(pan_genome_folder):
+        os.makedirs(pan_genome_folder)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
     
     # Check if pan-genome has run
     pan_genome_output = os.path.join(pan_genome_folder,'summary_statistics.txt')
     if os.path.isfile(pan_genome_output) and (not overwrite):
         return
 
-    if not os.path.exists(pan_genome_folder):
-        os.makedirs(pan_genome_folder)
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-
-    report = data_preparation.extract_proteins(
-        report, 
+    # data preparation
+    gene_annotation = data_preparation.extract_proteins(
+        samples=samples,
+        out_dir=pan_genome_folder,
         gene_annotation = {}, 
         timing_log=timing_log
         )
-    report = data_preparation.combine_proteins(report, timing_log=timing_log)
+    combined_faa_file = data_preparation.combine_proteins(
+        out_dir=temp_dir,
+        timing_log=timing_log)
 
-    report = main_pipeline.run_cd_hit_iterative(report, threads=threads, timing_log=timing_log)
+    # main pipeline
+    [remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, 
+    excluded_cluster, cd_hit_clusters] = main_pipeline.run_cd_hit_iterative(
+        combined_faa_file=combined_faa_file,
+        samples=samples,
+        out_dir=temp_dir, 
+        threads=threads, 
+        timing_log=timing_log)
     
-    report['blast_result_file'] = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(report['temp_dir'], 'blast'),
-        database_fasta = report['cd_hit_cluster_fasta'],
-        query_fasta = report['cd_hit_cluster_fasta'],
+    blast_result = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(temp_dir, 'blast'),
+        database_fasta = cd_hit_cluster_fasta,
+        query_fasta = cd_hit_cluster_fasta,
         threads=threads, 
         timing_log=timing_log
         )
 
-    report['uninflated_mcl_clusters'] = main_pipeline.cluster_with_mcl(
-        out_dir = report['temp_dir'],
-        blast_results = report['blast_result_file'],
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_results = blast_result,
         threads=threads, 
         timing_log=timing_log)
-    report = main_pipeline.reinflate_clusters(report)
 
+    inflated_clusters = main_pipeline.reinflate_clusters(
+        cd_hit_clusters=cd_hit_clusters,
+        mcl_file=mcl_file,
+        excluded_cluster=excluded_cluster
+    )
+
+    # post analysis
     if dontsplit == False:
-        report = post_analysis.split_paralogs(report)
-        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['split_clusters'])
+        split_clusters = post_analysis.split_paralogs(
+            gene_annotation=gene_annotation,
+            unsplit_clusters= inflated_clusters
+            )
+        labeled_clusters = post_analysis.label_cluster(
+            unlabeled_clusters=split_clusters
+            )
     else:
-        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['inflated_unsplit_clusters'])
-    
-    report = post_analysis.annotate_cluster(report)
+        labeled_clusters = post_analysis.label_cluster(
+            unlabeled_clusters=split_clusters
+            )    
+    annotated_clusters = post_analysis.annotate_cluster(
+        clusters=labeled_clusters, 
+        gene_annotation=gene_annotation)
 
-    report = output.create_spreadsheet(report)
-    report = output.create_rtab(report)
-    report = output.create_summary(report)
-    report = output.create_representative_fasta(report)
+    # output
+    spreadsheet_file = output.create_spreadsheet(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=pan_genome_folder
+    )
+    rtab_file = output.create_rtab(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=pan_genome_folder
+    )
+    summary_file = output.create_summary(
+        rtab_file=rtab_file, 
+        out_dir=pan_genome_folder, 
+        samples=samples
+    )
+    representative_fasta = output.create_representative_fasta(
+        clusters = split_clusters,
+        gene_annotation = gene_annotation,
+        faa_fasta = combined_faa_file,
+        out_dir = pan_genome_folder
+        )
 
-    json.dump(report['gene_annotation'], open(os.path.join(report['pan_genome'], 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(report['inflated_unsplit_clusters'], open(os.path.join(report['pan_genome'], 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(report['samples'], open(os.path.join(report['pan_genome'], 'samples.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
 
-def run_add_sample_pipeline(args):
-    collection_dir = args.collection_dir
+
+def run_main_pipeline_2(args):
+    pan_genome_folder = args.out_dir
     timing_log = args.time_log
     threads = args.threads
+    overwrite = args.over_write
     dontsplit = args.dont_split
-
-    report = {}
-    report['samples'] = []
+    
+    samples = []
     for path in args.inputs:
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
         sample = {'id':sample_id, 'input_file':path}
         report['samples'].append(sample)
+    
+    temp_dir = os.path.join(pan_genome_folder, 'temp')
 
-    pan_genome_folder = os.path.join(collection_dir, 'pan_genome')
-    temp_dir = os.path.join(collection_dir, 'new_temp')
-    report['pan_genome'] = pan_genome_folder
-    report['temp_dir'] = temp_dir
-
+    if not os.path.exists(pan_genome_folder):
+        os.makedirs(pan_genome_folder)
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
+    
+    # Check if pan-genome has run
+    pan_genome_output = os.path.join(pan_genome_folder,'summary_statistics.txt')
+    if os.path.isfile(pan_genome_output) and (not overwrite):
+        return
 
+    # data preparation
+    gene_annotation = data_preparation.extract_proteins(
+        samples=samples,
+        out_dir=pan_genome_folder,
+        gene_annotation = {}, 
+        timing_log=timing_log
+        )
+    
+    # first sample
+    sample = report['samples'][0]
+    sample['blast_result'] = main_pipeline.all_against_all_blast(
+        out_dir = sample['sample_dir'],
+        database_fasta = sample['faa_file'],
+        query_fasta = sample['faa_file'],
+        threads=threads, 
+        timing_log=timing_log
+        )
+
+    sample['mcl_file'] = main_pipeline.cluster_with_mcl(
+        out_dir = sample['sample_dir'],
+        blast_results = sample['blast_result'],
+        threads=threads, 
+        timing_log=timing_log)
+
+    cluster = []
+    main_pipeline_2.add_mcl_cluster(
+        cluster=cluster, 
+        mcl_file=sample['mcl_file']
+        )
+
+    report['representative_fasta'] = output.create_representative_fasta(
+        clusters = cluster,
+        gene_annotation = report['gene_annotation'],
+        faa_fasta = sample['faa_file'],
+        out_dir = pan_genome_folder
+        )
+
+    for i in range(1, len(report['samples'])):
+        sample = report['samples'][i]
+        [sample['not_match_fasta'], sample['cd_hit_cluster_file'], sample['cd_hit_2d_clusters']] = add_sample_pipeline.run_cd_hit_2d(
+            database_1 = report['representative_fasta'],
+            database_2 = sample['faa_file'],
+            out_dir = sample['sample_dir'],
+            threads=threads, 
+            timing_log=timing_log)
+
+        report['blast_1_result_file'] = main_pipeline.all_against_all_blast(
+            out_dir = os.path.join(temp_dir, 'blast1'),
+            database_fasta = representative_fasta,
+            query_fasta = report['not_match_fasta'],
+            threads=threads, 
+            timing_log=timing_log
+            )
+
+        report['blast_remain_fasta'] = add_sample_pipeline.filter_fasta(
+            blast_result = report['blast_1_result_file'], 
+            fasta_file = report['not_match_fasta'], 
+            out_dir = temp_dir
+            )
+
+        report['blast_2_result_file'] = main_pipeline.all_against_all_blast(
+            out_dir = os.path.join(temp_dir, 'blast2'),
+            database_fasta = report['blast_remain_fasta'],
+            query_fasta = report['blast_remain_fasta'],
+            threads=threads, 
+            timing_log=timing_log
+            )
+        
+        report['mcl_clusters'] = main_pipeline.cluster_with_mcl(
+            out_dir = temp_dir,
+            blast_results = report['blast_2_result_file'],
+            threads=threads, 
+            timing_log=timing_log)
+
+        report['inflated_unsplit_clusters'] = add_sample_pipeline.reinflate_clusters(
+            old_clusters=old_clusters, 
+            cd_hit_2d_clusters=report['cd_hit_2d_clusters'], 
+            blast_1_result_file=report['blast_1_result_file'], 
+            mcl_clusters=report['mcl_clusters']
+            )
+    
+
+def run_add_sample_pipeline(args):
+    pan_genome_folder = args.collection_dir
+    timing_log = args.time_log
+    threads = args.threads
+    dontsplit = args.dont_split
+    
+    samples = []
+    for path in args.inputs:
+        base_name = os.path.basename(path)
+        sample_id = base_name.split('.')[0]
+        sample = {'id':sample_id, 'input_file':path}
+        report['samples'].append(sample)
+    
+    temp_dir = os.path.join(pan_genome_folder, 'temp')
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    
     # Check if last collection exist
     representative_fasta = os.path.join(pan_genome_folder, 'representative.fasta')
     if not os.path.isfile(representative_fasta):
         raise Exception(f'{representative_fasta} is not exist')
-    report['representative_fasta'] = representative_fasta
-
     gene_annotation = json.load(open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'r'))
-    
     old_clusters = json.load(open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'r'))
-    report = data_preparation.extract_proteins(
-        report, 
-        gene_annotation = gene_annotation, 
+
+    # data preparation
+    gene_annotation = data_preparation.extract_proteins(
+        samples=samples,
+        out_dir=pan_genome_folder,
+        gene_annotation = {}, 
         timing_log=timing_log
         )
-    report = data_preparation.combine_proteins(report, timing_log=timing_log)
+    combined_faa_file = data_preparation.combine_proteins(
+        out_dir=temp_dir,
+        timing_log=timing_log)
 
-    report = add_sample_pipeline.run_cd_hit_2d(report, threads=threads, timing_log=timing_log)
-
-    report['blast_1_result_file'] = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(report['temp_dir'], 'blast1'),
+    # add sample pipeline
+    [not_match_fasta, cd_hit_cluster_file, cd_hit_2d_clusters] = add_sample_pipeline.run_cd_hit_2d(
+        database_1 = representative_fasta,
+        database_2 = combined_faa_file,
+        out_dir = temp_dir,
+        threads=threads, 
+        timing_log=timing_log)
+    
+    blast_1_result = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(temp_dir, 'blast1'),
         database_fasta = representative_fasta,
-        query_fasta = report['not_match_fasta_file'],
+        query_fasta = not_match_fasta,
         threads=threads, 
         timing_log=timing_log
         )
-
-    report['blast_remain_fasta'] = add_sample_pipeline.filter_fasta(
-        blast_result = report['blast_1_result_file'], 
-        fasta_file = report['not_match_fasta_file'], 
+    
+    blast_remain_fasta = add_sample_pipeline.filter_fasta(
+        blast_result = blast_1_result, 
+        fasta_file = not_match_fasta, 
         out_dir = temp_dir
         )
-
-    report['blast_2_result_file'] = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(report['temp_dir'], 'blast2'),
-        database_fasta = report['blast_remain_fasta'],
-        query_fasta = report['blast_remain_fasta'],
+    
+    blast_2_result = main_pipeline.all_against_all_blast(
+        out_dir = os.path.join(temp_dir, 'blast2'),
+        database_fasta = blast_remain_fasta,
+        query_fasta = blast_remain_fasta,
         threads=threads, 
         timing_log=timing_log
         )
-    
-    report['mcl_clusters'] = main_pipeline.cluster_with_mcl(
-        out_dir = report['temp_dir'],
-        blast_results = report['blast_2_result_file'],
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_results = blast_2_result,
         threads=threads, 
         timing_log=timing_log)
 
-    report['inflated_unsplit_clusters'] = add_sample_pipeline.reinflate_clusters(
+    inflated_clusters = add_sample_pipeline.reinflate_clusters(
         old_clusters=old_clusters, 
-        cd_hit_2d_cluster=report['cd_hit_2d_cluster'], 
-        blast_1_result_file=report['blast_1_result_file'], 
-        mcl_clusters=report['mcl_clusters']
+        cd_hit_2d_clusters=cd_hit_2d_clusters, 
+        blast_1_result_file=blast_1_result, 
+        mcl_clusters=mcl_file
         )
-    
-    old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))
-    report['samples'].extend(old_samples)
-    
+
+    # post analysis
     if dontsplit == False:
-        report = post_analysis.split_paralogs(report)
-        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['split_clusters'])
+        split_clusters = post_analysis.split_paralogs(
+            gene_annotation=gene_annotation,
+            unsplit_clusters= inflated_clusters
+            )
+        labeled_clusters = post_analysis.label_cluster(
+            unlabeled_clusters=split_clusters
+            )
     else:
-        report['labeled_clusters'] = post_analysis.label_cluster(unlabeled_clusters=report['inflated_unsplit_clusters'])
-    
-    report = post_analysis.annotate_cluster(report)
+        labeled_clusters = post_analysis.label_cluster(
+            unlabeled_clusters=split_clusters
+            )    
+    annotated_clusters = post_analysis.annotate_cluster(
+        clusters=labeled_clusters, 
+        gene_annotation=gene_annotation
+        )
 
-    report = output.create_spreadsheet(report)
-    report = output.create_rtab(report)
-    report = output.create_summary(report)
-    report = output.create_representative_fasta(report)
+    # output
+    old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))
+    samples.extend(old_samples)
 
-    json.dump(report['gene_annotation'], open(os.path.join(report['pan_genome'], 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(report['inflated_unsplit_clusters'], open(os.path.join(report['pan_genome'], 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(report['samples'], open(os.path.join(report['pan_genome'], 'samples.json'), 'w'), indent=4, sort_keys=True)
+    spreadsheet_file = output.create_spreadsheet(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=pan_genome_folder
+    )
+    rtab_file = output.create_rtab(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=pan_genome_folder
+    )
+    summary_file = output.create_summary(
+        rtab_file=rtab_file, 
+        out_dir=pan_genome_folder, 
+        samples=samples
+    )
+    representative_fasta = output.create_representative_fasta(
+        clusters = split_clusters,
+        gene_annotation = gene_annotation,
+        faa_fasta = combined_faa_file,
+        out_dir = pan_genome_folder
+        )
+
+    json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
+
 
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
+    
     main_cmd = subparsers.add_parser(
         'main',
         description='main pipeline',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     main_cmd.set_defaults(func=run_main_pipeline)
+    #main_cmd.set_defaults(func=run_main_pipeline_2)
     main_cmd.add_argument('inputs', help='Input files', type=str, nargs='+')
-    main_cmd.add_argument('-c', '--collection-dir', help='Collection directory', required=True, type=str)
+    main_cmd.add_argument('-o', '--out_dir', help='Output directory', required=True, type=str)
     main_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
     main_cmd.add_argument('-w', '--over-write', help='over write', default=False, action='store_true')

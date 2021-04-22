@@ -3,5 +3,6 @@ __all__ = [
     'main_pipeline',  
     'add_sample_pipeline', 
     'post_analysis', 
-    'output'
+    'output',
+    'main_pipeline_2'
     ]

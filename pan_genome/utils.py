@@ -20,15 +20,7 @@ def run_command(cmd, timing_log=None):
     return ret
 
 
-def parse_cluster_file(cd_hit_cluster_file):
-    """
-    Parse cd-hit .clstr file
-
-    Parameters
-    -------
-    -------
-    """
-    
+def parse_cluster_file(cd_hit_cluster_file): 
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:
         for line in fh:
@@ -55,13 +47,6 @@ def parse_cluster_file(cd_hit_cluster_file):
 
 
 def chunk_fasta_file(fasta_file, out_dir):
-    """
-    Take a fasta file and chunk it up into smaller files with the length of 200000
-
-    Parameters
-    -------
-    -------
-    """
     if os.path.exists(out_dir):
         shutil.rmtree(out_dir)
         os.makedirs(out_dir)

@@ -18,12 +18,31 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
     cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
     cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
     excluded_cluster = []
-    
-    greater_than_or_equal = True
     number_of_samples = len(samples)
+
+    # persent = 100%
+    cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        raise Exception('Error running cd-hit')
+    
+    clusters = parse_cluster_file(cd_hit_cluster_file)
+
+    full_cluster_gene_names =[]
+    for cluster_represent in clusters:
+        other_genes = clusters[cluster_represent]
+        this_cluster = []
+        if len(other_genes) >= number_of_samples -1:
+            this_cluster.append(cluster_represent)
+            this_cluster.extend(other_genes)
+        else:
+            full_cluster_gene_names.extend(this_cluster)
+            excluded_cluster.append(this_cluster)
+
+    # run iteratively
     lower = 0.98
     step = 0.005
-    percent_match = 1
+    percent_match = 0.99
     while percent_match >= lower:
         cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
         ret = run_command(cmd, timing_log)
@@ -32,19 +51,14 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
         
         clusters = parse_cluster_file(cd_hit_cluster_file)
 
-        if percent_match != 1:
-            greater_than_or_equal = False
         full_cluster_gene_names =[]
         for cluster_represent in clusters:
             other_genes = clusters[cluster_represent]
             this_cluster = []
-            if greater_than_or_equal == True and len(other_genes) >= number_of_samples -1:
+            if len(other_genes) == number_of_samples -1:
                 this_cluster.append(cluster_represent)
                 this_cluster.extend(other_genes)
-            if greater_than_or_equal == False and len(other_genes) == number_of_samples -1:
-                this_cluster.append(cluster_represent)
-                this_cluster.extend(other_genes)
-            if len(this_cluster) != 0:
+            else:
                 full_cluster_gene_names.extend(this_cluster)
                 excluded_cluster.append(this_cluster)
 
@@ -56,6 +70,7 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
         shutil.move(cluster_filtered_faa_file, remain_faa_file)
         percent_match -= step
 
+    # run last time without excluding
     cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:

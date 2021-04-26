@@ -2,8 +2,7 @@ import os
 import re
 import logging
 from datetime import datetime
-from Bio import SeqIO
-from pan_genome.utils import run_command
+from pan_genome.utils import run_command, translate_protein
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_log=None):
     statime = datetime.now()
     for sample in samples:
-        
+        starttime = datetime.now()
         sample_id = sample['id']
         sample_dir = os.path.join(out_dir, 'samples', sample_id)
         if not os.path.exists(sample_dir):
@@ -89,17 +88,9 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_lo
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running bedtools')
-        starttime = datetime.now()
         # translate nucleotide to protein
         faa_file = os.path.join(sample_dir, sample_id +'.faa')
-        with open(faa_file, 'w') as faa_hd:
-            for seq_record in SeqIO.parse(extracted_fna_file, "fasta"):
-                headers = seq_record.id.split(':')
-                seq_record.id = headers[0]
-                seq_record.name = ''
-                seq_record.description = ''
-                seq_record.seq = seq_record.seq.translate(table=11)
-                SeqIO.write(seq_record, faa_hd, 'fasta')
+        translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file)
         elapsed = datetime.now() - starttime
         logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
         

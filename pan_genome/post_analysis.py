@@ -1,12 +1,6 @@
 import os
-import shutil
-import re
-import json
-import gzip
 import logging
 from datetime import datetime
-from Bio import SeqIO
-import pandas as pd
 from pan_genome.utils import run_command
 
 logger = logging.getLogger(__name__)

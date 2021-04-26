@@ -1,12 +1,6 @@
 import os
-import shutil
-import re
-import json
-import gzip
-import csv
 import logging
 from datetime import datetime
-from Bio import SeqIO
 import pandas as pd
 from pan_genome.utils import *
 
@@ -39,13 +33,10 @@ def filter_fasta(blast_result, fasta_file, out_dir):
             line = line.rstrip()
             cells = line.split('\t')
             ls.append(cells[0])
+        ls = set(ls)
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    with open(blast_remain_fasta, 'w') as fh:
-        for seq_record in SeqIO.parse(fasta_file, 'fasta'):
-            if seq_record.id in ls:
-                continue
-            SeqIO.write(seq_record, fh, 'fasta')
+    exclude_fasta(fasta_file=fasta_file, exclude_list=ls, output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Filter fasta -- time taken {str(elapsed)}')

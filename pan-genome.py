@@ -90,7 +90,7 @@ def run_main_pipeline(args):
             )
     else:
         labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=split_clusters
+            unlabeled_clusters=inflated_clusters
             )    
     annotated_clusters = post_analysis.annotate_cluster(
         clusters=labeled_clusters, 
@@ -220,7 +220,7 @@ def run_add_sample_pipeline(args):
             )
     else:
         labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=split_clusters
+            unlabeled_clusters=inflated_clusters
             )    
     annotated_clusters = post_analysis.annotate_cluster(
         clusters=labeled_clusters, 
@@ -289,7 +289,7 @@ def main():
     add_cmd.add_argument('-c', '--collection-dir', help='Collection directory', required=True, type=str)
     add_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-    add_cmd.add_argument('-s', '--dont-split', help='dont-split', default=True, action='store_false')
+    add_cmd.add_argument('-s', '--dont-split', help='dont-split', default=False, action='store_true')
 
     args = parser.parse_args()
     args.func(args)

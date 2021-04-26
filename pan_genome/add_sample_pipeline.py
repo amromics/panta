@@ -42,7 +42,7 @@ def filter_fasta(blast_result, fasta_file, out_dir):
     logging.info(f'Filter fasta -- time taken {str(elapsed)}')
     return blast_remain_fasta
 
-def reinflate_clusters(old_clusters, cd_hit_2d_cluster, blast_1_result_file, mcl_clusters):
+def reinflate_clusters(old_clusters, cd_hit_2d_clusters, blast_1_result_file, mcl_clusters):
     starttime = datetime.now()
 
     blast_dataframe = pd.read_csv(blast_1_result_file, sep='\t', header = None)
@@ -61,12 +61,12 @@ def reinflate_clusters(old_clusters, cd_hit_2d_cluster, blast_1_result_file, mcl
             min_value = value
     for new in dictionary:
         repre = dictionary[new]
-        cd_hit_2d_cluster[repre].append(new)
+        cd_hit_2d_clusters[repre].append(new)
 
     for cluster in old_clusters:
         for g in cluster:
-            if g in cd_hit_2d_cluster:
-                cluster.extend(cd_hit_2d_cluster[g])
+            if g in cd_hit_2d_clusters:
+                cluster.extend(cd_hit_2d_clusters[g])
     
     with open(mcl_clusters, 'r') as fh:
         for line in fh:

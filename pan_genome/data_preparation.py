@@ -5,16 +5,20 @@ import json
 import gzip
 import csv
 import logging
+from datetime import datetime
 from Bio import SeqIO
 import pandas as pd
 from pan_genome.utils import run_command
 
 logger = logging.getLogger(__name__)
 
-def parse_gff_file(ggf_file, bed_out_file, fasta_out_file, sample_id, gene_annotation):
+def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_position):
+    starttime = datetime.now()
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     fna_file = os.path.join(sample_dir, sample_id + '.fna')
     found_fasta = False
+    sample_dict = {}
+    gene_position[sample_id] = sample_dict
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(fna_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
@@ -36,35 +40,43 @@ def parse_gff_file(ggf_file, bed_out_file, fasta_out_file, sample_id, gene_annot
             length = end - start
             if length < 18:
                 continue
-
-            seq_id = cells[0]
             
+            seq_id = cells[0]
             gene_id = re.findall(r"ID=(.+?);",cells[8])
             gene_id = gene_id[0]
             if gene_id in gene_annotation:
                 gene_id = gene_id + datetime.now().strftime("%f")
-            
             trand = cells[6]
+
+            # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
 
-            # create gene_annotation
-            gene_annotation[gene_id] = {}
-            gene_annotation[gene_id]['sample_id'] = sample_id
-            gene_annotation[gene_id]['length'] = length
+            # add to gene_annotation           
+            gene_dict = {}
+            gene_dict['sample_id'] = sample_id
+            gene_dict['contig'] = seq_id
+            gene_dict['length'] = length
             gene_name = re.findall(r"Name=(.+?);",cells[8])
             if len(gene_name) != 0:
                 gene_name = gene_name[0]
-                gene_annotation[gene_id]['name'] = gene_name
+                gene_dict['name'] = gene_name
             gene_product = re.findall(r"product=(.+?)$",cells[8])
             if len(gene_product) != 0:
                 gene_product = gene_product[0]
-                gene_annotation[gene_id]['product'] = gene_product
-            gene_annotation[gene_id]['contig'] = seq_id
+                gene_dict['product'] = gene_product
+            gene_annotation[gene_id] = gene_dict
 
+            # add to gene_position
+            if seq_id not in sample_dict:
+                sample_dict[seq_id] = []
+            sample_dict[seq_id].append(gene_id)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Parse gff file of {sample_id} -- time taken {str(elapsed)}')
     return bed_file, fna_file
 
-def extract_proteins(samples, out_dir, gene_annotation, timing_log=None):
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_log=None):
+    starttime = datetime.now()
     for sample in samples:
         sample_id = sample['id']
         sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -75,7 +87,9 @@ def extract_proteins(samples, out_dir, gene_annotation, timing_log=None):
             ggf_file = sample['input_file'], 
             sample_dir = sample_dir, 
             sample_id = sample_id, 
-            gene_annotation = gene_annotation)
+            gene_annotation = gene_annotation,
+            gene_position = gene_position
+            )
         # extract nucleotide region
         extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
         cmd = f"bedtools getfasta -s -fi {fna_file} -bed {bed_file} -fo {extracted_fna_file} -name > /dev/null 2>&1"
@@ -97,11 +111,14 @@ def extract_proteins(samples, out_dir, gene_annotation, timing_log=None):
         sample['extracted_fna_file'] = extracted_fna_file
         sample['faa_file'] = faa_file
         sample['sample_dir'] = sample_dir
-    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Extract protein -- time taken {str(elapsed)}')
     return gene_annotation
 
 
 def combine_proteins(out_dir, samples, timing_log=None):
+    starttime = datetime.now()
+
     combined_faa_file = os.path.join(out_dir, 'combined.faa')
     faa_file_list =[]
     for sample in samples:
@@ -112,4 +129,7 @@ def combine_proteins(out_dir, samples, timing_log=None):
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error combining protein sequences')
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file

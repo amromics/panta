@@ -33,21 +33,22 @@ def find_paralogs(cluster, gene_annotation):
     return paralog_genes
 
 
-def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index):
+def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gene_to_cluster_index):
     # get neighbour gene
     neighbour_gene_dictionary = {}
     for gene_id in cluster:
-        match = re.search(r'^(.+_)(\d+)$', gene_id)
-        gene_id_prefix = match.group(1)
-        gene_position = int(match.group(2))
-        before_position = gene_position - 5
-        after_position = gene_position + 5
+        sample = gene_annotation[gene_id]['sample_id']
         contig = gene_annotation[gene_id]['contig']
-        neighbour_genes = []
-        for i in range(before_position, after_position+1):
-            neighbour_gene_id = gene_id_prefix + '{:0>5}'.format(i)
-            if neighbour_gene_id in gene_annotation and neighbour_gene_id != gene_id and gene_annotation[neighbour_gene_id]['contig'] == contig:
-                neighbour_genes.append(neighbour_gene_id)
+        genes_of_contig = gene_position[sample][contig]
+        index = genes_of_contig.index(gene_id)
+        pre_index = index - 5
+        post_index = index + 6
+        if pre_index < 0:
+            pre_index = 0
+        length_of_contig = len(genes_of_contig)
+        if post_index >= length_of_contig:
+            post_index = length_of_contig
+        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
         neighbour_gene_dictionary[gene_id] = neighbour_genes
 
     # find cluster indices of all the neighbour genes of each paralog gene
@@ -99,7 +100,9 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_in
     
     return new_clusters
 
-def split_paralogs(gene_annotation, unsplit_clusters):
+def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
+    starttime = datetime.now()
+
     clusters_not_paralogs = []
     # run iteratively
     out_clusters = unsplit_clusters
@@ -107,6 +110,12 @@ def split_paralogs(gene_annotation, unsplit_clusters):
         in_clusters = out_clusters
         out_clusters = []
         any_paralogs = 0
+        # convert in_clusters so we can find the cluster index of gene
+        gene_to_cluster_index = {}
+        for index, genes in enumerate(in_clusters):
+            for gene in genes:
+                gene_to_cluster_index[gene] = index
+        
         for cluster in in_clusters:
             if len(cluster) == 1:
                 out_clusters.append(cluster)
@@ -123,15 +132,9 @@ def split_paralogs(gene_annotation, unsplit_clusters):
                 clusters_not_paralogs.append(first_gene)
                 out_clusters.append(cluster)
                 continue
-            
-            # convert in_clusters so we can find the cluster index of gene
-            gene_to_cluster_index = {}
-            for index, genes in enumerate(in_clusters):
-                for gene in genes:
-                    gene_to_cluster_index[gene] = index
 
             # split paralogs
-            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index)
+            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 
@@ -140,18 +143,28 @@ def split_paralogs(gene_annotation, unsplit_clusters):
             break
 
     split_clusters = out_clusters
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Split paralogs -- time taken {str(elapsed)}')
     return split_clusters
 
 def label_cluster(unlabeled_clusters):
+    starttime = datetime.now()
+
     labeled_clusters = {}
     counter = 1
     for cluster in unlabeled_clusters:
         labeled_clusters['groups_' + str(counter)] = cluster
         counter += 1
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Label clusters -- time taken {str(elapsed)}')
     return labeled_clusters
 
 
 def annotate_cluster(clusters, gene_annotation):
+    starttime = datetime.now()
+
     annotated_clusters = {}
     for cluster_name in clusters:
         cluster_new_name = cluster_name
@@ -181,6 +194,9 @@ def annotate_cluster(clusters, gene_annotation):
                 cluster_product = 'unknown'
         # check if cluster_new_name is already exist
         if cluster_new_name in annotated_clusters:
-            cluster_new_name += '_' + datetime.now().strftime("%M%S%f")
+            cluster_new_name += '_' + datetime.now().strftime("%f")
         annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters

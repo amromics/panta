@@ -21,7 +21,7 @@ def run_main_pipeline(args):
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
         sample = {'id':sample_id, 'input_file':path}
-        report['samples'].append(sample)
+        samples.append(sample)
     
     temp_dir = os.path.join(pan_genome_folder, 'temp')
 
@@ -36,14 +36,18 @@ def run_main_pipeline(args):
         return
 
     # data preparation
-    gene_annotation = data_preparation.extract_proteins(
+    gene_annotation = {}
+    gene_position = {}
+    data_preparation.extract_proteins(
         samples=samples,
         out_dir=pan_genome_folder,
-        gene_annotation = {}, 
+        gene_annotation = gene_annotation,
+        gene_position = gene_position, 
         timing_log=timing_log
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,
+        samples=samples,
         timing_log=timing_log)
 
     # main pipeline
@@ -57,8 +61,8 @@ def run_main_pipeline(args):
     
     blast_result = main_pipeline.all_against_all_blast(
         out_dir = os.path.join(temp_dir, 'blast'),
-        database_fasta = cd_hit_cluster_fasta,
-        query_fasta = cd_hit_cluster_fasta,
+        database_fasta = cd_hit_represent_fasta,
+        query_fasta = cd_hit_represent_fasta,
         threads=threads, 
         timing_log=timing_log
         )
@@ -74,11 +78,12 @@ def run_main_pipeline(args):
         mcl_file=mcl_file,
         excluded_cluster=excluded_cluster
     )
-
+    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     # post analysis
     if dontsplit == False:
         split_clusters = post_analysis.split_paralogs(
             gene_annotation=gene_annotation,
+            gene_position=gene_position,
             unsplit_clusters= inflated_clusters
             )
         labeled_clusters = post_analysis.label_cluster(
@@ -118,7 +123,8 @@ def run_main_pipeline(args):
         )
 
     json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(gene_position, open(os.path.join(pan_genome_folder, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
     json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
     
 
@@ -133,7 +139,7 @@ def run_add_sample_pipeline(args):
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
         sample = {'id':sample_id, 'input_file':path}
-        report['samples'].append(sample)
+        samples.append(sample)
     
     temp_dir = os.path.join(pan_genome_folder, 'temp')
     if not os.path.exists(temp_dir):
@@ -144,17 +150,20 @@ def run_add_sample_pipeline(args):
     if not os.path.isfile(representative_fasta):
         raise Exception(f'{representative_fasta} is not exist')
     gene_annotation = json.load(open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'r'))
+    gene_position = json.load(open(os.path.join(pan_genome_folder, 'gene_position.json'), 'r'))
     old_clusters = json.load(open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'r'))
 
     # data preparation
-    gene_annotation = data_preparation.extract_proteins(
+    data_preparation.extract_proteins(
         samples=samples,
         out_dir=pan_genome_folder,
-        gene_annotation = {}, 
+        gene_annotation = gene_annotation,
+        gene_position = gene_position, 
         timing_log=timing_log
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,
+        samples=samples,
         timing_log=timing_log)
 
     # add sample pipeline
@@ -204,6 +213,7 @@ def run_add_sample_pipeline(args):
     if dontsplit == False:
         split_clusters = post_analysis.split_paralogs(
             gene_annotation=gene_annotation,
+            gene_position=gene_position,
             unsplit_clusters= inflated_clusters
             )
         labeled_clusters = post_analysis.label_cluster(
@@ -247,6 +257,7 @@ def run_add_sample_pipeline(args):
         )
 
     json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(gene_position, open(os.path.join(pan_genome_folder, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
 

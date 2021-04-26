@@ -5,6 +5,7 @@ import json
 import gzip
 import csv
 import logging
+from datetime import datetime
 from Bio import SeqIO
 import pandas as pd
 from pan_genome.utils import *
@@ -12,6 +13,8 @@ from pan_genome.utils import *
 logger = logging.getLogger(__name__)
 
 def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
+    starttime = datetime.now()
+
     not_match_fasta = os.path.join(out_dir, 'cd_hit_2d')
     cd_hit_cluster_file = os.path.join(out_dir, 'cd_hit_2d.clstr')
     
@@ -23,9 +26,13 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
 
     clusters = parse_cluster_file(cd_hit_cluster_file)
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run CD-HIT-2D -- time taken {str(elapsed)}')
     return not_match_fasta, cd_hit_cluster_file, clusters
 
 def filter_fasta(blast_result, fasta_file, out_dir):
+    starttime = datetime.now()
+
     with open(blast_result, 'r') as fh:
         ls = []
         for line in fh:
@@ -40,10 +47,13 @@ def filter_fasta(blast_result, fasta_file, out_dir):
                 continue
             SeqIO.write(seq_record, fh, 'fasta')
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Filter fasta -- time taken {str(elapsed)}')
     return blast_remain_fasta
 
 def reinflate_clusters(old_clusters, cd_hit_2d_cluster, blast_1_result_file, mcl_clusters):
-    
+    starttime = datetime.now()
+
     blast_dataframe = pd.read_csv(blast_1_result_file, sep='\t', header = None)
     dictionary = {}
     min_value = 100
@@ -73,5 +83,7 @@ def reinflate_clusters(old_clusters, cd_hit_2d_cluster, blast_1_result_file, mcl
             genes = line.split('\t')
             old_clusters.append(genes)
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return old_clusters
     

@@ -108,3 +108,49 @@ def include_fasta(fasta_file, include_list, output_file):
                     continue
                 else:
                     fh_out.write(line)
+
+
+def translate_dna(sequence):
+    """
+    :param sequence: (str) a DNA sequence string
+    :return: (str) a protein string from the forward reading frame 1
+    """
+
+    codontable = {'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
+                'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
+                'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
+                'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
+                'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
+                'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
+                'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
+                'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
+                'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
+                'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
+                'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
+                'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
+                'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
+                'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
+                'TAC': 'Y', 'TAT': 'Y', 'TAA': '*', 'TAG': '*',
+                'TGC': 'C', 'TGT': 'C', 'TGA': '*', 'TGG': 'W',
+                }
+    seq = sequence.upper()
+    prot = []
+    for n in range(0, len(seq), 3):
+        if seq[n:n + 3] in codontable:
+            residue = codontable[seq[n:n + 3]]
+        else:
+            residue = "-"
+        prot.append(residue)
+    return "".join(prot)
+
+def translate_protein(nu_fasta, pro_fasta):
+    with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
+        for line in fh_in:
+            result = re.match(r"^>(\w+)::", line)
+            if result != None:
+                fh_out.write(f'>{result.group(1)}\n')
+            else:
+                line = line.rstrip()
+                line = translate_dna(line)
+                ls = [line[i:i+60] for i in range(0,len(line), 60)]
+                fh_out.write('\n'.join(ls) + '\n')

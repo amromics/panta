@@ -1,18 +1,13 @@
 import os
 import shutil
-import re
-import json
-import gzip
-import csv
 import logging
 from datetime import datetime
-from Bio import SeqIO
-import pandas as pd
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
 def exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster):
+    
     clusters = parse_cluster_file(cd_hit_cluster_file)
 
     full_cluster_gene_names =[]
@@ -22,19 +17,23 @@ def exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_sample
         if len(other_genes) >= number_of_samples -1:
             this_cluster.append(cluster_represent)
             this_cluster.extend(other_genes)
-        if len(this_cluster) != 0:
             full_cluster_gene_names.extend(this_cluster)
             excluded_cluster.append(this_cluster)
-    
     cluster_filtered_faa_file = remain_faa_file + '.filtered'
-    with open(cluster_filtered_faa_file, 'w') as fh:
-        for seq_record in SeqIO.parse(remain_faa_file, "fasta"):
-            if seq_record.id not in full_cluster_gene_names:
-                SeqIO.write(seq_record, fh, 'fasta')
+    full_cluster_gene_names = set(full_cluster_gene_names)
+    starttime = datetime.now()
+    exclude_fasta(
+        fasta_file=remain_faa_file, 
+        exclude_list=full_cluster_gene_names, 
+        output_file=cluster_filtered_faa_file
+        )
     shutil.move(cluster_filtered_faa_file, remain_faa_file)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Exclude full clusters after run CD-HIT -- time taken {str(elapsed)}')
 
 
 def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_log=None):
+    statime = datetime.now()
     starttime = datetime.now()
     remain_faa_file = os.path.join(out_dir, 'remain.faa')
     shutil.copyfile(combined_faa_file, remain_faa_file)
@@ -49,27 +48,34 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
     if ret != 0:
         raise Exception('Error running cd-hit')
     exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster)
-
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run CD-HIT with 100% identity -- time taken {str(elapsed)}')
+    
     # run iteratively
     lower = 0.98
     step = 0.005
     percent_match = 0.99
     while percent_match >= lower:
+        starttime = datetime.now()
         cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running cd-hit')
         exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster)
+        elapsed = datetime.now() - starttime
+        logging.info(f'Run CD-HIT with {percent_match * 100}% identity -- time taken {str(elapsed)}')
         percent_match -= step
 
     # run last time without excluding
+    starttime = datetime.now()
     cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
-
     elapsed = datetime.now() - starttime
+    logging.info(f'Run CD-HIT with {lower * 100}% identity -- time taken {str(elapsed)}')
+    elapsed = datetime.now() - statime
     logging.info(f'Run CD-HIT iteratively -- time taken {str(elapsed)}')
     return remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, excluded_cluster, cd_hit_clusters
 

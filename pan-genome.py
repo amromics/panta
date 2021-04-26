@@ -78,7 +78,6 @@ def run_main_pipeline(args):
         mcl_file=mcl_file,
         excluded_cluster=excluded_cluster
     )
-    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     # post analysis
     if dontsplit == False:
         split_clusters = post_analysis.split_paralogs(
@@ -111,7 +110,7 @@ def run_main_pipeline(args):
         out_dir=pan_genome_folder
     )
     summary_file = output.create_summary(
-        rtab_file=rtab_file, 
+        split_clusters=split_clusters, 
         out_dir=pan_genome_folder, 
         samples=samples
     )
@@ -124,7 +123,7 @@ def run_main_pipeline(args):
 
     json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
     json.dump(gene_position, open(os.path.join(pan_genome_folder, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-
+    json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
     
 
@@ -245,7 +244,7 @@ def run_add_sample_pipeline(args):
         out_dir=pan_genome_folder
     )
     summary_file = output.create_summary(
-        rtab_file=rtab_file, 
+        split_clusters=split_clusters, 
         out_dir=pan_genome_folder, 
         samples=samples
     )

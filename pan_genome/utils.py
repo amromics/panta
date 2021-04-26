@@ -13,9 +13,9 @@ def run_command(cmd, timing_log=None):
     :param timing_log:
     :return:
     """
+    #logger.info('Run "' + cmd + '"')
     if timing_log is not None:
         cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
-    logger.info('Run "' + cmd + '"')
     ret = os.system(cmd)
     return ret
 

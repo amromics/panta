@@ -5,27 +5,14 @@ import json
 import gzip
 import csv
 import logging
+from datetime import datetime
 from Bio import SeqIO
 import pandas as pd
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-
-def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_log=None):
-    remain_faa_file = os.path.join(out_dir, 'remain.faa')
-    shutil.copyfile(combined_faa_file, remain_faa_file)
-    cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
-    cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
-    excluded_cluster = []
-    number_of_samples = len(samples)
-
-    # persent = 100%
-    cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        raise Exception('Error running cd-hit')
-    
+def exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster):
     clusters = parse_cluster_file(cd_hit_cluster_file)
 
     full_cluster_gene_names =[]
@@ -35,9 +22,33 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
         if len(other_genes) >= number_of_samples -1:
             this_cluster.append(cluster_represent)
             this_cluster.extend(other_genes)
-        else:
+        if len(this_cluster) != 0:
             full_cluster_gene_names.extend(this_cluster)
             excluded_cluster.append(this_cluster)
+    
+    cluster_filtered_faa_file = remain_faa_file + '.filtered'
+    with open(cluster_filtered_faa_file, 'w') as fh:
+        for seq_record in SeqIO.parse(remain_faa_file, "fasta"):
+            if seq_record.id not in full_cluster_gene_names:
+                SeqIO.write(seq_record, fh, 'fasta')
+    shutil.move(cluster_filtered_faa_file, remain_faa_file)
+
+
+def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_log=None):
+    starttime = datetime.now()
+    remain_faa_file = os.path.join(out_dir, 'remain.faa')
+    shutil.copyfile(combined_faa_file, remain_faa_file)
+    cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
+    cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
+    excluded_cluster = []
+    number_of_samples = len(samples)
+
+    # run first time with persent = 100%
+    cmd = f'cd-hit -i {remain_faa_file} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        raise Exception('Error running cd-hit')
+    exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster)
 
     # run iteratively
     lower = 0.98
@@ -48,26 +59,7 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running cd-hit')
-        
-        clusters = parse_cluster_file(cd_hit_cluster_file)
-
-        full_cluster_gene_names =[]
-        for cluster_represent in clusters:
-            other_genes = clusters[cluster_represent]
-            this_cluster = []
-            if len(other_genes) == number_of_samples -1:
-                this_cluster.append(cluster_represent)
-                this_cluster.extend(other_genes)
-            else:
-                full_cluster_gene_names.extend(this_cluster)
-                excluded_cluster.append(this_cluster)
-
-        cluster_filtered_faa_file = remain_faa_file + '.filtered'
-        with open(cluster_filtered_faa_file, 'w') as fh:
-            for seq_record in SeqIO.parse(remain_faa_file, "fasta"):
-                if seq_record.id not in full_cluster_gene_names:
-                    SeqIO.write(seq_record, fh, 'fasta')
-        shutil.move(cluster_filtered_faa_file, remain_faa_file)
+        exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_samples, excluded_cluster)
         percent_match -= step
 
     # run last time without excluding
@@ -77,10 +69,14 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
         raise Exception('Error running cd-hit')
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run CD-HIT iteratively -- time taken {str(elapsed)}')
     return remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, excluded_cluster, cd_hit_clusters
 
 
 def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
+    starttime = datetime.now()
+
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -116,19 +112,25 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timin
     for blast_output_file in blast_output_file_list:
         os.system(f'cat {blast_output_file} >> {blast_result}')
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'All-against-all BLASTP -- time taken {str(elapsed)}')
     return blast_result
 
 
 def cluster_with_mcl(blast_results, out_dir, threads=4, timing_log=None):
+    starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
-    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_results} 2> /dev/null | mcl - --abc -I 1.5 -o {output_mcl_file} > /dev/null 2>&1"
+    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_results} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mcl')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Cluster with MCL -- time taken {str(elapsed)}')
     return mcl_file
 
 
 def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
+    starttime = datetime.now()
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
     with open(mcl_file, 'r') as fh:
@@ -154,4 +156,6 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
     for cluster in excluded_cluster:
         inflated_clusters.append(cluster)
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return inflated_clusters

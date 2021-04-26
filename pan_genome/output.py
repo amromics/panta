@@ -5,6 +5,7 @@ import json
 import gzip
 import csv
 import logging
+from datetime import datetime
 from Bio import SeqIO
 import pandas as pd
 from pan_genome.utils import run_command
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
+    starttime = datetime.now()
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
         writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -25,8 +27,9 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
 
         # write row
         for cluster in annotated_clusters:
+            this_cluster = annotated_clusters[cluster]
             sample_dict = {}
-            for gene in annotated_clusters[cluster]['gene_id']:
+            for gene in this_cluster['gene_id']:
                 sample_id = gene_annotation[gene]['sample_id']
                 if sample_id not in sample_dict:
                     sample_dict[sample_id] = []
@@ -38,11 +41,11 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             # Non-unique Gene name
             row.append("")
             # Annotation
-            row.append(annotated_clusters[cluster]['product'])
+            row.append(this_cluster['product'])
             # No. isolates
             row.append(len(sample_dict))
             # No. sequences
-            row.append(len(annotated_clusters[cluster]['gene_id']))
+            row.append(len(this_cluster['gene_id']))
             # Avg sequences per isolate
             row.append("")
             # Genome Fragment
@@ -70,10 +73,13 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
                 else:
                     row.append('')
             writer.writerow(row)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create spreadsheet -- time taken {str(elapsed)}')
     return spreadsheet_file
 
 
 def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
+    starttime = datetime.now()
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
     with open(rtab_file, 'w') as fh:
         writer = csv.writer(fh, delimiter='\t')
@@ -96,15 +102,18 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
                 if sample_id not in sample_dict:
                     sample_dict[sample_id] = []
                 sample_dict[sample_id].append(gene)
-            for sample in report['samples']:
+            for sample in samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
                 row.append(len(gene_list))
             writer.writerow(row)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create Rtab -- time taken {str(elapsed)}')
     return rtab_file
 
 
 def create_summary(rtab_file, out_dir, samples):
+    starttime = datetime.now()
     cluster_df = pd.read_csv(rtab_file, sep='\t', index_col='Gene')
     num_core = 0
     num_soft_core = 0
@@ -131,10 +140,13 @@ def create_summary(rtab_file, out_dir, samples):
         fh.write('Shell genes' + '\t' + '(15% <= strains < 95%)' + '\t' + str(num_shell) + '\n')
         fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' + '\t'+ str(num_cloud) + '\n')
         fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' + '\t'+ str(total))
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create summary -- time taken {str(elapsed)}')
     return summary_file
 
 
 def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
+    starttime = datetime.now()
     representative_fasta = os.path.join(out_dir, 'representative.fasta')
     representative_list = []
     for cluster in clusters:
@@ -151,5 +163,6 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
         for seq_record in SeqIO.parse(faa_fasta, 'fasta'):
             if seq_record.id in representative_list:
                 SeqIO.write(seq_record, fh, 'fasta')
-    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
     return representative_fasta

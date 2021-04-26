@@ -2,7 +2,7 @@ import os
 import csv
 import logging
 from datetime import datetime
-from pan_genome.utils import run_command
+from pan_genome.utils import run_command, include_fasta
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
         representative_list.append(representative)
     representative_list=set(representative_list)
     include_fasta(
-        fasta_file=remain_faa_file, 
+        fasta_file=faa_fasta, 
         include_list=representative_list, 
         output_file=representative_fasta
         )

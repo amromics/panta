@@ -21,15 +21,12 @@ def exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_sample
             excluded_cluster.append(this_cluster)
     cluster_filtered_faa_file = remain_faa_file + '.filtered'
     full_cluster_gene_names = set(full_cluster_gene_names)
-    starttime = datetime.now()
     exclude_fasta(
         fasta_file=remain_faa_file, 
         exclude_list=full_cluster_gene_names, 
         output_file=cluster_filtered_faa_file
         )
     shutil.move(cluster_filtered_faa_file, remain_faa_file)
-    elapsed = datetime.now() - starttime
-    logging.info(f'Exclude full clusters after run CD-HIT -- time taken {str(elapsed)}')
 
 
 def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_log=None):

@@ -47,6 +47,7 @@ def parse_cluster_file(cd_hit_cluster_file):
 
 
 def chunk_fasta_file(fasta_file, out_dir):
+    starttime = datetime.now()
     if os.path.exists(out_dir):
         shutil.rmtree(out_dir)
         os.makedirs(out_dir)
@@ -72,6 +73,8 @@ def chunk_fasta_file(fasta_file, out_dir):
         SeqIO.write(seq_record, chunked_fh, 'fasta')
         current_chunk_length += len(seq_record.seq)
     chunked_fh.close()
+    elapsed = datetime.now() - starttime
+    logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
     return chunked_file_list
 
 def exclude_fasta(fasta_file, exclude_list, output_file):
@@ -136,8 +139,9 @@ def translate_dna(sequence):
     seq = sequence.upper()
     prot = []
     for n in range(0, len(seq), 3):
-        if seq[n:n + 3] in codontable:
-            residue = codontable[seq[n:n + 3]]
+        codon = seq[n:n + 3]
+        if codon in codontable:
+            residue = codontable[codon]
         else:
             residue = "-"
         prot.append(residue)
@@ -146,7 +150,7 @@ def translate_dna(sequence):
 def translate_protein(nu_fasta, pro_fasta):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+)::", line)
+            result = re.match(r"^>(\w+?):", line)
             if result != None:
                 fh_out.write(f'>{result.group(1)}\n')
             else:

@@ -1,13 +1,7 @@
 import os
-import shutil
-import re
-import json
-import gzip
 import csv
 import logging
 from datetime import datetime
-from Bio import SeqIO
-import pandas as pd
 from pan_genome.utils import run_command
 
 logger = logging.getLogger(__name__)
@@ -112,17 +106,16 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
     return rtab_file
 
 
-def create_summary(rtab_file, out_dir, samples):
+def create_summary(split_clusters, out_dir, samples):
     starttime = datetime.now()
-    cluster_df = pd.read_csv(rtab_file, sep='\t', index_col='Gene')
     num_core = 0
     num_soft_core = 0
     num_shell = 0
     num_cloud = 0
     num_sample = len(samples)
-    for cluster, row in cluster_df.iterrows():
-        absent = len(row[row == 0])
-        percent = (num_sample - absent) / num_sample
+    for cluster in split_clusters:
+        num = len(cluster)
+        percent = num / num_sample
         if percent >= 0.99:
             num_core += 1
         elif percent >= 0.95:
@@ -158,11 +151,12 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
                 representative = gene_id
                 length_max = length
         representative_list.append(representative)
-    
-    with open(representative_fasta, 'w') as fh:
-        for seq_record in SeqIO.parse(faa_fasta, 'fasta'):
-            if seq_record.id in representative_list:
-                SeqIO.write(seq_record, fh, 'fasta')
+    representative_list=set(representative_list)
+    include_fasta(
+        fasta_file=remain_faa_file, 
+        include_list=representative_list, 
+        output_file=representative_fasta
+        )
     elapsed = datetime.now() - starttime
     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
     return representative_fasta

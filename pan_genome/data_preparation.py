@@ -1,19 +1,13 @@
 import os
-import shutil
 import re
-import json
-import gzip
-import csv
 import logging
 from datetime import datetime
 from Bio import SeqIO
-import pandas as pd
 from pan_genome.utils import run_command
 
 logger = logging.getLogger(__name__)
 
 def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_position):
-    starttime = datetime.now()
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     fna_file = os.path.join(sample_dir, sample_id + '.fna')
     found_fasta = False
@@ -71,13 +65,12 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             if seq_id not in sample_dict:
                 sample_dict[seq_id] = []
             sample_dict[seq_id].append(gene_id)
-    elapsed = datetime.now() - starttime
-    logging.info(f'Parse gff file of {sample_id} -- time taken {str(elapsed)}')
     return bed_file, fna_file
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_log=None):
-    starttime = datetime.now()
+    statime = datetime.now()
     for sample in samples:
+        
         sample_id = sample['id']
         sample_dir = os.path.join(out_dir, 'samples', sample_id)
         if not os.path.exists(sample_dir):
@@ -96,6 +89,7 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_lo
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running bedtools')
+        starttime = datetime.now()
         # translate nucleotide to protein
         faa_file = os.path.join(sample_dir, sample_id +'.faa')
         with open(faa_file, 'w') as faa_hd:
@@ -106,12 +100,14 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_lo
                 seq_record.description = ''
                 seq_record.seq = seq_record.seq.translate(table=11)
                 SeqIO.write(seq_record, faa_hd, 'fasta')
+        elapsed = datetime.now() - starttime
+        logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
         
         sample['bed'] = bed_file
         sample['extracted_fna_file'] = extracted_fna_file
         sample['faa_file'] = faa_file
         sample['sample_dir'] = sample_dir
-    elapsed = datetime.now() - starttime
+    elapsed = datetime.now() - statime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
     return gene_annotation
 
@@ -126,9 +122,7 @@ def combine_proteins(out_dir, samples, timing_log=None):
         faa_file_list.append(faa_file)
 
     cmd = "cat {} > {}".format(" ".join(faa_file_list),combined_faa_file)
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        raise Exception('Error combining protein sequences')
+    os.system(cmd)
     
     elapsed = datetime.now() - starttime
     logging.info(f'Combine protein -- time taken {str(elapsed)}')

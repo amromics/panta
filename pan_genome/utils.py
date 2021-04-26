@@ -3,6 +3,7 @@ import logging
 import re
 from Bio import SeqIO
 import shutil
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ def parse_cluster_file(cd_hit_cluster_file):
     clusters_new ={}
     for cluster_name in clusters:
         clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']
-
     return clusters_new
 
 
@@ -73,3 +73,38 @@ def chunk_fasta_file(fasta_file, out_dir):
         current_chunk_length += len(seq_record.seq)
     chunked_fh.close()
     return chunked_file_list
+
+def exclude_fasta(fasta_file, exclude_list, output_file):
+    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+        for line in fh_in:
+            result = re.match(r"^>(\w+)", line)
+            if result != None:
+                skip = False
+                seq_id = result.group(1)
+                if seq_id in exclude_list:
+                    skip = True
+                    continue
+                fh_out.write(line)
+            else:
+                if skip == True:
+                    continue
+                else:
+                    fh_out.write(line)
+
+
+def include_fasta(fasta_file, include_list, output_file):
+    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+        for line in fh_in:
+            result = re.match(r"^>(\w+)", line)
+            if result != None:
+                skip = False
+                seq_id = result.group(1)
+                if seq_id not in include_list:
+                    skip = True
+                    continue
+                fh_out.write(line)
+            else:
+                if skip == True:
+                    continue
+                else:
+                    fh_out.write(line)

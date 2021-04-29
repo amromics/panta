@@ -25,22 +25,22 @@ def parse_cluster_file(cd_hit_cluster_file):
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:
         for line in fh:
-            if re.match(r"^>", line) != None:
-                cluster_name = re.findall(r'^>(.+)$', line)
-                cluster_name = cluster_name[0]
+            result = re.match(r"^>(.+)$", line)
+            if result != None:
+                cluster_name = result.group(1)
                 clusters[cluster_name] = {}
                 clusters[cluster_name]['gene_names'] = []
             else:
-                result = re.findall(r'[\d]+\t[\w]+, >(.+)\.\.\. (.+)$', line)
-                if len(result) == 1:
-                    gene_name = result[0][0]
-                    identity = result[0][1]
+                result = re.match(r'[\d]+\t[\w]+, >(.+)\.\.\. (.+)$', line)
+                if result != None:
+                    gene_name = result.group(1)
+                    identity = result.group(2)
                     if identity == '*':
                         clusters[cluster_name]['representative'] = gene_name
                     else:
                         clusters[cluster_name]['gene_names'].append(gene_name)
     # convert to a simple dictionary
-    clusters_new ={}
+    clusters_new = {}
     for cluster_name in clusters:
         clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']
     return clusters_new

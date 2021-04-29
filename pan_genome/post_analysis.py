@@ -49,11 +49,11 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
         neighbours_of_p = neighbour_gene_dictionary[p]
-        cluster_indices_around_p = []
+        cluster_indices_around_p = set()
+        cluster_indices_around_paralogs.append(cluster_indices_around_p)
         for neighbour_gene in neighbours_of_p:
             cluster_index = gene_to_cluster_index[neighbour_gene]
-            cluster_indices_around_p.append(cluster_index)
-        cluster_indices_around_paralogs.append(cluster_indices_around_p)
+            cluster_indices_around_p.add(cluster_index)
     
     # create data structure to hold new clusters
     new_clusters = []
@@ -97,10 +97,11 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
 def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
     starttime = datetime.now()
 
-    clusters_not_paralogs = []
+    clusters_not_paralogs = set()
     # run iteratively
     out_clusters = unsplit_clusters
     for i in range(50):
+        stime = datetime.now()
         in_clusters = out_clusters
         out_clusters = []
         any_paralogs = 0
@@ -123,7 +124,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
             paralog_genes = find_paralogs(cluster, gene_annotation)
 
             if paralog_genes == None:
-                clusters_not_paralogs.append(first_gene)
+                clusters_not_paralogs.add(first_gene)
                 out_clusters.append(cluster)
                 continue
 
@@ -135,7 +136,8 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
         # check if next iteration is required
         if any_paralogs == 0:
             break
-
+        elapsed = datetime.now() - stime
+        logging.info(f'Split paralogs iterate {i}-- time taken {str(elapsed)}')
     split_clusters = out_clusters
 
     elapsed = datetime.now() - starttime
@@ -167,19 +169,21 @@ def annotate_cluster(clusters, gene_annotation):
         max_number = 0
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
-            if 'name' in gene_annotation[gene_id]:
-                gene_name = gene_annotation[gene_id]['name']
-                gene_name_count[gene_name] = gene_name_count.get(gene_name, 1) + 1
+            this_gene = gene_annotation[gene_id]
+            if 'name' in this_gene:
+                gene_name = this_gene['name']
+                gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_new_name = gene_name
                     max_number = gene_name_count[gene_name]
-                    if 'product' in gene_annotation[gene_id]:
-                        cluster_product = gene_annotation[gene_id]['product']
+                    if 'product' in this_gene:
+                        cluster_product = this_gene['product']
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
-                if 'product' in gene_annotation[gene_id]:
-                    gene_product = gene_annotation[gene_id]['product']
+                this_gene = gene_annotation[gene_id]
+                if 'product' in this_gene:
+                    gene_product = this_gene['product']
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)
             if len(cluster_product) > 0:

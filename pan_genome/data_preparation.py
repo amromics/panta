@@ -2,7 +2,7 @@ import os
 import re
 import logging
 from datetime import datetime
-from pan_genome.utils import run_command, translate_protein
+from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             gene_annotation[gene_id] = gene_dict
 
             # add to gene_position
-            if seq_id not in sample_dict:
-                sample_dict[seq_id] = []
-            sample_dict[seq_id].append(gene_id)
+            sample_dict.setdefault(seq_id, []).append(gene_id)
     return bed_file, fna_file
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_log=None):

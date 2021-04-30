@@ -13,15 +13,13 @@ def exclude_full_clusters(cd_hit_cluster_file, remain_faa_file, number_of_sample
     full_cluster_gene_names =[]
     for cluster_represent in clusters:
         other_genes = clusters[cluster_represent]
-        this_cluster = []
         if len(other_genes) >= number_of_samples -1:
-            this_cluster.append(cluster_represent)
-            this_cluster.extend(other_genes)
+            this_cluster = [cluster_represent] + other_genes
             full_cluster_gene_names.extend(this_cluster)
             excluded_cluster.append(this_cluster)
     cluster_filtered_faa_file = remain_faa_file + '.filtered'
     full_cluster_gene_names = set(full_cluster_gene_names)
-    exclude_fasta(
+    create_fasta_exclude(
         fasta_file=remain_faa_file, 
         exclude_list=full_cluster_gene_names, 
         output_file=cluster_filtered_faa_file

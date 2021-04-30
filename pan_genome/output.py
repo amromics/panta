@@ -2,7 +2,7 @@ import os
 import csv
 import logging
 from datetime import datetime
-from pan_genome.utils import run_command, include_fasta
+from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,7 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             sample_dict = {}
             for gene in this_cluster['gene_id']:
                 sample_id = gene_annotation[gene]['sample_id']
-                if sample_id not in sample_dict:
-                    sample_dict[sample_id] = []
-                sample_dict[sample_id].append(gene)
+                sample_dict.setdefault(sample_id, []).append(gene)
             
             row = []
             # Gene
@@ -93,9 +91,7 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
             sample_dict = {}
             for gene in annotated_clusters[cluster]['gene_id']:
                 sample_id = gene_annotation[gene]['sample_id']
-                if sample_id not in sample_dict:
-                    sample_dict[sample_id] = []
-                sample_dict[sample_id].append(gene)
+                sample_dict.setdefault(sample_id, []).append(gene)
             for sample in samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
@@ -141,7 +137,7 @@ def create_summary(split_clusters, out_dir, samples):
 def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
     starttime = datetime.now()
     representative_fasta = os.path.join(out_dir, 'representative.fasta')
-    representative_list = []
+    representative_list = set()
     for cluster in clusters:
         length_max = 0
         representative = None
@@ -150,9 +146,8 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
             if length > length_max:
                 representative = gene_id
                 length_max = length
-        representative_list.append(representative)
-    representative_list=set(representative_list)
-    include_fasta(
+        representative_list.add(representative)
+    create_fasta_include(
         fasta_file=faa_fasta, 
         include_list=representative_list, 
         output_file=representative_fasta

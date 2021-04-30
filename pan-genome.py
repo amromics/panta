@@ -51,8 +51,8 @@ def run_main_pipeline(args):
         timing_log=timing_log)
 
     # main pipeline
-    [remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, 
-    excluded_cluster, cd_hit_clusters] = main_pipeline.run_cd_hit_iterative(
+    (remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, 
+    excluded_cluster, cd_hit_clusters) = main_pipeline.run_cd_hit_iterative(
         combined_faa_file=combined_faa_file,
         samples=samples,
         out_dir=temp_dir, 
@@ -85,16 +85,13 @@ def run_main_pipeline(args):
             gene_position=gene_position,
             unsplit_clusters= inflated_clusters
             )
-        labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=split_clusters
-            )
-    else:
-        labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=inflated_clusters
-            )    
-    annotated_clusters = post_analysis.annotate_cluster(
-        clusters=labeled_clusters, 
-        gene_annotation=gene_annotation)
+        annotated_clusters = post_analysis.annotate_cluster(
+            unlabeled_clusters=split_clusters, 
+            gene_annotation=gene_annotation)
+    else: 
+        annotated_clusters = post_analysis.annotate_cluster(
+            unlabeled_clusters=inflated_clusters, 
+            gene_annotation=gene_annotation)
 
     # output
     spreadsheet_file = output.create_spreadsheet(
@@ -166,7 +163,7 @@ def run_add_sample_pipeline(args):
         timing_log=timing_log)
 
     # add sample pipeline
-    [not_match_fasta, cd_hit_cluster_file, cd_hit_2d_clusters] = add_sample_pipeline.run_cd_hit_2d(
+    not_match_fasta, cd_hit_cluster_file, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = representative_fasta,
         database_2 = combined_faa_file,
         out_dir = temp_dir,
@@ -215,17 +212,13 @@ def run_add_sample_pipeline(args):
             gene_position=gene_position,
             unsplit_clusters= inflated_clusters
             )
-        labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=split_clusters
-            )
-    else:
-        labeled_clusters = post_analysis.label_cluster(
-            unlabeled_clusters=inflated_clusters
-            )    
-    annotated_clusters = post_analysis.annotate_cluster(
-        clusters=labeled_clusters, 
-        gene_annotation=gene_annotation
-        )
+        annotated_clusters = post_analysis.annotate_cluster(
+            unlabeled_clusters=split_clusters, 
+            gene_annotation=gene_annotation)
+    else: 
+        annotated_clusters = post_analysis.annotate_cluster(
+            unlabeled_clusters=inflated_clusters, 
+            gene_annotation=gene_annotation)
 
     # output
     old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))

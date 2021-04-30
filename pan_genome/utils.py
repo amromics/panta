@@ -77,7 +77,7 @@ def chunk_fasta_file(fasta_file, out_dir):
     logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
     return chunked_file_list
 
-def exclude_fasta(fasta_file, exclude_list, output_file):
+def create_fasta_exclude(fasta_file, exclude_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
             result = re.match(r"^>(\w+)", line)
@@ -95,7 +95,7 @@ def exclude_fasta(fasta_file, exclude_list, output_file):
                     fh_out.write(line)
 
 
-def include_fasta(fasta_file, include_list, output_file):
+def create_fasta_include(fasta_file, include_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
             result = re.match(r"^>(\w+)", line)

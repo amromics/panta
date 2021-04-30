@@ -36,7 +36,7 @@ def filter_fasta(blast_result, fasta_file, out_dir):
         ls = set(ls)
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    exclude_fasta(fasta_file=fasta_file, exclude_list=ls, output_file=blast_remain_fasta)
+    create_fasta_exclude(fasta_file=fasta_file, exclude_list=ls, output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Filter fasta -- time taken {str(elapsed)}')

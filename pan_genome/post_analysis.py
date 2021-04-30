@@ -10,9 +10,7 @@ def find_paralogs(cluster, gene_annotation):
     samples = {}
     for gene_id in cluster:
         sample_id = gene_annotation[gene_id]['sample_id']
-        if sample_id not in samples:
-            samples[sample_id] = []
-        samples[sample_id].append(gene_id)
+        samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
     smallest_number = 1000000
@@ -50,15 +48,13 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
     for p in paralog_genes:
         neighbours_of_p = neighbour_gene_dictionary[p]
         cluster_indices_around_p = set()
-        cluster_indices_around_paralogs.append(cluster_indices_around_p)
         for neighbour_gene in neighbours_of_p:
             cluster_index = gene_to_cluster_index[neighbour_gene]
             cluster_indices_around_p.add(cluster_index)
-    
+        cluster_indices_around_paralogs.append(cluster_indices_around_p)
+
     # create data structure to hold new clusters
-    new_clusters = []
-    for p in paralog_genes:
-        new_clusters.append([p])
+    new_clusters = [[p] for p in paralog_genes]
     new_clusters.append([]) # extra "leftovers" list to gather genes that don't share CGN with any paralog gene
 
     # add other members of the cluster to their closest match
@@ -106,10 +102,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
         out_clusters = []
         any_paralogs = 0
         # convert in_clusters so we can find the cluster index of gene
-        gene_to_cluster_index = {}
-        for index, genes in enumerate(in_clusters):
-            for gene in genes:
-                gene_to_cluster_index[gene] = index
+        gene_to_cluster_index = {gene:index for index, genes in enumerate(in_clusters) for gene in genes}
         
         for cluster in in_clusters:
             if len(cluster) == 1:
@@ -144,22 +137,11 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters):
     logging.info(f'Split paralogs -- time taken {str(elapsed)}')
     return split_clusters
 
-def label_cluster(unlabeled_clusters):
+
+def annotate_cluster(unlabeled_clusters, gene_annotation):
     starttime = datetime.now()
 
-    labeled_clusters = {}
-    counter = 1
-    for cluster in unlabeled_clusters:
-        labeled_clusters['groups_' + str(counter)] = cluster
-        counter += 1
-    
-    elapsed = datetime.now() - starttime
-    logging.info(f'Label clusters -- time taken {str(elapsed)}')
-    return labeled_clusters
-
-
-def annotate_cluster(clusters, gene_annotation):
-    starttime = datetime.now()
+    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
 
     annotated_clusters = {}
     for cluster_name in clusters:

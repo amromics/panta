@@ -2,6 +2,7 @@ import argparse
 import os
 import logging
 import json
+from glob import glob
 from pan_genome import *
 
 logging.basicConfig(level=logging.DEBUG,
@@ -15,12 +16,21 @@ def run_main_pipeline(args):
     threads = args.threads
     overwrite = args.over_write
     dontsplit = args.dont_split
+    fasta = args.fasta
     
     samples = []
+    fasta_ext = ('.fasta', '.fna', 'ffn')
     for path in args.inputs:
+        dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
-        sample = {'id':sample_id, 'input_file':path}
+        sample = {'id':sample_id, 'gff_file':path}
+        if fasta == True:
+            try:
+                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
+                sample['fasta_file'] = fasta_file
+            except:
+                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
         samples.append(sample)
     
     temp_dir = os.path.join(pan_genome_folder, 'temp')
@@ -43,7 +53,8 @@ def run_main_pipeline(args):
         out_dir=pan_genome_folder,
         gene_annotation = gene_annotation,
         gene_position = gene_position, 
-        timing_log=timing_log
+        timing_log=timing_log,
+        fasta=fasta
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,
@@ -129,12 +140,21 @@ def run_add_sample_pipeline(args):
     timing_log = args.time_log
     threads = args.threads
     dontsplit = args.dont_split
+    fasta = args.fasta
     
     samples = []
+    fasta_ext = ('.fasta', '.fna', 'ffn')
     for path in args.inputs:
+        dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
-        sample = {'id':sample_id, 'input_file':path}
+        sample = {'id':sample_id, 'gff_file':path}
+        if fasta == True:
+            try:
+                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'.*') if f.endswith(fasta_ext)][0]
+                sample['fasta_file'] = fasta_file
+            except:
+                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
         samples.append(sample)
     
     temp_dir = os.path.join(pan_genome_folder, 'temp')
@@ -155,7 +175,8 @@ def run_add_sample_pipeline(args):
         out_dir=pan_genome_folder,
         gene_annotation = gene_annotation,
         gene_position = gene_position, 
-        timing_log=timing_log
+        timing_log=timing_log,
+        fasta=fasta
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,
@@ -270,7 +291,8 @@ def main():
     main_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
     main_cmd.add_argument('-w', '--over-write', help='over write', default=False, action='store_true')
-    main_cmd.add_argument('-s', '--dont-split', help='dont-split', default=False, action='store_true')
+    main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
+    main_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -282,7 +304,8 @@ def main():
     add_cmd.add_argument('-c', '--collection-dir', help='Collection directory', required=True, type=str)
     add_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-    add_cmd.add_argument('-s', '--dont-split', help='dont-split', default=False, action='store_true')
+    add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
+    add_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
 
     args = parser.parse_args()
     args.func(args)

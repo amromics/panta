@@ -64,7 +64,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             sample_dict.setdefault(seq_id, []).append(gene_id)
     return bed_file, fna_file
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_log=None):
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, timing_log=None):
     statime = datetime.now()
     for sample in samples:
         starttime = datetime.now()
@@ -73,13 +73,15 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, timing_lo
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         # parse gff file
-        [bed_file, fna_file] = parse_gff_file(
-            ggf_file = sample['input_file'], 
+        bed_file, fna_file = parse_gff_file(
+            ggf_file = sample['gff_file'], 
             sample_dir = sample_dir, 
             sample_id = sample_id, 
             gene_annotation = gene_annotation,
             gene_position = gene_position
             )
+        if fasta == True:
+            fna_file = sample['fasta_file']
         # extract nucleotide region
         extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
         cmd = f"bedtools getfasta -s -fi {fna_file} -bed {bed_file} -fo {extracted_fna_file} -name > /dev/null 2>&1"

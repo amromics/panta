@@ -278,13 +278,25 @@ def detect_amr(sample, sample_dir, threads=8, overwrite=False, timing_log=None):
     if os.path.isfile(amr_out) and (not overwrite):
         logger.info('Resistome for {} exists, skip analysis'.format(sample['id']))
         return amr_out
-
-    cmd = 'abricate --quiet --threads {threads} --nopath --db card {infile} > {outfile}'.format(
-        threads=threads,
-        infile=sample['assembly'],
-        outfile=amr_out)
-    if run_command(cmd, timing_log) != 0:
+    dbs=['ncbi','megares','ecoh','argannot','card']
+    numError=0
+    outputfiles=[]
+    for db in dbs:
+        outfile= os.path.join(path_out, sample['id'] + '_'+db+'.tsv')
+        cmd = 'abricate --quiet --threads {threads} --nopath --db {db} {infile} > {outfile}'.format(
+            threads=threads,
+            db=db,
+            infile=sample['assembly'],
+            outfile=outfile)
+        if run_command(cmd, timing_log) != 0:
+            numError=numError+1         
+        else:
+            outputfiles.append(outfile)
+    if numError==len(dbs):
         raise Exception('Error running amr')
+    combined_tsv = pd.concat([pd.read_csv(f,sep='\t') for f in outputfiles ])
+    combined_tsv.sort_values(['SEQUENCE','START'],ascending=[True, True],inplace=True)
+    combined_tsv.to_csv(amr_out, index=False,sep='\t', encoding='utf-8-sig')
     sample['updated'] = True
     return amr_out
 

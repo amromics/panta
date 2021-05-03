@@ -220,7 +220,7 @@ def run_add_sample_pipeline(args):
             )
     
     blast_remain_fasta = add_sample_pipeline.filter_fasta(
-        protein_align_result = blast_1_result, 
+        blast_result = blast_1_result, 
         fasta_file = not_match_fasta, 
         out_dir = temp_dir
         )
@@ -244,7 +244,7 @@ def run_add_sample_pipeline(args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        protein_align_result = blast_2_result,
+        blast_results = blast_2_result,
         threads=threads, 
         timing_log=timing_log)
 

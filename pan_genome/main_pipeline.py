@@ -121,7 +121,10 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timin
 
 def run_diamond(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
     starttime = datetime.now()
-
+    
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'

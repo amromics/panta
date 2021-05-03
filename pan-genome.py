@@ -17,6 +17,7 @@ def run_main_pipeline(args):
     overwrite = args.over_write
     dontsplit = args.dont_split
     fasta = args.fasta
+    diamond = args.diamond
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
@@ -69,14 +70,23 @@ def run_main_pipeline(args):
         out_dir=temp_dir, 
         threads=threads, 
         timing_log=timing_log)
-    
-    blast_result = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(temp_dir, 'blast'),
-        database_fasta = cd_hit_represent_fasta,
-        query_fasta = cd_hit_represent_fasta,
-        threads=threads, 
-        timing_log=timing_log
-        )
+
+    if diamond == False:
+        blast_result = main_pipeline.all_against_all_blast(
+            out_dir = os.path.join(temp_dir, 'blast'),
+            database_fasta = cd_hit_represent_fasta,
+            query_fasta = cd_hit_represent_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
+    else:
+        blast_result = main_pipeline.run_diamond(
+            out_dir = os.path.join(temp_dir, 'blast'),
+            database_fasta = cd_hit_represent_fasta,
+            query_fasta = cd_hit_represent_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
@@ -141,6 +151,7 @@ def run_add_sample_pipeline(args):
     threads = args.threads
     dontsplit = args.dont_split
     fasta = args.fasta
+    diamond = args.diamond
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
@@ -191,31 +202,49 @@ def run_add_sample_pipeline(args):
         threads=threads, 
         timing_log=timing_log)
     
-    blast_1_result = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(temp_dir, 'blast1'),
-        database_fasta = representative_fasta,
-        query_fasta = not_match_fasta,
-        threads=threads, 
-        timing_log=timing_log
-        )
+    if diamond == False:
+        blast_1_result = main_pipeline.all_against_all_blast(
+            out_dir = os.path.join(temp_dir, 'blast1'),
+            database_fasta = representative_fasta,
+            query_fasta = not_match_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
+    else:
+        blast_1_result = main_pipeline.run_diamond(
+            out_dir = os.path.join(temp_dir, 'blast1'),
+            database_fasta = representative_fasta,
+            query_fasta = not_match_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
     
     blast_remain_fasta = add_sample_pipeline.filter_fasta(
-        blast_result = blast_1_result, 
+        protein_align_result = blast_1_result, 
         fasta_file = not_match_fasta, 
         out_dir = temp_dir
         )
     
-    blast_2_result = main_pipeline.all_against_all_blast(
-        out_dir = os.path.join(temp_dir, 'blast2'),
-        database_fasta = blast_remain_fasta,
-        query_fasta = blast_remain_fasta,
-        threads=threads, 
-        timing_log=timing_log
-        )
+    if diamond == False:
+        blast_2_result = main_pipeline.all_against_all_blast(
+            out_dir = os.path.join(temp_dir, 'blast2'),
+            database_fasta = blast_remain_fasta,
+            query_fasta = blast_remain_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
+    else:
+        blast_2_result = main_pipeline.run_diamond(
+            out_dir = os.path.join(temp_dir, 'blast2'),
+            database_fasta = blast_remain_fasta,
+            query_fasta = blast_remain_fasta,
+            threads=threads, 
+            timing_log=timing_log
+            )
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_results = blast_2_result,
+        protein_align_result = blast_2_result,
         threads=threads, 
         timing_log=timing_log)
 
@@ -293,6 +322,7 @@ def main():
     main_cmd.add_argument('-w', '--over-write', help='over write', default=False, action='store_true')
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
+    main_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -306,6 +336,7 @@ def main():
     add_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
+    add_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
 
     args = parser.parse_args()
     args.func(args)

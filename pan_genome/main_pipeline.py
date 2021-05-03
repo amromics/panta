@@ -1,6 +1,7 @@
 import os
 import shutil
 import logging
+import subprocess
 from datetime import datetime
 from pan_genome.utils import *
 
@@ -116,6 +117,26 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timin
     elapsed = datetime.now() - starttime
     logging.info(f'All-against-all BLASTP -- time taken {str(elapsed)}')
     return blast_result
+
+
+def run_diamond(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
+    starttime = datetime.now()
+
+    # make diamond database
+    diamond_db = os.path.join(out_dir, 'diamond_db')
+    cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
+    ret = run_command(cmd, timing_log)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+    
+    # run diamond blastp
+    diamond_result = os.path.join(out_dir, 'diamond.tsv')
+    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --ultra-sensitive --outfmt 6 " + "| awk '{ if ($3 >= 95) print $0;}' 2> /dev/null 1> " + diamond_result
+    subprocess.call(cmd, shell=True)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Protein alignment with Diamond -- time taken {str(elapsed)}')
+    return diamond_result
 
 
 def cluster_with_mcl(blast_results, out_dir, threads=4, timing_log=None):

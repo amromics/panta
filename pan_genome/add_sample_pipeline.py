@@ -6,13 +6,13 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
+def run_cd_hit_2d(database_1, database_2, out_dir, identity=95, threads=4, timing_log=None):
     starttime = datetime.now()
 
     not_match_fasta = os.path.join(out_dir, 'cd_hit_2d')
     cd_hit_cluster_file = os.path.join(out_dir, 'cd_hit_2d.clstr')
     
-    persent = 0.98
+    persent = identity / 100
     cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s {persent} -c {persent} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
@@ -21,7 +21,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
     clusters = parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run CD-HIT-2D -- time taken {str(elapsed)}')
+    logging.info(f'Run CD-HIT-2D with {identity}% identity -- time taken {str(elapsed)}')
     return not_match_fasta, cd_hit_cluster_file, clusters
 
 def filter_fasta(blast_result, fasta_file, out_dir):
@@ -34,7 +34,7 @@ def filter_fasta(blast_result, fasta_file, out_dir):
             cells = line.split('\t')
             ls.append(cells[0])
         ls = set(ls)
-
+    print(f'Number of filterd sequences: {len(ls)}')
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
     create_fasta_exclude(fasta_file=fasta_file, exclude_list=ls, output_file=blast_remain_fasta)
 

@@ -76,7 +76,7 @@ def run_cd_hit_iterative(combined_faa_file, samples, out_dir, threads=4, timing_
     return remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, excluded_cluster, cd_hit_clusters
 
 
-def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
+def all_against_all_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -100,7 +100,8 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timin
         for chunked_file in chunked_file_list:
             blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
             blast_output_file_list.append(blast_output_file)
-            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " + "| awk '{ if ($3 >= 95) print $0;}' 2> /dev/null 1> " + blast_output_file
+            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
+            cmd += "| awk '{ if ($3 >= " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
     cmd = f"parallel --bar -j {threads} -a {blast_cmds_file}"
     ret = run_command(cmd, timing_log)
@@ -119,7 +120,7 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, threads=4, timin
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, threads=4, timing_log=None):
+def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -134,7 +135,8 @@ def run_diamond(database_fasta, query_fasta, out_dir, threads=4, timing_log=None
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --ultra-sensitive --outfmt 6 " + "| awk '{ if ($3 >= 95) print $0;}' 2> /dev/null 1> " + diamond_result
+    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --ultra-sensitive --outfmt 6 "
+    cmd += "| awk '{ if ($3 >= " + str(identity) + ") print $0;}' 2> /dev/null 1> " + diamond_result
     subprocess.call(cmd, shell=True)
 
     elapsed = datetime.now() - starttime

@@ -18,6 +18,7 @@ def run_main_pipeline(args):
     dontsplit = args.dont_split
     fasta = args.fasta
     diamond = args.diamond
+    identity = args.identity
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
@@ -76,6 +77,7 @@ def run_main_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast'),
             database_fasta = cd_hit_represent_fasta,
             query_fasta = cd_hit_represent_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -84,6 +86,7 @@ def run_main_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast'),
             database_fasta = cd_hit_represent_fasta,
             query_fasta = cd_hit_represent_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -152,6 +155,7 @@ def run_add_sample_pipeline(args):
     dontsplit = args.dont_split
     fasta = args.fasta
     diamond = args.diamond
+    identity = args.identity
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
@@ -199,6 +203,7 @@ def run_add_sample_pipeline(args):
         database_1 = representative_fasta,
         database_2 = combined_faa_file,
         out_dir = temp_dir,
+        identity=identity,
         threads=threads, 
         timing_log=timing_log)
     
@@ -207,6 +212,7 @@ def run_add_sample_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast1'),
             database_fasta = representative_fasta,
             query_fasta = not_match_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -215,6 +221,7 @@ def run_add_sample_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast1'),
             database_fasta = representative_fasta,
             query_fasta = not_match_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -230,6 +237,7 @@ def run_add_sample_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast2'),
             database_fasta = blast_remain_fasta,
             query_fasta = blast_remain_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -238,6 +246,7 @@ def run_add_sample_pipeline(args):
             out_dir = os.path.join(temp_dir, 'blast2'),
             database_fasta = blast_remain_fasta,
             query_fasta = blast_remain_fasta,
+            identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
@@ -323,6 +332,7 @@ def main():
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
+    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -337,6 +347,7 @@ def main():
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
+    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
 
     args = parser.parse_args()
     args.func(args)

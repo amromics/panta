@@ -131,9 +131,8 @@ def run_main_pipeline(args):
         out_dir=pan_genome_folder
     )
     summary_file = output.create_summary(
-        split_clusters=split_clusters, 
-        out_dir=pan_genome_folder, 
-        samples=samples
+        rtab_file=rtab_file, 
+        out_dir=pan_genome_folder
     )
     representative_fasta = output.create_representative_fasta(
         clusters = split_clusters,
@@ -296,9 +295,8 @@ def run_add_sample_pipeline(args):
         out_dir=pan_genome_folder
     )
     summary_file = output.create_summary(
-        split_clusters=split_clusters, 
-        out_dir=pan_genome_folder, 
-        samples=samples
+        rtab_file=rtab_file, 
+        out_dir=pan_genome_folder
     )
     representative_fasta = output.create_representative_fasta(
         clusters = split_clusters,

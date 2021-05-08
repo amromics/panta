@@ -2,6 +2,7 @@ import os
 import csv
 import logging
 from datetime import datetime
+import pandas as pd
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
@@ -14,24 +15,25 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
         writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         # write header
-        header = ['Gene', 'Non-unique Gene name', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate', 'Genome Fragment','Order within Fragment', 'Accessory Fragment','Accessory Order with Fragment', 'QC','Min group size nuc', 'Max group size nuc', 'Avg group size nuc' ]
+        header = ['Gene', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate', 'Min group size nuc', 'Max group size nuc', 'Avg group size nuc' ]
         for sample in samples:
             header.append(sample['id'])
         writer.writerow(header)
 
         # write row
         for cluster in annotated_clusters:
-            this_cluster = annotated_clusters[cluster]
+            row = []
             sample_dict = {}
+            length_list = []
+            this_cluster = annotated_clusters[cluster]
             for gene in this_cluster['gene_id']:
                 sample_id = gene_annotation[gene]['sample_id']
                 sample_dict.setdefault(sample_id, []).append(gene)
+                length = gene_annotation[gene]['length']
+                length_list.append(length)
             
-            row = []
             # Gene
             row.append(cluster)
-            # Non-unique Gene name
-            row.append("")
             # Annotation
             row.append(this_cluster['product'])
             # No. isolates
@@ -39,23 +41,14 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             # No. sequences
             row.append(len(this_cluster['gene_id']))
             # Avg sequences per isolate
-            row.append("")
-            # Genome Fragment
-            row.append("")
-            # Order within Fragment
-            row.append("")
-            # Accessory Fragment
-            row.append("")
-            # Accessory Order with Fragment
-            row.append("")
-            # QC
-            row.append("")
+            row.append(len(this_cluster['gene_id']) / len(sample_dict))
             # Min group size nuc
-            row.append("")
+            row.append(min(length_list))
             # Max group size nuc
-            row.append("")
+            row.append(max(length_list))
             # Avg group size nuc
-            row.append("")
+            row.append(sum(length_list) / len(length_list))
+            
             # sample columns
             for sample in samples:
                 sample_id = sample['id']
@@ -102,24 +95,32 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
     return rtab_file
 
 
-def create_summary(split_clusters, out_dir, samples):
+def create_summary(rtab_file, out_dir):
     starttime = datetime.now()
     num_core = 0
     num_soft_core = 0
     num_shell = 0
     num_cloud = 0
-    num_sample = len(samples)
-    for cluster in split_clusters:
-        num = len(cluster)
-        percent = num / num_sample
-        if percent >= 0.99:
-            num_core += 1
-        elif percent >= 0.95:
-            num_soft_core += 1
-        elif percent >= 0.15:
-            num_shell += 1
-        else:
-            num_cloud += 1
+    with open(rtab_file, 'r') as fh:
+        for line in fh:
+            line = line.rstrip()
+            cells = line.split('\t')
+            if cells[0] == 'Gene':
+                num_sample = len(cells) - 1
+                continue
+            num_zero = 0
+            for cell in cells:
+                if cell == '0':
+                    num_zero += 1
+            percent = (num_sample - num_zero) / num_sample
+            if percent >= 0.99:
+                num_core += 1
+            elif percent >= 0.95:
+                num_soft_core += 1
+            elif percent >= 0.15:
+                num_shell += 1
+            else:
+                num_cloud += 1
     total = num_core + num_soft_core + num_shell + num_cloud
 
     summary_file = os.path.join(out_dir, 'summary_statistics.txt')

@@ -22,7 +22,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, identity=95, threads=4, timin
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT-2D with {identity}% identity -- time taken {str(elapsed)}')
-    return not_match_fasta, cd_hit_cluster_file, clusters
+    return not_match_fasta, clusters
 
 def filter_fasta(blast_result, fasta_file, out_dir):
     starttime = datetime.now()

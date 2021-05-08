@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import logging
 import json
 from glob import glob
@@ -63,10 +64,13 @@ def run_main_pipeline(args):
         samples=samples,
         timing_log=timing_log)
 
+    # create protein database
+    protein_database = os.path.join(pan_genome_folder, 'protein_database')
+    shutil.copyfile(combined_faa_file, protein_database)
+
     # main pipeline
-    (remain_faa_file, cd_hit_represent_fasta, cd_hit_cluster_file, 
-    excluded_cluster, cd_hit_clusters) = main_pipeline.run_cd_hit_iterative(
-        combined_faa_file=combined_faa_file,
+    cd_hit_represent_fasta, excluded_cluster, cd_hit_clusters = main_pipeline.run_cd_hit_iterative(
+        faa_file=combined_faa_file,
         samples=samples,
         out_dir=temp_dir, 
         threads=threads, 
@@ -135,9 +139,9 @@ def run_main_pipeline(args):
         out_dir=pan_genome_folder
     )
     representative_fasta = output.create_representative_fasta(
-        clusters = split_clusters,
+        clusters = inflated_clusters,
         gene_annotation = gene_annotation,
-        faa_fasta = combined_faa_file,
+        faa_fasta = protein_database,
         out_dir = pan_genome_folder
         )
 
@@ -179,6 +183,9 @@ def run_add_sample_pipeline(args):
     representative_fasta = os.path.join(pan_genome_folder, 'representative.fasta')
     if not os.path.isfile(representative_fasta):
         raise Exception(f'{representative_fasta} is not exist')
+    protein_database = os.path.join(pan_genome_folder, 'protein_database')
+    if not os.path.isfile(protein_database):
+        raise Exception(f'{protein_database} is not exist')
     gene_annotation = json.load(open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'r'))
     gene_position = json.load(open(os.path.join(pan_genome_folder, 'gene_position.json'), 'r'))
     old_clusters = json.load(open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'r'))
@@ -198,7 +205,7 @@ def run_add_sample_pipeline(args):
         timing_log=timing_log)
 
     # add sample pipeline
-    not_match_fasta, cd_hit_cluster_file, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
+    not_match_fasta, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = representative_fasta,
         database_2 = combined_faa_file,
         out_dir = temp_dir,
@@ -298,10 +305,14 @@ def run_add_sample_pipeline(args):
         rtab_file=rtab_file, 
         out_dir=pan_genome_folder
     )
+
+    # add new protein to existed protein database
+    os.system(f'cat {combined_faa_file} >> {protein_database}')
+
     representative_fasta = output.create_representative_fasta(
-        clusters = split_clusters,
+        clusters = inflated_clusters,
         gene_annotation = gene_annotation,
-        faa_fasta = combined_faa_file,
+        faa_fasta = protein_database,
         out_dir = pan_genome_folder
         )
 

@@ -138,13 +138,20 @@ def translate_dna(sequence):
                 }
     seq = sequence.upper()
     prot = []
+    num_unknown = 0
     for n in range(0, len(seq), 3):
         codon = seq[n:n + 3]
         if codon in codontable:
             residue = codontable[codon]
         else:
-            residue = "-"
+            residue = "X"
+            num_unknown += 1
         prot.append(residue)
+    
+    # filter seq which has more than 5% of unknown
+    if num_unknown / len (prot) > 0.05:
+        return None
+    
     return "".join(prot)
 
 def translate_protein(nu_fasta, pro_fasta):
@@ -152,9 +159,13 @@ def translate_protein(nu_fasta, pro_fasta):
         for line in fh_in:
             result = re.match(r"^>(\w+?):", line)
             if result != None:
-                fh_out.write(f'>{result.group(1)}\n')
+                seq_id = result.group(1)
             else:
                 line = line.rstrip()
                 line = translate_dna(line)
+                if line == None:
+                    logger.info(f'Exclude {seq_id} due to too many unknowns')
+                    continue
                 ls = [line[i:i+60] for i in range(0,len(line), 60)]
+                fh_out.write(f'>{seq_id}\n')
                 fh_out.write('\n'.join(ls) + '\n')

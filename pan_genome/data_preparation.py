@@ -10,6 +10,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     fna_file = os.path.join(sample_dir, sample_id + '.fna')
     found_fasta = False
+    suffix = 1
     sample_dict = {}
     gene_position[sample_id] = sample_dict
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(fna_file, 'w') as fna_fh:
@@ -38,7 +39,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             gene_id = re.findall(r"ID=(.+?);",cells[8])
             gene_id = gene_id[0]
             if gene_id in gene_annotation:
-                gene_id = gene_id + datetime.now().strftime("%f")
+                gene_id += '_{:05d}'.format(suffix)
+                suffix += 1
             trand = cells[6]
 
             # create bed file

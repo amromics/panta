@@ -144,6 +144,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
 
     annotated_clusters = {}
+    suffix = 1
     for cluster_name in clusters:
         cluster_new_name = cluster_name
         cluster_product = None
@@ -174,7 +175,8 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
                 cluster_product = 'unknown'
         # check if cluster_new_name is already exist
         if cluster_new_name in annotated_clusters:
-            cluster_new_name += '_' + datetime.now().strftime("%f")
+            cluster_new_name += '_{:05d}'.format(suffix)
+            suffix += 1
         annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
     
     elapsed = datetime.now() - starttime

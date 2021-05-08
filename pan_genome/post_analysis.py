@@ -74,7 +74,10 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
             cluster_indices_around_p = cluster_indices_around_paralogs[p]
             score_of_p = 0
             for neighbour_gene in neighbour_genes_of_g:
-                cluster_index = gene_to_cluster_index[neighbour_gene]
+                try:
+                    cluster_index = gene_to_cluster_index[neighbour_gene]
+                except:
+                    continue
                 if cluster_index in cluster_indices_around_p:
                     score_of_p += 1
             score_of_p = score_of_p / len(neighbour_genes_of_g)

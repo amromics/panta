@@ -32,9 +32,6 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             start = int(cells[3])
             end = int(cells[4])
             length = end - start
-            if length < 18:
-                continue
-            
             seq_id = cells[0]
             gene_id = re.findall(r"ID=(.+?);",cells[8])
             gene_id = gene_id[0]
@@ -42,7 +39,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
                 gene_id += '_{:05d}'.format(suffix)
                 suffix += 1
             trand = cells[6]
-
+            if length < 18:
+                logging.info(f'Exclude {gene_id} due to too short (<18 base)')
+                continue
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')

@@ -69,9 +69,11 @@ def chunk_fasta_file(fasta_file, out_dir):
             chunked_file_list.append(chunked_file)
             chunked_fh = open(chunked_file, 'w')
             SeqIO.write(seq_record, chunked_fh, 'fasta')
-        chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-        SeqIO.write(seq_record, chunked_fh, 'fasta')
-        current_chunk_length += len(seq_record.seq)
+        else:
+            chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
+            SeqIO.write(seq_record, chunked_fh, 'fasta')
+            current_chunk_length += len(seq_record.seq)
+    
     chunked_fh.close()
     elapsed = datetime.now() - starttime
     logging.info(f'Chunk fasta -- time taken {str(elapsed)}')

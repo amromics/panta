@@ -35,7 +35,8 @@ def run_main_pipeline(args):
             except:
                 raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
         samples.append(sample)
-    
+    samples.sort(key= lambda x:x['id'])
+
     temp_dir = os.path.join(pan_genome_folder, 'temp')
 
     if not os.path.exists(pan_genome_folder):
@@ -148,6 +149,8 @@ def run_main_pipeline(args):
     json.dump(gene_annotation, open(os.path.join(pan_genome_folder, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
     json.dump(gene_position, open(os.path.join(pan_genome_folder, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(inflated_clusters, open(os.path.join(pan_genome_folder, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(excluded_cluster, open(os.path.join(temp_dir, 'excluded_cluster.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(cd_hit_clusters, open(os.path.join(temp_dir, 'cd_hit_clusters.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(pan_genome_folder, 'samples.json'), 'w'), indent=4, sort_keys=True)
     
 

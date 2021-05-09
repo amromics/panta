@@ -177,7 +177,7 @@ def run_add_sample_pipeline(args):
             except:
                 raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
         samples.append(sample)
-    
+    samples.sort(key= lambda x:x['id'])
     temp_dir = os.path.join(pan_genome_folder, 'temp')
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
@@ -291,7 +291,7 @@ def run_add_sample_pipeline(args):
     # output
     old_samples = json.load(open(os.path.join(pan_genome_folder, 'samples.json'), 'r'))
     samples.extend(old_samples)
-
+    samples.sort(key= lambda x:x['id'])
     spreadsheet_file = output.create_spreadsheet(
         annotated_clusters=annotated_clusters, 
         gene_annotation=gene_annotation,

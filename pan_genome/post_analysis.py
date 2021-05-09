@@ -49,7 +49,10 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
         neighbours_of_p = neighbour_gene_dictionary[p]
         cluster_indices_around_p = set()
         for neighbour_gene in neighbours_of_p:
-            cluster_index = gene_to_cluster_index[neighbour_gene]
+            try:
+                cluster_index = gene_to_cluster_index[neighbour_gene]
+            except:
+                continue
             cluster_indices_around_p.add(cluster_index)
         cluster_indices_around_paralogs.append(cluster_indices_around_p)
 

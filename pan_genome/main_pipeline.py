@@ -14,12 +14,11 @@ def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excl
     full_cluster_gene_names =[]
     for cluster_represent in clusters:
         other_genes = clusters[cluster_represent]
-        if greater_than==True and len(other_genes) >= number_of_samples -1:
-            this_cluster = [cluster_represent] + other_genes
+        this_cluster = [cluster_represent] + other_genes
+        if greater_than==True and len(this_cluster) >= number_of_samples:
             full_cluster_gene_names.extend(this_cluster)
             excluded_cluster.append(this_cluster)
-        if greater_than==False and len(other_genes) == number_of_samples -1:
-            this_cluster = [cluster_represent] + other_genes
+        if greater_than==False and len(this_cluster) == number_of_samples:
             full_cluster_gene_names.extend(this_cluster)
             excluded_cluster.append(this_cluster)
     cluster_filtered_faa_file = faa_file + '.filtered'
@@ -45,7 +44,7 @@ def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
-    exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=True)
+    exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=False)
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT with 100% identity -- time taken {str(elapsed)}')
     
@@ -59,7 +58,7 @@ def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None)
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running cd-hit')
-        exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=False)
+        exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=True)
         elapsed = datetime.now() - starttime
         logging.info(f'Run CD-HIT with {percent_match * 100}% identity -- time taken {str(elapsed)}')
         percent_match -= step

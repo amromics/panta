@@ -102,7 +102,7 @@ def all_against_all_blast(database_fasta, query_fasta, out_dir, identity=95, thr
             blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
             blast_output_file_list.append(blast_output_file)
             cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
-            cmd += "| awk '{ if ($3 >= " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
+            cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
     cmd = f"parallel --bar -j {threads} -a {blast_cmds_file}"
     ret = run_command(cmd, timing_log)
@@ -137,7 +137,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, ti
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
     cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --ultra-sensitive --outfmt 6 "
-    cmd += "| awk '{ if ($3 >= " + str(identity) + ") print $0;}' 2> /dev/null 1> " + diamond_result
+    cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + diamond_result
     subprocess.call(cmd, shell=True)
 
     elapsed = datetime.now() - starttime

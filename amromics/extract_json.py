@@ -9,6 +9,7 @@ import logging
 import gzip
 
 from Bio import SeqIO
+from ete3 import Tree
 logger = logging.getLogger(__name__)
 
 
@@ -381,9 +382,11 @@ def export_amr_heatmap(report, exp_dir):
 
 
 def export_phylogeny_tree(treefile):
-    data = ''
-    with open(treefile) as myfile:
-        data = "".join(line.rstrip() for line in myfile)
+    t = Tree(treefile)
+    for node in t.get_descendants():
+        if node.name == '' and node.dist < 0.00001:
+            node.delete()
+    data = t.write()
     message_bytes = data.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)
     base64_message = base64_bytes.decode('ascii')

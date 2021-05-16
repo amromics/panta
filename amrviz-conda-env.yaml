@@ -1,0 +1,25 @@
+name: amr-viz
+channels:
+  - anaconda
+  - bioconda
+  - conda-forge
+dependencies:
+  - python==3.8
+  - ipykernel
+  - matplotlib
+  - numpy
+  - pandas
+  - tqdm
+  - biopython
+  - xlrd
+  - parasail-python
+  - pysam
+  - samtools
+  - prokka
+  - mlst
+  - abricate
+  - shovill
+  - roary
+  - iqtree
+  - sra-tools
+  - nodejs

@@ -7,7 +7,7 @@ import os
 import shutil
 import logging
 import gzip
-
+import datetime
 from Bio import SeqIO
 from ete3 import Tree
 logger = logging.getLogger(__name__)
@@ -447,12 +447,14 @@ def update_collection_history(export_dir, collection_id, collection_name, status
         if col["collectionID"] == collection_id:
             col["collectionName"] = collection_name
             col["status"] = status
+            col["dateModify"] = datetime.datetime.now()
             is_exist = True
 
     if not is_exist:
         collections["collections"].append(
             {"collectionID": collection_id,
              "collectionName": collection_name,
+             "dateModify": datetime.datetime.now(),
              "status": status})
     with open(collection_json, 'w') as fn:
         json.dump(collections, fn)

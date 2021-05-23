@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def run_main_pipeline(args):
     pan_genome_folder = args.out_dir
-    timing_log = args.time_log
+    timing_log = os.path.join(pan_genome_folder, 'time.log')
     threads = args.threads
     overwrite = args.over_write
     dontsplit = args.dont_split
@@ -23,7 +23,7 @@ def run_main_pipeline(args):
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
-    for path in args.inputs:
+    for path in args.gff_files:
         dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
@@ -156,7 +156,7 @@ def run_main_pipeline(args):
 
 def run_add_sample_pipeline(args):
     pan_genome_folder = args.collection_dir
-    timing_log = args.time_log
+    timing_log = os.path.join(pan_genome_folder, 'time.log')
     threads = args.threads
     dontsplit = args.dont_split
     fasta = args.fasta
@@ -165,7 +165,7 @@ def run_add_sample_pipeline(args):
     
     samples = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
-    for path in args.inputs:
+    for path in args.gff_files:
         dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.split('.')[0]
@@ -331,35 +331,33 @@ def main():
     
     main_cmd = subparsers.add_parser(
         'main',
-        description='main pipeline',
+        description='Main pipeline: run pan-genome analysis for the first time',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     main_cmd.set_defaults(func=run_main_pipeline)
     #main_cmd.set_defaults(func=run_main_pipeline_2)
-    main_cmd.add_argument('inputs', help='Input files', type=str, nargs='+')
-    main_cmd.add_argument('-o', '--out_dir', help='Output directory', required=True, type=str)
-    main_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
-    main_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-    main_cmd.add_argument('-w', '--over-write', help='over write', default=False, action='store_true')
+    main_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
+    main_cmd.add_argument('-o', '--out_dir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    main_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
-    main_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
+    main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    main_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
+    main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
+    main_cmd.add_argument('-w', '--over-write', help='overwrite the previous results', default=False, action='store_true')
 
     add_cmd = subparsers.add_parser(
         'add',
-        description='add sample pipeline',
+        description='Add pipeline: add sample into previous collection',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     add_cmd.set_defaults(func=run_add_sample_pipeline)
-    add_cmd.add_argument('inputs', help='Input files', type=str, nargs='+')
-    add_cmd.add_argument('-c', '--collection-dir', help='Collection directory', required=True, type=str)
-    add_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
-    add_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
+    add_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
+    add_cmd.add_argument('-c', '--collection-dir', help='directory of previous collection', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    add_cmd.add_argument('-f', '--fasta', help='input fasta file with gff file', default=False, action='store_true')
-    add_cmd.add_argument('-d', '--diamond', help='use diamond instead of blastp', default=False, action='store_true')
+    add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    add_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
+    add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
 
     args = parser.parse_args()
     args.func(args)

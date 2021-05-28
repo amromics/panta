@@ -1,6 +1,8 @@
 import os
 import re
 import logging
+import multiprocessing
+from functools import partial
 from datetime import datetime
 from pan_genome.utils import *
 
@@ -65,43 +67,58 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             sample_dict.setdefault(seq_id, []).append(gene_id)
     return bed_file, fna_file
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, timing_log=None):
-    statime = datetime.now()
-    for sample in samples:
-        starttime = datetime.now()
-        sample_id = sample['id']
-        sample_dir = os.path.join(out_dir, 'samples', sample_id)
-        if not os.path.exists(sample_dir):
-            os.makedirs(sample_dir)
-        # parse gff file
-        bed_file, fna_file = parse_gff_file(
-            ggf_file = sample['gff_file'], 
-            sample_dir = sample_dir, 
-            sample_id = sample_id, 
-            gene_annotation = gene_annotation,
-            gene_position = gene_position
-            )
-        if fasta == True:
-            fna_file = sample['fasta_file']
-        # extract nucleotide region
-        extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
-        cmd = f"bedtools getfasta -s -fi {fna_file} -bed {bed_file} -fo {extracted_fna_file} -name > /dev/null 2>&1"
-        ret = run_command(cmd, timing_log)
-        if ret != 0:
-            raise Exception('Error running bedtools')
-        # translate nucleotide to protein
-        faa_file = os.path.join(sample_dir, sample_id +'.faa')
-        translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file)
-        elapsed = datetime.now() - starttime
-        logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
-        
-        sample['bed'] = bed_file
-        sample['extracted_fna_file'] = extracted_fna_file
-        sample['faa_file'] = faa_file
-        sample['sample_dir'] = sample_dir
-    elapsed = datetime.now() - statime
+def process_single_sample(sample, out_dir, fasta):
+    starttime = datetime.now()
+    
+    sample_id = sample['id']
+    sample_dir = os.path.join(out_dir, 'samples', sample_id)
+    if not os.path.exists(sample_dir):
+        os.makedirs(sample_dir)
+    
+    gene_annotation = {}
+    gene_position ={}
+    # parse gff file
+    bed_file, fna_file = parse_gff_file(
+        ggf_file = sample['gff_file'], 
+        sample_dir = sample_dir, 
+        sample_id = sample_id, 
+        gene_annotation = gene_annotation,
+        gene_position = gene_position
+        )
+    if fasta == True:
+        fna_file = sample['fasta_file']
+    
+    # extract nucleotide region
+    extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
+    os.system(f"bedtools getfasta -s -fi {fna_file} -bed {bed_file} -fo {extracted_fna_file} -name > /dev/null 2>&1")
+    
+    # translate nucleotide to protein
+    faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file)
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
+
+    return gene_annotation, gene_position, faa_file, sample_dir
+
+
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, threads):
+    starttime = datetime.now()
+    
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+
+    with multiprocessing.Pool(processes=threads) as pool:
+        results = pool.map(partial(process_single_sample, out_dir=out_dir, fasta=fasta), samples)
+    
+    for sample, result in zip(samples, results):
+        gene_annotation.update(result[0])
+        gene_position.update(result[1])
+        sample['faa_file'] = result[2]
+        sample['sample_dir'] = result[3]
+    
+    elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
-    return gene_annotation
 
 
 def combine_proteins(out_dir, samples, timing_log=None):

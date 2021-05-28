@@ -56,9 +56,9 @@ def run_main_pipeline(args):
         samples=samples,
         out_dir=pan_genome_folder,
         gene_annotation = gene_annotation,
-        gene_position = gene_position, 
-        timing_log=timing_log,
-        fasta=fasta
+        gene_position = gene_position,
+        fasta=fasta,
+        threads=threads
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,
@@ -199,8 +199,8 @@ def run_add_sample_pipeline(args):
         out_dir=pan_genome_folder,
         gene_annotation = gene_annotation,
         gene_position = gene_position, 
-        timing_log=timing_log,
-        fasta=fasta
+        fasta=fasta,
+        threads=threads
         )
     combined_faa_file = data_preparation.combine_proteins(
         out_dir=temp_dir,

@@ -34,17 +34,21 @@ def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excl
 def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None):
     statime = datetime.now()
     starttime = datetime.now()
+
+    cd_hit_faa = os.path.join(out_dir, 'cd_hit_iterative.faa')
+    shutil.copy(faa_file, cd_hit_faa)
+
     cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
     cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
     excluded_cluster = []
     number_of_samples = len(samples)
 
     # run first time with persent = 100%
-    cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
-    exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=False)
+    exclude_full_clusters(cd_hit_cluster_file, cd_hit_faa, number_of_samples, excluded_cluster,greater_than=False)
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT with 100% identity -- time taken {str(elapsed)}')
     
@@ -54,18 +58,18 @@ def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None)
     percent_match = 0.99
     while percent_match >= lower:
         starttime = datetime.now()
-        cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+        cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
         ret = run_command(cmd, timing_log)
         if ret != 0:
             raise Exception('Error running cd-hit')
-        exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster,greater_than=True)
+        exclude_full_clusters(cd_hit_cluster_file, cd_hit_faa, number_of_samples, excluded_cluster,greater_than=True)
         elapsed = datetime.now() - starttime
         logging.info(f'Run CD-HIT with {percent_match * 100}% identity -- time taken {str(elapsed)}')
         percent_match -= step
 
     # run last time without excluding
     starttime = datetime.now()
-    cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
@@ -77,7 +81,7 @@ def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None)
     return cd_hit_represent_fasta, excluded_cluster, cd_hit_clusters
 
 
-def all_against_all_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
+def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -145,10 +149,31 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, ti
     return diamond_result
 
 
-def cluster_with_mcl(blast_results, out_dir, threads=4, timing_log=None):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
+    if diamond == False:
+        blast_result = run_blast(
+            database_fasta = database_fasta,
+            query_fasta = query_fasta,
+            out_dir = out_dir,
+            identity=identity,
+            threads=threads, 
+            timing_log=timing_log
+            )
+    else:
+        blast_result = run_diamond(
+            database_fasta = database_fasta,
+            query_fasta = query_fasta,
+            out_dir = out_dir,
+            identity=identity,
+            threads=threads, 
+            timing_log=timing_log
+            )
+    return blast_result
+
+def cluster_with_mcl(blast_result, out_dir, threads=4, timing_log=None):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
-    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_results} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
+    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mcl')

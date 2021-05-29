@@ -124,6 +124,9 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, th
 def combine_proteins(out_dir, samples, timing_log=None):
     starttime = datetime.now()
 
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     combined_faa_file = os.path.join(out_dir, 'combined.faa')
     faa_file_list =[]
     for sample in samples:

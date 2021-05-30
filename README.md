@@ -4,7 +4,17 @@
 
 ## Welcome to AMR-Viz
 
-**AMR-Viz** is a package for genomics analysis antimicrobial resistant bacteria. 
+**AMR-Viz** is a software package to analyze, visualize and manage microbial genomics data collections.
+It provides and end-to-end analysis pipeline to take in a collection of
+
+
+for end to end analysis of microbial genomics.
+
+\rovides end-to-end analysis of bacterial
+genomics
+
+
+genomics analysis antimicrobial resistant bacteria. 
 The core of AMR-Viz is a pipeline that bundles the current best practice for 
 multiple aspects of AMR analyses. The pipeline analysis results are 
 represented and visualized via a web application. The web application also 
@@ -98,7 +108,9 @@ port if this port is occupied).
 
 ### Examples
 
-We prepare a dataset for amrviz which from public data base. To download the raw data,
+We prepare a collection of 
+
+dataset for amrviz which from public data base. To download the raw data,
 ```bash
 cd examples/Kp24/raw
 ./download.sh

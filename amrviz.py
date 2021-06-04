@@ -11,11 +11,9 @@ import logging
 import multiprocessing
 import os
 import shutil
-import socket
 import sys
 import pandas as pd
 
-from amromics import extract_json
 from amromics.pipeline import wrapper
 from amromics.utils import valid_id, software_version
 
@@ -39,30 +37,6 @@ def version_func(args):
         'roary',
         'parsnp'
     ])
-
-
-def start_server_func(args):
-    """
-    Start the server at the specified  port
-    """
-
-    port = args.port
-    webapp_dir = args.webapp_dir
-
-    # Check if the port is open
-    a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    location = ("127.0.0.1", port)
-    result_of_check = a_socket.connect_ex(location)
-    a_socket.close()
-    if result_of_check != 0:
-        logger.info('Starting server on port {}'.format(port))
-        cmd = 'cd {} && live-server --no-browser --port={}  --entry-file=index.html'.format(webapp_dir, port)
-        ret = wrapper.run_command(cmd)
-        if ret != 0:
-            sys.exit(ret)
-    else:
-        logger.error('Port {} is not available, server cannot start!'.format(port))
-
 
 def collection_pa_func(args):
     """
@@ -237,15 +211,7 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('-n', '--collection-name', help='Collection name', type=str, default='')
     pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
     pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
-    pa_cmd.add_argument('--webapp-dir', help='Webapp directory', default='web-app')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-
-    start_cmd = subparsers.add_parser(
-        'start', description='Start amr_viz server', help='Start server',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    start_cmd.set_defaults(func=start_server_func)
-    start_cmd.add_argument('-p', '--port', help='The port the server is running on', default=3000, type=int)
-    start_cmd.add_argument('--webapp-dir', help='Webapp directory', default='web-app')
 
     args = parser.parse_args(arguments)
     return args.func(args)

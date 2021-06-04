@@ -1,26 +1,15 @@
-# AMR-Viz
+# AMomics   
 
 
-## Welcome to AMR-Viz
+## Welcome to AMRomics
 
-**AMR-Viz** is a software package to analyze, visualize and manage microbial genomics data collections.
-It provides and end-to-end analysis pipeline to take in a collection of
-
-
-for end to end analysis of microbial genomics.
-
-\rovides end-to-end analysis of bacterial
-genomics
-
-
-genomics analysis antimicrobial resistant bacteria. 
-The core of AMR-Viz is a pipeline that bundles the current best practice for 
-multiple aspects of AMR analyses. The pipeline analysis results are 
+**AMRomics** is a software package to analyze microbial genomics data collections.
+It provides a pipeline that bundles the current best practice for 
+multiple aspects of AMR analyses. The pipeline analysis results can be 
 represented and visualized via a web application. The web application also 
 provides efficient data management.
  
-AMR-Viz is written in python, and its web back-end is implemented with nodejs. 
-It includes the followings dependencies:
+AMRomics is written in python, it includes the followings dependencies:
  * blast (known to work with 2.10.1+)
  * samtools (1.11)
  * trimmomatic (0.39)

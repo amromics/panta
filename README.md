@@ -85,7 +85,7 @@ pipeline.
 Change the current working directory to the **amromics-vis** cloned directory 
 in the step 4 of Intallation above.
 ```bash
-./amrviz.py start [-p 3000] [--webapp-dir web-app]
+./amromics.py start [-p 3000] [--webapp-dir web-app]
 ```
 
 The web application is auto opened on the URL **localhost:3000** (or another 
@@ -108,7 +108,7 @@ The following command will run that 24 samples through the pipeline, and import 
 to the web-app for visualization:
 
 ```bash
-./amrviz.py pa --time-log k24_time.log  -t 7 -m 25 -c KpClinicalGRBZ -i examples/Kp24/Kp24.tsv --work-dir data/work --webapp-dir web-app  -n "Collection of 24 clinical isolates from Greek and Brazil"
+./amromics.py pa --time-log k24_time.log  -t 7 -m 25 -c KpClinicalGRBZ -i examples/Kp24/Kp24.tsv --work-dir data/work --webapp-dir web-app  -n "Collection of 24 clinical isolates from Greek and Brazil"
 ```
 
 

@@ -25,28 +25,11 @@ def find_paralogs(cluster, gene_annotation):
     return paralog_genes
 
 
-def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gene_to_cluster_index):
-    # get neighbour gene
-    neighbour_gene_dictionary = {}
-    for gene_id in cluster:
-        sample = gene_annotation[gene_id]['sample_id']
-        contig = gene_annotation[gene_id]['contig']
-        genes_of_contig = gene_position[sample][contig]
-        index = genes_of_contig.index(gene_id)
-        pre_index = index - 5
-        post_index = index + 6
-        if pre_index < 0:
-            pre_index = 0
-        length_of_contig = len(genes_of_contig)
-        if post_index >= length_of_contig:
-            post_index = length_of_contig
-        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
-        neighbour_gene_dictionary[gene_id] = neighbour_genes
-
+def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index):
     # find cluster indices of all the neighbour genes of each paralog gene
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
-        neighbours_of_p = neighbour_gene_dictionary[p]
+        neighbours_of_p = gene_annotation[p]['neighbour_genes']
         cluster_indices_around_p = set()
         for neighbour_gene in neighbours_of_p:
             try:
@@ -65,7 +48,7 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
         if g in paralog_genes:
             continue
 
-        neighbour_genes_of_g = neighbour_gene_dictionary[g]
+        neighbour_genes_of_g = gene_annotation[g]['neighbour_genes']
         if len(neighbour_genes_of_g) == 0:
             new_clusters[-1].append(g)
             continue
@@ -96,12 +79,12 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gen
     
     return new_clusters
 
-def split_paralogs(gene_annotation, gene_position, unsplit_clusters, dontsplit):
+def split_paralogs(gene_annotation, unsplit_clusters, dontsplit):
     if dontsplit == True:
         return unsplit_clusters
 
     starttime = datetime.now()
-
+    
     clusters_not_paralogs = set()
     # run iteratively
     out_clusters = unsplit_clusters
@@ -131,7 +114,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters, dontsplit):
                 continue
 
             # split paralogs
-            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_annotation, gene_position, gene_to_cluster_index)
+            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 

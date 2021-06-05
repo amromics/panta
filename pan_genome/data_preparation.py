@@ -8,13 +8,13 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_position):
+def parse_gff_file(ggf_file, sample_dir, sample_id):
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     fna_file = os.path.join(sample_dir, sample_id + '.fna')
+    gene_annotation = {}
     found_fasta = False
     suffix = 1
-    sample_dict = {}
-    gene_position[sample_id] = sample_dict
+    gene_position = {}
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(fna_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
@@ -64,8 +64,23 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, gene_annotation, gene_positi
             gene_annotation[gene_id] = gene_dict
 
             # add to gene_position
-            sample_dict.setdefault(seq_id, []).append(gene_id)
-    return bed_file, fna_file
+            gene_position.setdefault(seq_id, []).append(gene_id)
+    
+    for gene_id in gene_annotation:
+        contig = gene_annotation[gene_id]['contig']
+        genes_of_contig = gene_position[contig]
+        index = genes_of_contig.index(gene_id)
+        pre_index = index - 5
+        post_index = index + 6
+        if pre_index < 0:
+            pre_index = 0
+        length_of_contig = len(genes_of_contig)
+        if post_index >= length_of_contig:
+            post_index = length_of_contig
+        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
+        gene_annotation[gene_id]['neighbour_genes'] = neighbour_genes
+    
+    return bed_file, fna_file, gene_annotation
 
 def process_single_sample(sample, out_dir, fasta):
     starttime = datetime.now()
@@ -75,15 +90,11 @@ def process_single_sample(sample, out_dir, fasta):
     if not os.path.exists(sample_dir):
         os.makedirs(sample_dir)
     
-    gene_annotation = {}
-    gene_position ={}
     # parse gff file
-    bed_file, fna_file = parse_gff_file(
+    bed_file, fna_file, gene_annotation = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
-        sample_id = sample_id, 
-        gene_annotation = gene_annotation,
-        gene_position = gene_position
+        sample_id = sample_id
         )
     if fasta == True:
         fna_file = sample['fasta_file']
@@ -99,10 +110,10 @@ def process_single_sample(sample, out_dir, fasta):
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_annotation, gene_position, faa_file, sample_dir
+    return gene_annotation, faa_file, sample_dir
 
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, threads):
+def extract_proteins(samples, out_dir, gene_annotation, fasta, threads):
     starttime = datetime.now()
     
     if threads == 0:
@@ -113,9 +124,8 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, th
     
     for sample, result in zip(samples, results):
         gene_annotation.update(result[0])
-        gene_position.update(result[1])
-        sample['faa_file'] = result[2]
-        sample['sample_dir'] = result[3]
+        sample['faa_file'] = result[1]
+        sample['sample_dir'] = result[2]
     
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')

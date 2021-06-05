@@ -51,12 +51,10 @@ def run_main_pipeline(args):
 
     # data preparation
     gene_annotation = {}
-    gene_position = {}
     data_preparation.extract_proteins(
         samples=samples,
         out_dir=collection_dir,
         gene_annotation = gene_annotation,
-        gene_position = gene_position,
         fasta=fasta,
         threads=threads
         )
@@ -173,7 +171,6 @@ def run_main_pipeline(args):
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
-        gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
         dontsplit=dontsplit
         )
@@ -213,7 +210,6 @@ def run_main_pipeline(args):
         )
 
     json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(inflated_clusters, open(os.path.join(collection_dir, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     
@@ -260,7 +256,6 @@ def run_add_sample_pipeline(args):
         raise Exception(f'{protein_database} is not exist')
     
     gene_annotation = json.load(open(os.path.join(collection_dir, 'gene_annotation.json'), 'r'))
-    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'unsplit_clusters.json'), 'r'))
 
     # data preparation
@@ -268,7 +263,6 @@ def run_add_sample_pipeline(args):
         samples=samples,
         out_dir=collection_dir,
         gene_annotation = gene_annotation,
-        gene_position = gene_position,
         fasta=fasta,
         threads=threads
         )
@@ -328,7 +322,6 @@ def run_add_sample_pipeline(args):
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
-        gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
         dontsplit=dontsplit
         )
@@ -369,7 +362,6 @@ def run_add_sample_pipeline(args):
         )
 
     json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(inflated_clusters, open(os.path.join(collection_dir, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
 

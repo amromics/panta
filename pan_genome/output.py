@@ -12,7 +12,7 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
     starttime = datetime.now()
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
-        writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 
         # write header
         header = ['Gene', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate', 'Min group size nuc', 'Max group size nuc', 'Avg group size nuc' ]

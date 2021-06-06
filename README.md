@@ -13,14 +13,13 @@ AMRomics is written in python, it includes the followings dependencies:
  * blast (known to work with 2.10.1+)
  * samtools (1.11)
  * trimmomatic (0.39)
- * spades (3.14.1)
+ * spades (3.15.2)
  * shovill (1.1.0)
  * prokka (1.14.6)
  * mlst (2.19.6)
  * abricate (1.0.1 | Database: vfdb ecoli_vf ecoh card megares resfinder argannot ncbi plasmidfinder)
- * roary (3.13.0)
- * parsnp (1.5.3)
- * iqtree (2.0.3)
+ * roary (3.13.0) 
+ * iqtree (2.1.2)
 
 ## Installation
 
@@ -29,76 +28,27 @@ The simplest method is installed via conda:
 0. Download and install the appropriate conda, such as anaconda from 
    https://repo.anaconda.com/archive/
    
-1. Create a conda environment with all the necessary dependencies: 
-```bash
-conda create -c bioconda -c conda-forge -c anaconda --name amromics-viz \
-      python=3.7 \
-      ipykernel \
-      numpy \
-      pandas \
-      tqdm \
-      biopython \
-      pysam \
-      prokka \
-      samtools \
-      mlst \
-      abricate \
-      shovill \
-      roary \
-      iqtree \
-      parsnp \
-      sra-tools \
-      nodejs
-```
-2. Setup nodejs
-```bash
-source activate amromics-viz
-npm install -g live-server
-```
-3. Clone **amromics-vis** GitHub repository to your local computer:
-Change the current working directory to the location where you want the 
-cloned directory.
-```bash
-git clone https://github.com/amromics-org/amromics-vis.git
-```
-4. (Optional) Setup and build web application using npm 
+1. Create a conda environment with all the necessary dependencies: From the repository directory run
 
 ```bash
-cd amromics-vis
-npm install
-npm run build --modern
+conda create -c conda-forge -c bioconda -c anaconda -c defaults --name amromics --file requirements.txt
 ```
-
+2. Optional: install amromics library into conda environment
+```bash
+pip install . --use-feature=in-tree-build 
+``
 ## Usage
 
-Everytime you start using Amromics-viz, make sure you have activated
-the *amromics-viz* conda environment. This can beIf not yet, activate the environment
-with the following command:
+
 ```bash
-source activate amromics-viz
+source activate amromics
 ```
-
-Amromics-viz comprises two components: a web application and an analysis 
-pipeline. 
-
-### To run the web application
-Change the current working directory to the **amromics-vis** cloned directory 
-in the step 4 of Intallation above.
-```bash
-./amromics.py start [-p 3000] [--webapp-dir web-app]
-```
-
-The web application is auto opened on the URL **localhost:3000** (or another 
-port if this port is occupied). 
-
 ### To run the pipeline
 
 
 ### Examples
 
-We prepare a collection of 
-
-dataset for amrviz which from public data base. To download the raw data,
+We prepare a collection of dataset for public data base. To download the raw data,
 ```bash
 cd examples/Kp24/raw
 ./download.sh
@@ -108,9 +58,8 @@ The following command will run that 24 samples through the pipeline, and import 
 to the web-app for visualization:
 
 ```bash
-./amromics.py pa --time-log k24_time.log  -t 7 -m 25 -c KpClinicalGRBZ -i examples/Kp24/Kp24.tsv --work-dir data/work --webapp-dir web-app  -n "Collection of 24 clinical isolates from Greek and Brazil"
+amr-analysis.py pg --time-log k24_time.log  -t 7 -m 25 -c KpClinicalGRBZ -i examples/Kp24/Kp24.tsv --work-dir data/work  -n "Collection of 24 clinical isolates from Greek and Brazil"
 ```
-
 
 
 <!--

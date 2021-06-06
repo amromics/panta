@@ -38,37 +38,20 @@ def version_func(args):
         'parsnp'
     ])
 
-def collection_pa_func(args):
-    """
 
-    """
-    collection_id = args.collection_id
-    collection_name = args.collection_name
-    if not collection_name:
-        collection_name = collection_id
+def single_genome_clean_func(args):
+    pass
 
+
+def single_genome_analysis_func(args):
     work_dir = args.work_dir
-    webapp_dir = args.webapp_dir
-    webapp_static_dir = os.path.join(webapp_dir, 'static')
-    if not os.path.exists(webapp_static_dir):
-        raise Exception('Webapp directory {} not available'.format(webapp_dir))
-    webapp_data_dir = os.path.join(webapp_static_dir, 'data')
-    if not os.path.exists(webapp_data_dir):
-        os.makedirs(webapp_data_dir)
-
     threads = args.threads
     memory = args.memory
     timing_log = args.time_log
-    overwrite = False
-
-    if not valid_id(collection_id):
-        raise Exception('{} invalid: collection ID can only contain alpha-numerical or underscore charactors'.format(collection_id))
-
     if threads <= 0:
         threads = multiprocessing.cpu_count()
 
-    report = {'collection_id': collection_id,
-              'samples': []}
+    sample_report = []
     sample_df = pd.read_csv(args.input, sep='\t', dtype='str')
     sample_df.fillna('', inplace=True)
 
@@ -94,16 +77,12 @@ def collection_pa_func(args):
         input_files = [input_file.strip() for input_file in input_files]
         if len(input_files) <= 0:
             raise Exception(
-                'No input file for sample {}'.format( sample_id))
+                'No input file for sample {}'.format(sample_id))
 
         for input_file in input_files:
             if not os.path.isfile(input_file):
                 raise Exception(
                     'Input file {} (sample {}) not found!'.format(input_file, sample_id))
-
-        if i == 0 and row['input_type'].startswith('ass'):
-            # TODO Check if this sequence can be the reference for parsnp (Quang)
-            pass
 
         metadata = row['metadata'].split(';')
         mt = {}
@@ -124,10 +103,10 @@ def collection_pa_func(args):
             'metadata': mt,
             'updated': False,
         }
-        report['samples'].append(sample)
+        sample_report.append(sample)
 
     # run single sample pipeline
-    for sample in report['samples']:
+    for sample in sample_report:
         sample_id = sample['id']
         sample_dir = os.path.join(work_dir, 'samples', sample_id)
         if not os.path.exists(sample_dir):
@@ -135,6 +114,35 @@ def collection_pa_func(args):
         wrapper.run_single_sample(
             sample, sample_dir=sample_dir, threads=threads,
             memory=memory, timing_log=timing_log)
+    return sample_report
+
+
+def pan_genome_analysis_func(args):
+    """
+
+    """
+    collection_id = args.collection_id
+    collection_name = args.collection_name
+    if not collection_name:
+        collection_name = collection_id
+
+    work_dir = args.work_dir
+    threads = args.threads
+    memory = args.memory
+    timing_log = args.time_log
+    overwrite = False
+
+    if not valid_id(collection_id):
+        raise Exception('{} invalid: collection ID can only contain alpha-numerical or underscore charactors'.format(collection_id))
+
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+
+    # First run single analysis
+    sample_report = single_genome_analysis_func(args)
+    report = {'collection_id': collection_id,
+              'samples': sample_report}
+
     collection_dir = os.path.join(work_dir, 'collections', collection_id)
 
     dataset_sample_ids = []
@@ -178,7 +186,6 @@ def collection_pa_func(args):
     report = wrapper.run_species_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
     with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
         json.dump(report, fn)
-
     # # clean up
     # if os.path.exists(collection_dir + "/temp"):
     #     shutil.rmtree(collection_dir + "/temp")
@@ -188,7 +195,7 @@ def collection_pa_func(args):
 
 def main(arguments=sys.argv[1:]):
     parser = argparse.ArgumentParser(
-        prog='amrviz',
+        prog='amromics',
         description='Tool for managing and analyzing antibiotic resistant bacterial datasets')
     parser.add_argument('-V', '--version', action='version', version=__version__)
 
@@ -200,13 +207,28 @@ def main(arguments=sys.argv[1:]):
     version_cmd.set_defaults(func=version_func)
 
     pa_cmd = subparsers.add_parser(
-        'pa', description='NGS analysis pipeline', help='NGS analysis pipeline',
+        'pg',
+        description='Pan-genome analysis of a collection',
+        help='Pan-genome analysis of a collection',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    pa_cmd.set_defaults(func=collection_pa_func)
+    pa_cmd.set_defaults(func=pan_genome_analysis_func)
     pa_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
     pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-c', '--collection-id', help='Collection ID', required=True, type=str)
     pa_cmd.add_argument('-n', '--collection-name', help='Collection name', type=str, default='')
+    pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
+    pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
+    pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
+
+    pa_cmd = subparsers.add_parser(
+        'sg',
+        description='Single-genome analysis',
+        help='Single-genome analysis of a collection',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    pa_cmd.set_defaults(func=single_genome_analysis_func)
+    pa_cmd.add_argument('-t', '--threads', help='Number of threads to use, 0 for all', default=0, type=int)
+    pa_cmd.add_argument('-m', '--memory', help='Amount of memory in Gb to use', default=30, type=float)
     pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
     pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)

@@ -381,7 +381,6 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
         0. Assembly if the input are read data
         1. Annotate the assembly using prokka
         2. Identify resistant, virulent genes, origins of replication, and plasmids
-
     Parameters
     ----------
     sample:
@@ -398,7 +397,6 @@ def run_single_sample(sample, sample_dir, threads=8, memory=50, timing_log=None)
     -------
         the sample object
     """
-
     sample['execution_start'] = str(datetime.datetime.now())
 
     if sample['input_type'] not in ['asm', 'assembly']:

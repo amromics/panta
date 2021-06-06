@@ -6,22 +6,19 @@
 from __future__ import division, print_function, absolute_import
 
 import argparse
-import json
 import logging
 import multiprocessing
 import os
-import shutil
 import sys
 import pandas as pd
 
-from amromics.pipeline import wrapper
+from amromics.pipeline.analysis import single_genome_analysis, pan_genome_analysis
 from amromics.utils import valid_id, software_version
+from amromics import __version__
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s [%(name)s] %(levelname)s : %(message)s')
 logger = logging.getLogger(__name__)
-
-__version__ = '0.9.0'
 
 
 def version_func(args):
@@ -39,26 +36,19 @@ def version_func(args):
     ])
 
 
-def single_genome_clean_func(args):
-    pass
+def is_true(t):
+    return t.lower() in ['y', 'yes', '1', 'true', 't', 'ok']
 
 
-def single_genome_analysis_func(args):
-    work_dir = args.work_dir
-    threads = args.threads
-    memory = args.memory
-    timing_log = args.time_log
-    if threads <= 0:
-        threads = multiprocessing.cpu_count()
-
+def input_file_to_samples(input_file, sep='\t'):
     sample_report = []
-    sample_df = pd.read_csv(args.input, sep='\t', dtype='str')
+    sample_df = pd.read_csv(input_file, sep=sep, dtype='str')
     sample_df.fillna('', inplace=True)
 
     if 'trim' not in sample_df.columns:
         sample_df['trim'] = False
     else:
-        sample_df['trim'] = sample_df['trim'].apply(lambda x: x.lower() in ['y', 'yes', '1', 'true', 't', 'ok'])
+        sample_df['trim'] = sample_df['trim'].apply(lambda x: is_true(x))
 
     if 'strain' not in sample_df.columns:
         sample_df['strain'] = ''
@@ -104,22 +94,54 @@ def single_genome_analysis_func(args):
             'updated': False,
         }
         sample_report.append(sample)
+    return sample_report
+
+
+def single_genome_clean_func(args):
+    """
+    Remove a single genome from the file structure, report any collections that might be affected
+    Parameters
+    ----------
+    args
+
+    Returns
+    -------
+
+    """
+    pass
+
+
+def collection_clean_func(args):
+    pass
+
+
+def single_genome_analysis_func(args):
+    """
+    Parse command line and call single genome analysis
+    Parameters
+    ----------
+    args
+
+    Returns
+    -------
+
+    """
+    work_dir = args.work_dir
+    threads = args.threads
+    memory = args.memory
+    timing_log = args.time_log
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
 
     # run single sample pipeline
-    for sample in sample_report:
-        sample_id = sample['id']
-        sample_dir = os.path.join(work_dir, 'samples', sample_id)
-        if not os.path.exists(sample_dir):
-            os.makedirs(sample_dir)
-        wrapper.run_single_sample(
-            sample, sample_dir=sample_dir, threads=threads,
-            memory=memory, timing_log=timing_log)
-    return sample_report
+    samples = input_file_to_samples(args.input)
+    single_genome_analysis(samples, work_dir, threads, memory, timing_log)
+    return samples
 
 
 def pan_genome_analysis_func(args):
     """
-
+    Parse command line and call single genome analysis and pan-genome analysis
     """
     collection_id = args.collection_id
     collection_name = args.collection_name
@@ -138,58 +160,14 @@ def pan_genome_analysis_func(args):
     if threads <= 0:
         threads = multiprocessing.cpu_count()
 
+    samples = input_file_to_samples(args.input)
+
     # First run single analysis
-    sample_report = single_genome_analysis_func(args)
-    report = {'collection_id': collection_id,
-              'samples': sample_report}
-
-    collection_dir = os.path.join(work_dir, 'collections', collection_id)
-
-    dataset_sample_ids = []
-    for sample in report['samples']:
-        sample_id = sample['id']
-        dataset_sample_ids.append(sample_id)
-        overwrite = overwrite or sample['updated']
-
-    if not os.path.exists(collection_dir):
-        os.makedirs(collection_dir)
-
-    # to check if the set of samples has not changed
-    dataset_sample_ids = sorted(dataset_sample_ids)
-    sample_set_file = os.path.join(collection_dir, 'sample_set.json')
-    if os.path.isfile(sample_set_file):
-        with open(sample_set_file) as fn:
-            sample_set = json.load(fn)
-        if sample_set != dataset_sample_ids:
-            overwrite = True
-
-    if overwrite:
-        roary_folder = os.path.join(collection_dir, 'roary')
-        if os.path.exists(roary_folder):
-            shutil.rmtree(roary_folder)
-
-        phylogeny_folder = os.path.join(collection_dir, 'phylogeny')
-        if os.path.exists(phylogeny_folder):
-            shutil.rmtree(phylogeny_folder)
-        # Note: Check for existing alignment is done within
-
-    # Write the set of sample IDs
-    with open(sample_set_file, 'w') as fn:
-        json.dump(dataset_sample_ids, fn)
-
-    report = wrapper.run_roary(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.get_gene_sequences(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run_protein_alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.create_nucleotide_alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run_gene_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.create_core_gene_alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run_species_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite, timing_log=timing_log)
-    with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
-        json.dump(report, fn)
-    # # clean up
-    # if os.path.exists(collection_dir + "/temp"):
-    #     shutil.rmtree(collection_dir + "/temp")
-    # extract_json.export_json(work_dir, webapp_data_dir, collection_id, collection_name)
+    samples = single_genome_analysis(samples, work_dir, threads=threads, memory=memory, timing_log=timing_log)
+    report = pan_genome_analysis(
+        samples, work_dir,
+        collection_id, collection_name, overwrite=overwrite,
+        threads=threads, memory=memory, timing_log=timing_log)
     logger.info('Congratulations, collection {} is done!'.format(collection_id))
 
 

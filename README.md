@@ -31,10 +31,11 @@ The simplest method is installed via conda:
 1. Create a conda environment with all the necessary dependencies: From the repository directory run
 
 ```bash
-conda create -c conda-forge -c bioconda -c anaconda -c defaults --name amromics --file requirements.txt
+conda create -y -c conda-forge -c bioconda -c anaconda -c etetoolkit -c defaults --name amromics --file requirements.txt
 ```
 2. Optional: install amromics library into conda environment
 ```bash
+source activate amromics
 pip install . --use-feature=in-tree-build 
 ``
 ## Usage

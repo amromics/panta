@@ -37,13 +37,15 @@ conda create -y -c conda-forge -c bioconda -c anaconda -c etetoolkit -c defaults
 ```bash
 source activate amromics
 pip install . --use-feature=in-tree-build 
-``
+```
+
 ## Usage
 
 
 ```bash
 source activate amromics
 ```
+
 ### To run the pipeline
 
 

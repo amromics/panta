@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 def run_main_pipeline(args):
     collection_dir = args.collection_dir
     threads = args.threads
-    overwrite = args.over_write
     dontsplit = args.dont_split
     fasta = args.fasta
     diamond = args.diamond
@@ -26,7 +25,7 @@ def run_main_pipeline(args):
     for path in args.gff_files:
         dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
-        sample_id = base_name.split('.')[0]
+        sample_id = base_name.rsplit('.', 1)[0]
         sample = {'id':sample_id, 'gff_file':path}
         if fasta == True:
             try:
@@ -43,11 +42,6 @@ def run_main_pipeline(args):
         os.makedirs(collection_dir)
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
-    
-    # Check if pan-genome has run
-    pan_genome_output = os.path.join(collection_dir,'summary_statistics.txt')
-    if os.path.isfile(pan_genome_output) and (not overwrite):
-        return
 
     # data preparation
     gene_annotation = {}
@@ -75,7 +69,7 @@ def run_main_pipeline(args):
     cd_hit_represent_fasta, excluded_cluster, cd_hit_clusters = main_pipeline.run_cd_hit_iterative(
         faa_file=subset_combined_faa,
         samples=subset,
-        out_dir=subset_dir, 
+        out_dir=subset_dir,
         threads=threads, 
         timing_log=timing_log)
 
@@ -383,7 +377,6 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     main_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
-    main_cmd.add_argument('-w', '--over-write', help='overwrite the previous results', default=False, action='store_true')
     main_cmd.add_argument('-n', '--number', help='number of samples which are analysed first', default=50, type=int)
 
     add_cmd = subparsers.add_parser(

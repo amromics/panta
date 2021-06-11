@@ -159,14 +159,14 @@ def translate_dna(sequence):
 def translate_protein(nu_fasta, pro_fasta):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+?):", line)
+            result = re.match(r"^>(.+?):", line)
             if result != None:
                 seq_id = result.group(1)
             else:
                 line = line.rstrip()
                 line = translate_dna(line)
                 if line == None:
-                    logger.info(f'Exclude {seq_id} due to too many unknowns')
+                    logger.info(f'Exclude {seq_id} - too many unknowns')
                     continue
                 ls = [line[i:i+60] for i in range(0,len(line), 60)]
                 fh_out.write(f'>{seq_id}\n')

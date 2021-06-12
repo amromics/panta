@@ -3,7 +3,30 @@ import os
 import shutil
 
 from amromics.pipeline import wrapper
+def copy_file(source_file, dest_dir):
+    #try:
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+    dest_file = os.path.join(dest_dir, os.path.basename(source_file))
+    shutil.copyfile(source_file, dest_file)
+    return dest_file
+def prepareDataCollectionAnalysis(report,collection_dir):
+    temp_folder = os.path.join(collection_dir, 'temp_data')
+    if not os.path.isdir(temp_folder):
+        os.makedirs(temp_folder)
 
+    gff_dir=os.path.join(temp_folder,'gff')
+    #collect ffn files: annotation files should be named as <sample_id>.ffn
+    ffn_dir=os.path.join(temp_folder,'ffn')
+
+
+    for sample in report['samples']:
+        print(sample)
+        copy_file(sample['annotation_gff'],gff_dir)
+
+        copy_file(sample['annotation_ffn'],ffn_dir)
+
+    return temp_folder,gff_dir,ffn_dir
 
 def single_genome_analysis(samples, work_dir, threads=0, memory=8, timing_log=None):
     # TODO: move the analysis in single_genome_analysis_func here
@@ -57,21 +80,9 @@ def pan_genome_analysis(samples, work_dir, collection_id, collection_name=None, 
     # Write the set of sample IDs
     with open(sample_set_file, 'w') as fn:
         json.dump(dataset_sample_ids, fn)
-
-    report = wrapper.run_roary(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite,
-                               timing_log=timing_log)
-    report = wrapper.get_gene_sequences(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite,
-                                        timing_log=timing_log)
-    report = wrapper.run_protein_alignment(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite,
-                                           timing_log=timing_log)
-    report = wrapper.create_nucleotide_alignment(report, collection_dir=collection_dir, threads=threads,
-                                                 overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run_gene_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite,
-                                        timing_log=timing_log)
-    report = wrapper.create_core_gene_alignment(report, collection_dir=collection_dir, threads=threads,
-                                                overwrite=overwrite, timing_log=timing_log)
-    report = wrapper.run_species_phylogeny(report, collection_dir=collection_dir, threads=threads, overwrite=overwrite,
-                                           timing_log=timing_log)
+    #report,genome_dir,gff_dir,ffn_dir,reference, base_dir='.', threads=0, memory=50
+    temp_folder,gff_dir,ffn_dir=prepareDataCollectionAnalysis(report,collection_dir)
+    report = wrapper.run_collection(report,gff_dir,ffn_dir,overwrite=overwrite,base_dir=collection_dir, threads=threads,timing_log=timing_log)
     with open(os.path.join(collection_dir, collection_id + '_dump.json'), 'w') as fn:
         json.dump(report, fn)
 

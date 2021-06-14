@@ -96,13 +96,6 @@ def run_main_pipeline(args):
         excluded_cluster=excluded_cluster
     )
 
-    subset_representative_fasta = output.create_representative_fasta(
-        clusters = subset_inflated_clusters,
-        gene_annotation = gene_annotation,
-        faa_fasta = subset_combined_faa,
-        out_dir = subset_dir
-        )
-
     # run the remain of collection
     if len(remain) == 0:
         inflated_clusters = subset_inflated_clusters
@@ -117,7 +110,7 @@ def run_main_pipeline(args):
             timing_log=timing_log)
 
         not_match_fasta, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
-            database_1 = subset_representative_fasta,
+            database_1 = subset_combined_faa,
             database_2 = remain_combined_faa,
             out_dir = remain_dir,
             identity=identity,
@@ -126,7 +119,7 @@ def run_main_pipeline(args):
 
         blast_1_result = main_pipeline.pairwise_alignment(
             diamond=diamond,
-            database_fasta = subset_representative_fasta,
+            database_fasta = subset_combined_faa,
             query_fasta = not_match_fasta,
             out_dir = os.path.join(remain_dir, 'blast1'),
             identity=identity,
@@ -196,13 +189,6 @@ def run_main_pipeline(args):
         out_dir=collection_dir,
         samples=samples,
         timing_log=timing_log)
-
-    representative_fasta = output.create_representative_fasta(
-        clusters = inflated_clusters,
-        gene_annotation = gene_annotation,
-        faa_fasta = protein_database,
-        out_dir = collection_dir
-        )
 
     json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
     json.dump(inflated_clusters, open(os.path.join(collection_dir, 'unsplit_clusters.json'), 'w'), indent=4, sort_keys=True)

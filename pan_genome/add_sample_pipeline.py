@@ -13,7 +13,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, identity=95, threads=4, timin
     cd_hit_cluster_file = os.path.join(out_dir, 'cd_hit_2d.clstr')
     
     persent = identity / 100
-    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s {persent} -c {persent} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s {persent} -s2 {persent} -c {persent} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
@@ -45,29 +45,34 @@ def filter_fasta(blast_result, fasta_file, out_dir):
 def reinflate_clusters(old_clusters, cd_hit_2d_clusters, blast_1_result_file, mcl_clusters):
     starttime = datetime.now()
 
+    gene_to_cluster_index = {gene:index for index,genes in enumerate(old_clusters) for gene in genes}
+
+    for old in cd_hit_2d_clusters:
+        news = cd_hit_2d_clusters[old]
+        if len(news) == 0:
+            continue 
+        cluster_index = gene_to_cluster_index[old]
+        old_clusters[cluster_index].extend(news)
+
     blast_dataframe = pd.read_csv(blast_1_result_file, sep='\t', header = None)
     dictionary = {}
     min_value = 100
     previous = None
     for i, row in blast_dataframe.iterrows():
         new = row[0]
-        repre = row[1]
+        old = row[1]
         value = row[10]
         if new != previous:
             min_value = 100
             previous = new
         if value < min_value:
-            dictionary[new] = repre
+            dictionary[new] = old
             min_value = value
     for new in dictionary:
-        repre = dictionary[new]
-        cd_hit_2d_clusters[repre].append(new)
+        old = dictionary[new]
+        cluster_index = gene_to_cluster_index[old]
+        old_clusters[cluster_index].append(new)
 
-    for cluster in old_clusters:
-        for g in cluster:
-            if g in cd_hit_2d_clusters:
-                cluster.extend(cd_hit_2d_clusters[g])
-    
     with open(mcl_clusters, 'r') as fh:
         for line in fh:
             line = line.rstrip('\n')

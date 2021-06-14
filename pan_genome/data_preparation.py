@@ -91,7 +91,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, fna_file, gene_annotation
 
 def process_single_sample(sample, out_dir, fasta):
-    starttime = datetime.now()
+    # starttime = datetime.now()
     
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -115,8 +115,8 @@ def process_single_sample(sample, out_dir, fasta):
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file)
     
-    elapsed = datetime.now() - starttime
-    logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
     return gene_annotation, faa_file, sample_dir
 
@@ -140,7 +140,7 @@ def extract_proteins(samples, out_dir, gene_annotation, fasta, threads):
 
 
 def combine_proteins(out_dir, samples, timing_log=None):
-    starttime = datetime.now()
+    # starttime = datetime.now()
 
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -154,6 +154,6 @@ def combine_proteins(out_dir, samples, timing_log=None):
     cmd = "cat {} > {}".format(" ".join(faa_file_list),combined_faa_file)
     os.system(cmd)
     
-    elapsed = datetime.now() - starttime
-    logging.info(f'Combine protein -- time taken {str(elapsed)}')
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file

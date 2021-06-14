@@ -47,7 +47,7 @@ def parse_cluster_file(cd_hit_cluster_file):
 
 
 def chunk_fasta_file(fasta_file, out_dir):
-    starttime = datetime.now()
+    # starttime = datetime.now()
     if os.path.exists(out_dir):
         shutil.rmtree(out_dir)
         os.makedirs(out_dir)
@@ -75,8 +75,8 @@ def chunk_fasta_file(fasta_file, out_dir):
             current_chunk_length += len(seq_record.seq)
     
     chunked_fh.close()
-    elapsed = datetime.now() - starttime
-    logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
     return chunked_file_list
 
 def create_fasta_exclude(fasta_file, exclude_list, output_file):
@@ -159,15 +159,16 @@ def translate_dna(sequence):
 def translate_protein(nu_fasta, pro_fasta):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(.+?):", line)
-            if result != None:
+            line = line.rstrip()
+            if re.match(r"^>", line) != None:  
+                line = re.sub(r'\([-+]\)', '', line)
+                result = re.match(r"^(>[^:]+)", line)
                 seq_id = result.group(1)
             else:
-                line = line.rstrip()
                 line = translate_dna(line)
                 if line == None:
-                    logger.info(f'Exclude {seq_id} - too many unknowns')
+                    # logger.info(f'Exclude {seq_id} - too many unknowns')
                     continue
                 ls = [line[i:i+60] for i in range(0,len(line), 60)]
-                fh_out.write(f'>{seq_id}\n')
+                fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')

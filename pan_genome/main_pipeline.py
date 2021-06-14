@@ -108,7 +108,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timi
             cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
             cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
-    cmd = f"parallel --bar -j {threads} -a {blast_cmds_file}"
+    cmd = f"parallel -j {threads} -a {blast_cmds_file}"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running parallel all-against-all blast')

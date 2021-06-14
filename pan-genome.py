@@ -6,9 +6,10 @@ import json
 from glob import glob
 from pan_genome import *
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s : %(message)s',
-                    datefmt='%I:%M:%S')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s : %(message)s',
+    datefmt='%I:%M:%S')
 logger = logging.getLogger(__name__)
 
 def run_main_pipeline(args):

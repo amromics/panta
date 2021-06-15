@@ -135,7 +135,7 @@ def single_genome_analysis_func(args):
         threads = multiprocessing.cpu_count()
     #auto setup db if db not exists
     if not os.path.exists('db'):
-        download_db()
+        setup_db()
     # run single sample pipeline
     samples = input_file_to_samples(args.input)
     single_genome_analysis(samples, work_dir, threads, memory, timing_log)
@@ -164,7 +164,7 @@ def pan_genome_analysis_func(args):
         threads = multiprocessing.cpu_count()
     #auto setup db if db not exists
     if not os.path.exists('db'):
-        download_db()
+        setup_db()
     samples = input_file_to_samples(args.input)
 
     # First run single analysis
@@ -174,9 +174,6 @@ def pan_genome_analysis_func(args):
         collection_id, collection_name, overwrite=overwrite,
         threads=threads, memory=memory, timing_log=timing_log)
     logger.info('Congratulations, collection {} is done!'.format(collection_id))
-
-def download_db():
-    setup_db()
 def main(arguments=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         prog='amromics',

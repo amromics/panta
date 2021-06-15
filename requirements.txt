@@ -15,7 +15,12 @@
  abricate==1.0.1
  shovill==1.1.0
  roary==3.13.0
- iqtree==2.1.2
+ iqtree==2.0.3
  sra-tools==2.11.0
  ete3==3.1.2
-
+ kraken2==2.1.1
+ fastqc==0.11.9
+ multiqc==1.10
+ quast==5.0.2
+ ncbi-amrfinderplus==3.10.1
+ isescan==1.7.2.3

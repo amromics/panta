@@ -70,7 +70,7 @@ def run_single_sample(sample,extraStep=False, sample_dir='.', threads=0, memory=
     sample['annotation_gff'],sample['annotation_faa'],sample['annotation_ffn'],sample['annotation_fna'],sample['annotation_gbk'] = annotation.annotate_prokka(sample['id'],sample['assembly'],sample['genus'],sample['species'],sample['strain'],sample['gram'], base_dir=sample_dir,timing_log=timing_log, threads=threads)
     sample['mlst']  = taxonomy.detect_mlst(sample['id'],sample['assembly'], base_dir=sample_dir, threads=threads)
     if extraStep:
-        sample['resistome'],sample['point'],sample['virulome'] = amr.detect_amr(sample['id'],sample['annotation_faa'],sample['annotation_fna'],sample['annotation_gff'],sample['genus'],sample['species'], base_dir=sample_dir,timing_log=timing_log, threads=threads)
+        sample['resistome'],sample['point'],sample['virulome'] = amr.detect_amr_amrfinder(sample['id'],sample['annotation_faa'],sample['annotation_fna'],sample['annotation_gff'],sample['genus'],sample['species'], base_dir=sample_dir,timing_log=timing_log, threads=threads)
     else:
         sample['resistome'] = amr.detect_amr_abricate(
         sample['id'],sample['assembly'], base_dir=sample_dir, threads=threads, timing_log=timing_log)

@@ -33,7 +33,14 @@ def version_func(args):
         'mlst',
         'abricate',
         'roary',
-        'parsnp'
+        'parsnp',
+        'iqtree',
+        'fastqc',
+        'kraken2',
+        'multiqc',
+        'quast',
+        'isescan',
+        'amrfinder'
     ])
 
 

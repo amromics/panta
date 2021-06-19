@@ -106,19 +106,25 @@ def software_version(software_list=None):
         'spades': 'spades.py -v 2>&1',
         'skesa': 'skesa --version 2>&1 | tail -1',
         'shovill': 'shovill --version 2>&1',
-
+        #QC
+        'fastqc':'fastqc -v',
+        'multiqc':'multiqc --version',
+        'quast':'quast -v',
+        #taxonomy
+        'kraken2':'kraken2 -v',
         # Annotations
         'prokka': 'prokka -version 2>&1',
         'mlst': 'mlst --version  2>&1',
         'abricate': 'abricate --version  2>&1|tr "\n" " " && abricate --list|awk \'BEGIN{printf("| Database: ");}NR>1{printf("%s ",$1)}\'',
         'snippy': 'snippy --version 2>&1',
-
+        'amrfinder':'amrfinder --version',
         # Pangenome tools
         'roary': 'roary --version 2>&1 | tail -n 1',
         'parsnp': 'parsnp --version 2>&1 | tail -1',
-
+        'iqtree':'iqtree --version',
         # misc
         'trimmomatic': 'trimmomatic -version 2>&1',
+        'isescan':'isescan.py --version',
 
         # Others:
         'nodejs':'node --version 2>&1 | tail -1'

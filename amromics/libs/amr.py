@@ -60,7 +60,7 @@ def detect_amr_abricate(prefix_name, assembly, base_dir='.', threads=8, overwrit
     combined_tsv.to_csv(amr_out, index=False,sep='\t', encoding='utf-8-sig')
     #sample['updated'] = True
     return amr_out
-def detect_amr(prefix_name,faa_file,fna_file,gff_file,genus=None,species=None,  base_dir='.', db='db/amrfinderplus/data/latest', timing_log=None, threads=0):
+def detect_amr_amrfinder(prefix_name,faa_file,fna_file,gff_file,genus=None,species=None,  base_dir='.', db='db/amrfinderplus/data/latest', timing_log=None, threads=0):
     """
         Run AMR analysis, using AMRfinderPlus for searching amr genes, virulome genes and point mutaions.
         :param read_data: result holder

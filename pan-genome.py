@@ -67,21 +67,13 @@ def run_main_pipeline(args):
         samples=subset,
         timing_log=timing_log)
 
-    cd_hit_represent_fasta, excluded_cluster, cd_hit_clusters = main_pipeline.run_cd_hit_iterative(
+    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
         faa_file=subset_combined_faa,
-        samples=subset,
         out_dir=subset_dir,
         threads=threads, 
         timing_log=timing_log)
 
-    subset_representative_fasta = main_pipeline.create_representative_fasta(
-        cd_hit_clusters=cd_hit_clusters, 
-        excluded_cluster=excluded_cluster, 
-        in_fasta=subset_combined_faa, 
-        outdir=subset_dir
-        )
-
-    blast_result = main_pipeline.pairwise_alignment(
+    subset_blast_result = main_pipeline.pairwise_alignment(
         diamond=diamond,
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
@@ -91,21 +83,20 @@ def run_main_pipeline(args):
         timing_log=timing_log
         )
 
-    mcl_file = main_pipeline.cluster_with_mcl(
+    subset_mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = subset_dir,
-        blast_result = blast_result,
+        blast_result = subset_blast_result,
         threads=threads, 
         timing_log=timing_log)
 
-    subset_inflated_clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=cd_hit_clusters,
-        mcl_file=mcl_file,
-        excluded_cluster=excluded_cluster
-    )
+
 
     # run the remain of collection
     if len(remain) == 0:
-        inflated_clusters = subset_inflated_clusters
+        inflated_clusters = main_pipeline.reinflate_clusters(
+            cd_hit_clusters=cd_hit_clusters,
+            mcl_file=subset_mcl_file
+        )
     else:
         remain_dir = os.path.join(temp_dir, 'remain')
         if not os.path.exists(remain_dir):
@@ -117,50 +108,55 @@ def run_main_pipeline(args):
             timing_log=timing_log)
 
         not_match_fasta, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
-            database_1 = subset_representative_fasta,
+            database_1 = cd_hit_represent_fasta,
             database_2 = remain_combined_faa,
             out_dir = remain_dir,
-            identity=identity,
+            threads=threads, 
+            timing_log=timing_log)
+
+        not_match_represent_fasta, not_match_clusters = main_pipeline.run_cd_hit(
+            faa_file=not_match_fasta,
+            out_dir=remain_dir,
             threads=threads, 
             timing_log=timing_log)
 
         blast_1_result = main_pipeline.pairwise_alignment(
             diamond=diamond,
-            database_fasta = subset_representative_fasta,
-            query_fasta = not_match_fasta,
+            database_fasta = cd_hit_represent_fasta,
+            query_fasta = not_match_represent_fasta,
             out_dir = os.path.join(remain_dir, 'blast1'),
             identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
-        
-        blast_remain_fasta = add_sample_pipeline.filter_fasta(
-            blast_result = blast_1_result, 
-            fasta_file = not_match_fasta, 
-            out_dir = remain_dir
-            )
 
         blast_2_result = main_pipeline.pairwise_alignment(
             diamond=diamond,
-            database_fasta = blast_remain_fasta,
-            query_fasta = blast_remain_fasta,
+            database_fasta = not_match_represent_fasta,
+            query_fasta = not_match_represent_fasta,
             out_dir = os.path.join(remain_dir, 'blast2'),
             identity=identity,
             threads=threads, 
             timing_log=timing_log
             )
 
-        mcl_file = main_pipeline.cluster_with_mcl(
+        combined_blast_result = add_sample_pipeline.combine_blast_results(
+            blast_1=subset_blast_result, 
+            blast_2=blast_1_result, 
+            blast_3=blast_2_result, 
+            outdir=remain_dir)
+
+        remain_mcl_file = main_pipeline.cluster_with_mcl(
             out_dir = remain_dir,
-            blast_result = blast_2_result,
+            blast_result = combined_blast_result,
             threads=threads, 
             timing_log=timing_log)
 
         inflated_clusters = add_sample_pipeline.reinflate_clusters(
-            old_clusters=subset_inflated_clusters, 
-            cd_hit_2d_clusters=cd_hit_2d_clusters, 
-            blast_1_result_file=blast_1_result, 
-            mcl_clusters=mcl_file
+            cd_hit_clusters=cd_hit_clusters, 
+            cd_hit_2d_clusters=cd_hit_2d_clusters,
+            not_match_clusters=not_match_clusters,
+            mcl_file=remain_mcl_file
             )
 
     # post analysis

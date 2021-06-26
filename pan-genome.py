@@ -74,6 +74,13 @@ def run_main_pipeline(args):
         threads=threads, 
         timing_log=timing_log)
 
+    subset_representative_fasta = main_pipeline.create_representative_fasta(
+        cd_hit_clusters=cd_hit_clusters, 
+        excluded_cluster=excluded_cluster, 
+        in_fasta=subset_combined_faa, 
+        outdir=subset_dir
+        )
+
     blast_result = main_pipeline.pairwise_alignment(
         diamond=diamond,
         database_fasta = cd_hit_represent_fasta,
@@ -110,7 +117,7 @@ def run_main_pipeline(args):
             timing_log=timing_log)
 
         not_match_fasta, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
-            database_1 = subset_combined_faa,
+            database_1 = subset_representative_fasta,
             database_2 = remain_combined_faa,
             out_dir = remain_dir,
             identity=identity,
@@ -119,7 +126,7 @@ def run_main_pipeline(args):
 
         blast_1_result = main_pipeline.pairwise_alignment(
             diamond=diamond,
-            database_fasta = subset_combined_faa,
+            database_fasta = subset_representative_fasta,
             query_fasta = not_match_fasta,
             out_dir = os.path.join(remain_dir, 'blast1'),
             identity=identity,

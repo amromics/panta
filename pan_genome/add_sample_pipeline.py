@@ -48,7 +48,7 @@ def reinflate_clusters(old_clusters, cd_hit_2d_clusters, blast_1_result_file, mc
     gene_to_cluster_index = {gene:index for index,genes in enumerate(old_clusters) for gene in genes}
 
     for old in cd_hit_2d_clusters:
-        news = cd_hit_2d_clusters[old]
+        news = cd_hit_2d_clusters[old].keys()
         if len(news) == 0:
             continue 
         cluster_index = gene_to_cluster_index[old]
@@ -82,4 +82,3 @@ def reinflate_clusters(old_clusters, cd_hit_2d_clusters, blast_1_result_file, mc
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return old_clusters
-    

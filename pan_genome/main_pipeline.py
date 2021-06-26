@@ -13,14 +13,14 @@ def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excl
 
     full_cluster_gene_names =[]
     for cluster_represent in clusters:
-        other_genes = clusters[cluster_represent]
-        this_cluster = [cluster_represent] + other_genes
+        other_genes = clusters[cluster_represent].keys()
+        this_cluster = [cluster_represent] + list(other_genes)
         if greater_than==True and len(this_cluster) >= number_of_samples:
             full_cluster_gene_names.extend(this_cluster)
-            excluded_cluster.append(this_cluster)
+            excluded_cluster[cluster_represent] = clusters[cluster_represent]
         if greater_than==False and len(this_cluster) == number_of_samples:
             full_cluster_gene_names.extend(this_cluster)
-            excluded_cluster.append(this_cluster)
+            excluded_cluster[cluster_represent] = clusters[cluster_represent]
     cluster_filtered_faa_file = faa_file + '.filtered'
     full_cluster_gene_names = set(full_cluster_gene_names)
     create_fasta_exclude(
@@ -40,7 +40,7 @@ def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None)
 
     cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
     cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
-    excluded_cluster = []
+    excluded_cluster = {}
     number_of_samples = len(samples)
 
     # run first time with persent = 100%
@@ -194,7 +194,7 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
             for gene in genes:
                 inflated_genes.append(gene)
                 if gene in cd_hit_clusters:
-                    inflated_genes.extend(cd_hit_clusters[gene])
+                    inflated_genes.extend(cd_hit_clusters[gene].keys())
                     del cd_hit_clusters[gene]
             inflated_clusters.append(inflated_genes)
 
@@ -202,13 +202,55 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
     for gene in cd_hit_clusters:
         inflated_genes = []
         inflated_genes.append(gene)
-        inflated_genes.extend(cd_hit_clusters[gene])
+        inflated_genes.extend(cd_hit_clusters[gene].keys())
         inflated_clusters.append(inflated_genes)
 
     # Add clusters which were excluded
-    for cluster in excluded_cluster:
-        inflated_clusters.append(cluster)
+    for gene in excluded_cluster:
+        inflated_genes = []
+        inflated_genes.append(gene)
+        inflated_genes.extend(excluded_cluster[gene].keys())
+        inflated_clusters.append(inflated_genes)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return inflated_clusters
+
+
+def create_representative_fasta(cd_hit_clusters, excluded_cluster, in_fasta, outdir):
+    starttime = datetime.now()
+    threshold = 98
+
+    representative_set = set()
+    for gene in cd_hit_clusters:
+        representative_set.add(gene)
+        temp_dict = dict()
+        other_genes = cd_hit_clusters[gene]
+        for gene_id, percent in other_genes.items():
+            temp_dict[percent] = gene_id
+    
+        for percent, gene_id in temp_dict.items():
+            if percent < threshold:
+                representative_set.add(gene_id)
+
+    for gene in excluded_cluster:
+        representative_set.add(gene)
+        temp_dict = dict()
+        other_genes = excluded_cluster[gene]
+        for gene_id, percent in other_genes.items():
+            temp_dict[percent] = gene_id
+    
+        for percent, gene_id in temp_dict.items():
+            if percent < threshold:
+                representative_set.add(gene_id)
+
+    representative_fasta = os.path.join(outdir, 'representative.fasta')
+    create_fasta_include(
+        fasta_file=in_fasta, 
+        include_list=representative_set, 
+        output_file=representative_fasta
+        )
+    logging.info(f'Number of representative sequences: {len(representative_set)}')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
+    return representative_fasta

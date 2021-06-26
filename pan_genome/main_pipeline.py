@@ -7,78 +7,44 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster, greater_than):
+# def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster, greater_than):
     
-    clusters = parse_cluster_file(cd_hit_cluster_file)
+#     clusters = parse_cluster_file(cd_hit_cluster_file)
 
-    full_cluster_gene_names =[]
-    for cluster_represent in clusters:
-        other_genes = clusters[cluster_represent].keys()
-        this_cluster = [cluster_represent] + list(other_genes)
-        if greater_than==True and len(this_cluster) >= number_of_samples:
-            full_cluster_gene_names.extend(this_cluster)
-            excluded_cluster[cluster_represent] = clusters[cluster_represent]
-        if greater_than==False and len(this_cluster) == number_of_samples:
-            full_cluster_gene_names.extend(this_cluster)
-            excluded_cluster[cluster_represent] = clusters[cluster_represent]
-    cluster_filtered_faa_file = faa_file + '.filtered'
-    full_cluster_gene_names = set(full_cluster_gene_names)
-    create_fasta_exclude(
-        fasta_file=faa_file, 
-        exclude_list=full_cluster_gene_names, 
-        output_file=cluster_filtered_faa_file
-        )
-    shutil.move(cluster_filtered_faa_file, faa_file)
+#     full_cluster_gene_names =[]
+#     for cluster_represent in clusters:
+#         other_genes = clusters[cluster_represent]
+#         this_cluster = [cluster_represent] + other_genes
+#         if greater_than==True and len(this_cluster) >= number_of_samples:
+#             full_cluster_gene_names.extend(this_cluster)
+#             excluded_cluster[cluster_represent] = clusters[cluster_represent]
+#         if greater_than==False and len(this_cluster) == number_of_samples:
+#             full_cluster_gene_names.extend(this_cluster)
+#             excluded_cluster[cluster_represent] = clusters[cluster_represent]
+#     cluster_filtered_faa_file = faa_file + '.filtered'
+#     full_cluster_gene_names = set(full_cluster_gene_names)
+#     create_fasta_exclude(
+#         fasta_file=faa_file, 
+#         exclude_list=full_cluster_gene_names, 
+#         output_file=cluster_filtered_faa_file
+#         )
+#     shutil.move(cluster_filtered_faa_file, faa_file)
 
 
-def run_cd_hit_iterative(faa_file, samples, out_dir, threads=4, timing_log=None):
-    statime = datetime.now()
+def run_cd_hit(faa_file, out_dir, threads=4, timing_log=None):
     starttime = datetime.now()
-
-    cd_hit_faa = os.path.join(out_dir, 'cd_hit_iterative.faa')
-    shutil.copy(faa_file, cd_hit_faa)
-
-    cd_hit_represent_fasta = os.path.join(out_dir, 'cluster')
-    cd_hit_cluster_file = os.path.join(out_dir, 'cluster.clstr')
-    excluded_cluster = {}
-    number_of_samples = len(samples)
-
-    # run first time with persent = 100%
-    cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s 1 -c 1 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = run_command(cmd, timing_log)
-    if ret != 0:
-        raise Exception('Error running cd-hit')
-    exclude_full_clusters(cd_hit_cluster_file, cd_hit_faa, number_of_samples, excluded_cluster,greater_than=False)
-    elapsed = datetime.now() - starttime
-    logging.info(f'Run CD-HIT with 100% identity -- time taken {str(elapsed)}')
     
-    # run iteratively
-    lower = 0.98
-    step = 0.005
-    percent_match = 0.99
-    while percent_match >= lower:
-        starttime = datetime.now()
-        cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s {percent_match} -c {percent_match} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-        ret = run_command(cmd, timing_log)
-        if ret != 0:
-            raise Exception('Error running cd-hit')
-        exclude_full_clusters(cd_hit_cluster_file, cd_hit_faa, number_of_samples, excluded_cluster,greater_than=True)
-        elapsed = datetime.now() - starttime
-        logging.info(f'Run CD-HIT with {percent_match * 100}% identity -- time taken {str(elapsed)}')
-        percent_match -= step
-
-    # run last time without excluding
-    starttime = datetime.now()
-    cmd = f'cd-hit -i {cd_hit_faa} -o {cd_hit_represent_fasta} -s {lower} -c {lower} -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
+    cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
+    cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running cd-hit')
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
+
     elapsed = datetime.now() - starttime
-    logging.info(f'Run CD-HIT with {lower * 100}% identity -- time taken {str(elapsed)}')
-    elapsed = datetime.now() - statime
-    logging.info(f'Run CD-HIT iteratively -- time taken {str(elapsed)}')
-    return cd_hit_represent_fasta, excluded_cluster, cd_hit_clusters
+    logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
+    return cd_hit_represent_fasta, cd_hit_clusters
 
 
 def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
@@ -182,7 +148,7 @@ def cluster_with_mcl(blast_result, out_dir, threads=4, timing_log=None):
     return mcl_file
 
 
-def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
+def reinflate_clusters(cd_hit_clusters, mcl_file):
     starttime = datetime.now()
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
@@ -194,7 +160,7 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
             for gene in genes:
                 inflated_genes.append(gene)
                 if gene in cd_hit_clusters:
-                    inflated_genes.extend(cd_hit_clusters[gene].keys())
+                    inflated_genes.extend(cd_hit_clusters[gene])
                     del cd_hit_clusters[gene]
             inflated_clusters.append(inflated_genes)
 
@@ -202,14 +168,7 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
     for gene in cd_hit_clusters:
         inflated_genes = []
         inflated_genes.append(gene)
-        inflated_genes.extend(cd_hit_clusters[gene].keys())
-        inflated_clusters.append(inflated_genes)
-
-    # Add clusters which were excluded
-    for gene in excluded_cluster:
-        inflated_genes = []
-        inflated_genes.append(gene)
-        inflated_genes.extend(excluded_cluster[gene].keys())
+        inflated_genes.extend(cd_hit_clusters[gene])
         inflated_clusters.append(inflated_genes)
 
     elapsed = datetime.now() - starttime
@@ -217,40 +176,23 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, excluded_cluster):
     return inflated_clusters
 
 
-def create_representative_fasta(cd_hit_clusters, excluded_cluster, in_fasta, outdir):
-    starttime = datetime.now()
-    threshold = 98
+# def create_representative_fasta(cd_hit_clusters, excluded_cluster, in_fasta, outdir):
+#     starttime = datetime.now()
 
-    representative_set = set()
-    for gene in cd_hit_clusters:
-        representative_set.add(gene)
-        temp_dict = dict()
-        other_genes = cd_hit_clusters[gene]
-        for gene_id, percent in other_genes.items():
-            temp_dict[percent] = gene_id
-    
-        for percent, gene_id in temp_dict.items():
-            if percent < threshold:
-                representative_set.add(gene_id)
+#     representative_set = set()
+#     for gene in cd_hit_clusters:
+#         representative_set.add(gene)
 
-    for gene in excluded_cluster:
-        representative_set.add(gene)
-        temp_dict = dict()
-        other_genes = excluded_cluster[gene]
-        for gene_id, percent in other_genes.items():
-            temp_dict[percent] = gene_id
-    
-        for percent, gene_id in temp_dict.items():
-            if percent < threshold:
-                representative_set.add(gene_id)
+#     for gene in excluded_cluster:
+#         representative_set.add(gene)
 
-    representative_fasta = os.path.join(outdir, 'representative.fasta')
-    create_fasta_include(
-        fasta_file=in_fasta, 
-        include_list=representative_set, 
-        output_file=representative_fasta
-        )
-    logging.info(f'Number of representative sequences: {len(representative_set)}')
-    elapsed = datetime.now() - starttime
-    logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
-    return representative_fasta
+#     representative_fasta = os.path.join(outdir, 'representative.fasta')
+#     create_fasta_include(
+#         fasta_file=in_fasta, 
+#         include_list=representative_set, 
+#         output_file=representative_fasta
+#         )
+#     logging.info(f'Number of representative sequences: {len(representative_set)}')
+#     elapsed = datetime.now() - starttime
+#     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
+#     return representative_fasta

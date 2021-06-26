@@ -156,3 +156,5 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
     elapsed = datetime.now() - starttime
     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
     return representative_fasta
+
+

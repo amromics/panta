@@ -29,7 +29,7 @@ def parse_cluster_file(cd_hit_cluster_file):
             if result != None:
                 cluster_name = result.group(1)
                 clusters[cluster_name] = {}
-                clusters[cluster_name]['gene_names'] = []
+                clusters[cluster_name]['gene_names'] = {}
             else:
                 result = re.match(r'[\d]+\t[\w]+, >(.+)\.\.\. (.+)$', line)
                 if result != None:
@@ -38,12 +38,17 @@ def parse_cluster_file(cd_hit_cluster_file):
                     if identity == '*':
                         clusters[cluster_name]['representative'] = gene_name
                     else:
-                        clusters[cluster_name]['gene_names'].append(gene_name)
+                        percent = re.findall(r'([0-9\.]+)', identity)
+                        percent = float(percent[0])
+                        clusters[cluster_name]['gene_names'][gene_name] = percent
     # convert to a simple dictionary
     clusters_new = {}
     for cluster_name in clusters:
         clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']
     return clusters_new
+
+
+
 
 
 def chunk_fasta_file(fasta_file, out_dir):

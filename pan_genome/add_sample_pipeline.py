@@ -50,8 +50,16 @@ def combine_blast_results(blast_1, blast_2, blast_3, outdir):
     return combined_blast_results
 
 
-def reinflate_clusters(cd_hit_clusters, cd_hit_2d_clusters, not_match_clusters, mcl_file):
+def reinflate_clusters(old_clusters, cd_hit_2d_clusters, not_match_clusters, mcl_file):
     starttime = datetime.now()
+
+    # clusters for next run
+    new_clusters = {}
+    new_clusters.update(old_clusters)
+    for gene in new_clusters:
+        new_clusters[gene].extend(cd_hit_2d_clusters[gene])
+    new_clusters.update(not_match_clusters)
+
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
     with open(mcl_file, 'r') as fh:
@@ -61,23 +69,21 @@ def reinflate_clusters(cd_hit_clusters, cd_hit_2d_clusters, not_match_clusters, 
             genes = line.split('\t')
             for gene in genes:
                 inflated_genes.append(gene)
-                if gene in cd_hit_clusters:
-                    inflated_genes.extend(cd_hit_clusters[gene])
+                if gene in old_clusters:
+                    inflated_genes.extend(old_clusters[gene])
                     inflated_genes.extend(cd_hit_2d_clusters[gene])
-                    del cd_hit_clusters[gene]
+                    del old_clusters[gene]
                     del cd_hit_2d_clusters[gene]
                 if gene in not_match_clusters:
                     inflated_genes.extend(not_match_clusters[gene])
                     del not_match_clusters[gene]
             inflated_clusters.append(inflated_genes)
     # Inflate any clusters that were in the clusters file but not sent to mcl
-    for gene in cd_hit_clusters:
+    for gene in old_clusters:
         inflated_genes = []
         inflated_genes.append(gene)
-        inflated_genes.extend(cd_hit_clusters[gene])
+        inflated_genes.extend(old_clusters[gene])
         inflated_genes.extend(cd_hit_2d_clusters[gene])
-        del cd_hit_clusters[gene]
-        del cd_hit_2d_clusters[gene]
         inflated_clusters.append(inflated_genes)
 
     for gene in not_match_clusters:
@@ -87,4 +93,4 @@ def reinflate_clusters(cd_hit_clusters, cd_hit_2d_clusters, not_match_clusters, 
 
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
-    return inflated_clusters
+    return inflated_clusters, new_clusters

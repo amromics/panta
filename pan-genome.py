@@ -109,7 +109,7 @@ def run_main_pipeline(args):
         threads=threads,
         timing_log=timing_log)
 
-    inflated_clusters = main_pipeline.reinflate_clusters(
+    inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
     
@@ -120,7 +120,7 @@ def run_main_pipeline(args):
     json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(collection_dir, 'representative.fasta'))
-    json.dump(cd_hit_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(blast_result, os.path.join(collection_dir, 'blast.tsv'))
 
     

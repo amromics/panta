@@ -150,6 +150,9 @@ def cluster_with_mcl(blast_result, out_dir, threads=4, timing_log=None):
 
 def reinflate_clusters(cd_hit_clusters, mcl_file):
     starttime = datetime.now()
+    clusters = {}
+    clusters.update(cd_hit_clusters)
+
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
     with open(mcl_file, 'r') as fh:
@@ -173,7 +176,7 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
-    return inflated_clusters
+    return inflated_clusters, clusters
 
 
 # def create_representative_fasta(cd_hit_clusters, excluded_cluster, in_fasta, outdir):

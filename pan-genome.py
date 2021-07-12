@@ -77,7 +77,7 @@ def run_main_pipeline(args):
     gene_annotation = {}
     data_preparation.extract_proteins(
         samples=samples,
-        out_dir=collection_dir,
+        out_dir=temp_dir,
         gene_annotation = gene_annotation,
         fasta=fasta,
         threads=threads)
@@ -175,7 +175,7 @@ def run_add_sample_pipeline(args):
     # data preparation
     data_preparation.extract_proteins(
         samples=new_samples,
-        out_dir=collection_dir,
+        out_dir=temp_dir,
         gene_annotation = gene_annotation,
         fasta=fasta,
         threads=threads

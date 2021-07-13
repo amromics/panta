@@ -11,7 +11,8 @@ setup(
         'pandas',
         'numpy',
         'scipy',
-        'pysam'
+        'pysam',
+        'wget'
     ],
     scripts=['amr-analysis.py'],
     #entry_points={'console_scripts': ['amromics=scripts/amr-analysis.py']},

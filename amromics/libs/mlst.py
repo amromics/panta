@@ -84,7 +84,7 @@ def find_mlst(query_file,num_threads=1,blastdb='db/mlst/blast/mlst.fa',mlstdb='d
                 res[hit['sch']]={}
             if int(hit['hlen'])==int(hit['alen']) and int(hit['nident'])==int(hit['hlen']):
 
-                if  hit['gene'] in res[hit['sch']].keys():
+                if  hit['gene'] in res[hit['sch']].keys() and res[hit['sch']][hit['gene']].find('?')==-1 and res[hit['sch']][hit['gene']].find('~')==-1:
                     print('WARNING: found additional exact allele match',hit['sch'],'.',hit['gene'],'-',hit['num'])
                     res[hit['sch']][hit['gene']]=res[hit['sch']][hit['gene']]+','+hit['num']
                 else:

@@ -38,13 +38,13 @@ def annotate_prokka(prefix_name,assembly,genus=None,species=None, strain=None,gr
         run_command(cmd)
     cmd = 'prokka --force --cpus {threads} --addgenes --mincontiglen 200'.format(threads=threads)
     cmd += ' --prefix {sample_id} --locus {sample_id} --outdir {path} '.format(sample_id=prefix_name, path=path_out)
-    if not genus ==None:
+    if not genus ==None and genus:
         cmd += ' --genus ' +genus
-    if not species  ==None:
+    if not species  ==None and species:
         cmd += ' --species ' + species
-    if not strain  ==None:
+    if not strain  ==None and strain:
         cmd += ' --strain ' + strain
-    if not gram  ==None:
+    if not gram  ==None and gram:
         cmd += ' --gram ' + gram
     cmd += ' ' + gunzip_fasta
     cmd = "bash -c '{}'".format(cmd)

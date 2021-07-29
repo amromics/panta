@@ -1,5 +1,6 @@
 import os
 import logging
+import copy
 from datetime import datetime
 import pandas as pd
 from pan_genome.utils import *
@@ -54,11 +55,10 @@ def reinflate_clusters(old_clusters, cd_hit_2d_clusters, not_match_clusters, mcl
     starttime = datetime.now()
 
     # clusters for next run
-    new_clusters = {}
-    new_clusters.update(old_clusters)
+    new_clusters = copy.deepcopy(old_clusters)
     for gene in new_clusters:
         new_clusters[gene].extend(cd_hit_2d_clusters[gene])
-    new_clusters.update(not_match_clusters)
+    new_clusters.update(copy.deepcopy(not_match_clusters))
 
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl

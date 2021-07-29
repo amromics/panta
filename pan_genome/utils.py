@@ -169,7 +169,7 @@ def translate_protein(nu_fasta, pro_fasta):
             else:
                 line = translate_dna(line)
                 if line == None:
-                    # logger.info(f'Exclude {seq_id} - too many unknowns')
+                    logger.info(f'Exclude {seq_id} - too many unknowns')
                     continue
                 ls = [line[i:i+60] for i in range(0,len(line), 60)]
                 fh_out.write(seq_id + '\n')

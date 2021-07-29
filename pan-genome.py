@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import shutil
 import logging
 import json
@@ -49,29 +50,40 @@ def run_main_pipeline(args):
     fasta = args.fasta
     diamond = args.diamond
     identity = args.identity
-        
+    
+    temp_dir = os.path.join(collection_dir, 'temp')
+    timing_log = os.path.join(collection_dir, 'time.log')
+    if not os.path.exists(collection_dir):
+        os.makedirs(collection_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)    
+
+    # collect samples
     samples = []
+    sample_id_list = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
     for path in args.gff_files:
+        sample = {'gff_file':path}
         dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.rsplit('.', 1)[0]
-        sample = {'id':sample_id, 'gff_file':path}
         if fasta == True:
             try:
                 fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
                 sample['fasta_file'] = fasta_file
             except:
                 raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
+        sample_id = re.sub(r'\W', '_', sample_id)
+        if sample_id in sample_id_list:
+            logging.info(f'{sample_id} is already in collection -- skip')
+            continue
+        else:
+            sample_id_list.append(sample_id)
+        sample['id'] = sample_id
         samples.append(sample)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
     samples.sort(key= lambda x:x['id'])
-
-    temp_dir = os.path.join(collection_dir, 'temp')
-    timing_log = os.path.join(collection_dir, 'time.log')
-    if not os.path.exists(collection_dir):
-        os.makedirs(collection_dir)
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
 
     # data preparation
     gene_annotation = {}
@@ -122,6 +134,8 @@ def run_main_pipeline(args):
     shutil.copy(cd_hit_represent_fasta, os.path.join(collection_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    
+    # shutil.rmtree(temp_dir)
 
     
 
@@ -132,22 +146,6 @@ def run_add_sample_pipeline(args):
     fasta = args.fasta
     diamond = args.diamond
     identity = args.identity
-
-    new_samples = []
-    fasta_ext = ('.fasta', '.fna', 'ffn')
-    for path in args.gff_files:
-        dir_name = os.path.dirname(path)
-        base_name = os.path.basename(path)
-        sample_id = base_name.rsplit('.', 1)[0]
-        sample = {'id':sample_id, 'gff_file':path}
-        if fasta == True:
-            try:
-                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
-                sample['fasta_file'] = fasta_file
-            except:
-                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
-        new_samples.append(sample)
-    new_samples.sort(key= lambda x:x['id'])
 
     temp_dir = os.path.join(collection_dir, 'temp')
     timing_log = os.path.join(collection_dir, 'time.log')
@@ -160,18 +158,43 @@ def run_add_sample_pipeline(args):
     # Check required files
     gene_annotation = json.load(open(os.path.join(collection_dir, 'gene_annotation.json'), 'r'))
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
-    
+    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
+
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} is not exist')
     
-    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
-    
     old_blast_result = os.path.join(collection_dir, 'blast.tsv')
     if not os.path.isfile(old_blast_result):
         raise Exception(f'{old_blast_result} is not exist')
-    
 
+    # collect new samples
+    new_samples = []
+    sample_id_list = [sample['id'] for sample in old_samples]
+    fasta_ext = ('.fasta', '.fna', 'ffn')
+    for path in args.gff_files:
+        sample = {'gff_file':path}
+        dir_name = os.path.dirname(path)
+        base_name = os.path.basename(path)
+        sample_id = base_name.rsplit('.', 1)[0]
+        if fasta == True:
+            try:
+                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
+                sample['fasta_file'] = fasta_file
+            except:
+                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
+        sample_id = re.sub(r'\W', '_', sample_id)
+        if sample_id in sample_id_list:
+            logging.info(f'{sample_id} is already in collection -- skip')
+            continue
+        else:
+            sample_id_list.append(sample_id)
+        sample['id'] = sample_id
+        new_samples.append(sample)
+    if len(new_samples) == 0:
+        raise Exception(f'There must be at least one new sample')
+    new_samples.sort(key= lambda x:x['id'])
+    
     # data preparation
     data_preparation.extract_proteins(
         samples=new_samples,
@@ -249,6 +272,8 @@ def run_add_sample_pipeline(args):
     os.system(f'cat {not_match_represent_faa} >> {old_represent_faa}')
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+
+    # shutil.rmtree(temp_dir)
 
 def main():
     parser = argparse.ArgumentParser()

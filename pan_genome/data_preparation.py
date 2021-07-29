@@ -47,11 +47,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 ID = re.match(r"^ID=(.+)", tag)
                 if ID != None:
                     gene_id = ID.group(1)
+                    gene_id = re.sub(r'\W', '_', gene_id)
                     continue
 
                 gene = re.match(r"^gene=(.+)", tag)
                 if gene != None:
                     gene_name = gene.group(1)
+                    gene_name = re.sub(r'\W', '_', gene_name)
                     gene_dict['name'] = gene_name
                     continue
                 
@@ -61,10 +63,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                     gene_dict['product'] = gene_product
             if gene_id == None:
                 continue
-            # gene_id = sample_id + '_' + gene_id
-            # if gene_id in gene_annotation:
-            #     gene_id += '_{:05d}'.format(suffix)
-            #     suffix += 1
+            
+            if re.match(sample_id, gene_id) == None:
+                gene_id = sample_id + '_' + gene_id
+            if gene_id in gene_annotation:
+                logging.info(f'{gene_id} is already existed -- add suffix')
+                gene_id += '_{:05d}'.format(suffix)
+                suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]

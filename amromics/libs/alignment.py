@@ -277,13 +277,16 @@ def create_core_gene_alignment(roary_folder, collection_dir, threads=8, overwrit
         if not os.path.isfile(nucleotide_aln_file):
             logger.info('{} does not exist'.format(nucleotide_aln_file))
             continue
-
+        cluster_dict = {}
         for seq_record in SeqIO.parse(nucleotide_aln_file, 'fasta'):
             sample_name = re.findall(r'^(.+)_', seq_record.id)
             sample_name = sample_name[0]
             if sample_name not in sample_list:
                 raise Exception(f'Error concatenating gene alignment: {sample_name} is not a sample id')
-            seq_dict[sample_name] += str(seq_record.seq)
+            cluster_dict[sample_name] = str(seq_record.seq)
+        
+        for sample_name in cluster_dict:
+            seq_dict[sample_name] += cluster_dict[sample_name]
 
     with gzip.open(core_gene_aln_file, 'wt') as fh:
         for sample in sample_list:

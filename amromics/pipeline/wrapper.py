@@ -39,8 +39,8 @@ def run_single_sample(sample,extraStep=False, sample_dir='.', threads=0, memory=
     reads=None
     if sample['input_type'] not in ['asm', 'assembly']:
         pe_files = sample['files'].split(';')
+        reads={}
         if len(pe_files) > 1:
-            reads={}
             reads['pe1']=pe_files[0]
             reads['pe2']=pe_files[1]
 

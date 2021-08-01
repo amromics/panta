@@ -387,7 +387,6 @@ def setup_db():
     get_integrall_db()
     get_integron()
     #get_prophage()
-
-
-
-    
+def setup_minidb():
+    get_mlst_db()
+    get_virulome_db()

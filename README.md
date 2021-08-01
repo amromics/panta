@@ -31,7 +31,13 @@ The simplest method is installed via conda:
 1. Create a conda environment with all the necessary dependencies: From the repository directory run
 
 ```bash
-conda create -y -c conda-forge -c bioconda -c anaconda -c etetoolkit -c defaults --name amromics --file requirements.txt
+
+conda create -y -c conda-forge -c defaults --name amromics python=3.7 mamba
+
+source activate amromics
+
+mamba install -y -c conda-forge -c bioconda -c anaconda -c etetoolkit -c defaults  --file requirements.txt
+
 ```
 2. Optional: install amromics library into conda environment
 ```bash

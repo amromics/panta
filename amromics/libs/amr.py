@@ -39,7 +39,7 @@ def detect_amr_abricate(prefix_name, assembly, base_dir='.', threads=8, overwrit
     if os.path.isfile(amr_out) and (not overwrite):
         logger.info('Resistome for {} exists, skip analysis'.format(prefix_name))
         return amr_out
-    dbs=['ncbi','megares','ecoh','argannot','card']
+    dbs=['ncbi','megares','ecoh','argannot','card','resfinder']
     numError=0
     outputfiles=[]
     for db in dbs:

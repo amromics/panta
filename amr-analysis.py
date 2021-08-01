@@ -14,7 +14,7 @@ import pandas as pd
 
 from amromics.pipeline.analysis import single_genome_analysis, pan_genome_analysis
 from amromics.utils.utils import valid_id, software_version
-from amromics.db.utils import setup_db
+from amromics.db.utils import setup_db,setup_minidb
 from amromics import __version__
 
 logging.basicConfig(level=logging.DEBUG,
@@ -59,7 +59,7 @@ def input_file_to_samples(input_file, sep='\t'):
         sample_df['trim'] = sample_df['trim'].apply(lambda x: is_true(x))
 
     if 'strain' not in sample_df.columns:
-        sample_df['strain'] = ''
+        sample_df['strain'] = None
 
     if 'metadata' not in sample_df.columns:
         sample_df['metadata'] = ''
@@ -141,8 +141,11 @@ def single_genome_analysis_func(args):
     if threads <= 0:
         threads = multiprocessing.cpu_count()
     #auto setup db if db not exists
-    if not os.path.exists('db'):
-        setup_db()
+    if not os.path.exists('db') :
+        if args.initdb:
+            setup_db()
+        else:
+            setup_minidb()
     # run single sample pipeline
     samples = input_file_to_samples(args.input)
     single_genome_analysis(samples, work_dir, threads, memory, timing_log)
@@ -170,8 +173,11 @@ def pan_genome_analysis_func(args):
     if threads <= 0:
         threads = multiprocessing.cpu_count()
     #auto setup db if db not exists
-    if not os.path.exists('db'):
-        setup_db()
+    if not os.path.exists('db') :
+        if args.initdb:
+            setup_db()
+        else:
+            setup_minidb()
     samples = input_file_to_samples(args.input)
 
     # First run single analysis
@@ -207,7 +213,7 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
     pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
-
+    pa_cmd.add_argument('--initdb', help='Init full database', required=False,type=eval,choices=[True, False],default='False')
     pa_cmd = subparsers.add_parser(
         'sg',
         description='Single-genome analysis',
@@ -220,6 +226,7 @@ def main(arguments=sys.argv[1:]):
     pa_cmd.add_argument('-i', '--input', help='Input file', required=True, type=str)
     pa_cmd.add_argument('--work-dir', help='Working directory', default='data/work')
     pa_cmd.add_argument('--time-log', help='Time log file', default=None, type=str)
+    pa_cmd.add_argument('--initdb', help='Init full database', required=False,type=eval,choices=[True, False],default='False')
 
     pa_cmd = subparsers.add_parser(
         'download_db',

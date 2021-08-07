@@ -117,12 +117,7 @@ def create_fasta_include(fasta_file, include_list, output_file):
                     fh_out.write(line)
 
 
-def translate_dna(sequence):
-    """
-    :param sequence: (str) a DNA sequence string
-    :return: (str) a protein string from the forward reading frame 1
-    """
-
+def translate_dna(sequence, seq_id):
     codontable = {'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
                 'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
                 'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
@@ -152,11 +147,25 @@ def translate_dna(sequence):
             num_unknown += 1
         prot.append(residue)
     
+    protein_sequence = "".join(prot)
+
     # filter seq which has more than 5% of unknown
     if num_unknown / len (prot) > 0.05:
+        logger.info(f'Exclude {seq_id} - too many unknowns')
         return None
     
-    return "".join(prot)
+    # filter seq lacking start and stop codon
+    if prot[0] != 'M' and prot[-1] != '*':
+        logger.info(f'Exclude {seq_id} - lack start and stop codon')
+        return None
+
+    # filter seq with premature codon
+    results = re.findall(r'\*', protein_sequence)
+    if len(results) > 1:
+        logger.info(f'Exclude {seq_id} - have premature codon')
+        return None
+    
+    return protein_sequence
 
 def translate_protein(nu_fasta, pro_fasta):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
@@ -167,9 +176,8 @@ def translate_protein(nu_fasta, pro_fasta):
                 result = re.match(r"^(>[^:]+)", line)
                 seq_id = result.group(1)
             else:
-                line = translate_dna(line)
+                line = translate_dna(line, seq_id)
                 if line == None:
-                    logger.info(f'Exclude {seq_id} - too many unknowns')
                     continue
                 ls = [line[i:i+60] for i in range(0,len(line), 60)]
                 fh_out.write(seq_id + '\n')

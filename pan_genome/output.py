@@ -41,7 +41,8 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             # No. sequences
             row.append(len(this_cluster['gene_id']))
             # Avg sequences per isolate
-            row.append(len(this_cluster['gene_id']) / len(sample_dict))
+            avg_seq = len(this_cluster['gene_id']) / len(sample_dict)
+            row.append(round(avg_seq,2))
             # Min group size nuc
             row.append(min(length_list))
             # Max group size nuc

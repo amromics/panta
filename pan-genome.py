@@ -43,31 +43,18 @@ def run_post_analysis(gene_annotation,inflated_clusters,dontsplit,samples, out_d
         out_dir=out_dir
     )
 
-def run_main_pipeline(args):
-    collection_dir = args.collection_dir
-    threads = args.threads
-    dontsplit = args.dont_split
-    fasta = args.fasta
-    diamond = args.diamond
-    identity = args.identity
-    
-    temp_dir = os.path.join(collection_dir, 'temp')
-    timing_log = os.path.join(collection_dir, 'time.log')
-    if not os.path.exists(collection_dir):
-        os.makedirs(collection_dir)
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)    
 
-    # collect samples
+def collect_sample(sample_id_list, args):
     samples = []
-    sample_id_list = []
     fasta_ext = ('.fasta', '.fna', 'ffn')
     for path in args.gff_files:
+        if not path.endswith('gff'):
+            raise Exception(f'{path} should be a gff3 file')
         sample = {'gff_file':path}
         dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.rsplit('.', 1)[0]
-        if fasta == True:
+        if args.fasta == True:
             try:
                 fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
                 sample['fasta_file'] = fasta_file
@@ -75,23 +62,42 @@ def run_main_pipeline(args):
                 raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
         sample_id = re.sub(r'\W', '_', sample_id)
         if sample_id in sample_id_list:
-            logging.info(f'{sample_id} is already in collection -- skip')
+            logging.info(f'{sample_id} already exists -- skip')
             continue
         else:
             sample_id_list.append(sample_id)
         sample['id'] = sample_id
         samples.append(sample)
+    samples.sort(key= lambda x:x['id'])
+    return samples
+
+def run_main_pipeline(args):
+    out_dir = args.outdir
+    threads = args.threads
+    dontsplit = args.dont_split
+    diamond = args.diamond
+    identity = args.identity
+    
+    temp_dir = os.path.join(out_dir, 'temp')
+    timing_log = os.path.join(out_dir, 'time.log')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)    
+
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
-    samples.sort(key= lambda x:x['id'])
-
+    
     # data preparation
     gene_annotation = {}
     data_preparation.extract_proteins(
         samples=samples,
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
-        fasta=fasta,
+        fasta=args.fasta,
         threads=threads)
 
     combined_faa = data_preparation.combine_proteins(
@@ -126,29 +132,35 @@ def run_main_pipeline(args):
         mcl_file=mcl_file)
     
     # post analysis
-    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, samples, collection_dir)
+    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, samples, out_dir)
 
     # output for next run
-    json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(cd_hit_represent_fasta, os.path.join(collection_dir, 'representative.fasta'))
-    json.dump(clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(blast_result, os.path.join(collection_dir, 'blast.tsv'))
-    
+    json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(inflated_clusters, open(os.path.join(out_dir, 'inflated_clusters.json'), 'w'), indent=4, sort_keys=True)
+
     # shutil.rmtree(temp_dir)
 
     
 
 def run_add_sample_pipeline(args):
     collection_dir = args.collection_dir
+    out_dir = args.outdir
+    if out_dir == None:
+        out_dir = collection_dir
     threads = args.threads
     dontsplit = args.dont_split
-    fasta = args.fasta
     diamond = args.diamond
     identity = args.identity
 
-    temp_dir = os.path.join(collection_dir, 'temp')
-    timing_log = os.path.join(collection_dir, 'time.log')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    temp_dir = os.path.join(out_dir, 'temp')
+    timing_log = os.path.join(out_dir, 'time.log')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
@@ -162,45 +174,24 @@ def run_add_sample_pipeline(args):
 
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
-        raise Exception(f'{old_represent_faa} is not exist')
+        raise Exception(f'{old_represent_faa} does not exist')
     
     old_blast_result = os.path.join(collection_dir, 'blast.tsv')
     if not os.path.isfile(old_blast_result):
-        raise Exception(f'{old_blast_result} is not exist')
+        raise Exception(f'{old_blast_result} does not exist')
 
     # collect new samples
-    new_samples = []
     sample_id_list = [sample['id'] for sample in old_samples]
-    fasta_ext = ('.fasta', '.fna', 'ffn')
-    for path in args.gff_files:
-        sample = {'gff_file':path}
-        dir_name = os.path.dirname(path)
-        base_name = os.path.basename(path)
-        sample_id = base_name.rsplit('.', 1)[0]
-        if fasta == True:
-            try:
-                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
-                sample['fasta_file'] = fasta_file
-            except:
-                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
-        sample_id = re.sub(r'\W', '_', sample_id)
-        if sample_id in sample_id_list:
-            logging.info(f'{sample_id} is already in collection -- skip')
-            continue
-        else:
-            sample_id_list.append(sample_id)
-        sample['id'] = sample_id
-        new_samples.append(sample)
+    new_samples = collect_sample(sample_id_list, args)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
-    new_samples.sort(key= lambda x:x['id'])
     
     # data preparation
     data_preparation.extract_proteins(
         samples=new_samples,
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
-        fasta=fasta,
+        fasta=args.fasta,
         threads=threads
         )
     new_combined_faa = data_preparation.combine_proteins(
@@ -264,14 +255,14 @@ def run_add_sample_pipeline(args):
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
     
-    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, new_samples, collection_dir)
+    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, new_samples, out_dir)
 
     # output for next run
-    json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    os.system(f'cat {not_match_represent_faa} >> {old_represent_faa}')
-    json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(new_samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, out_dir)
+    json.dump(new_clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    shutil.copy(combined_blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
 
@@ -286,7 +277,7 @@ def main():
     )
     main_cmd.set_defaults(func=run_main_pipeline)
     main_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
-    main_cmd.add_argument('-c', '--collection-dir', help='collection directory', required=True, type=str)
+    main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
@@ -301,6 +292,7 @@ def main():
     add_cmd.set_defaults(func=run_add_sample_pipeline)
     add_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
+    add_cmd.add_argument('-o', '--outdir', help='output directory',default=None, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)

@@ -51,6 +51,14 @@ def combine_blast_results(blast_1, blast_2, blast_3, outdir):
     return combined_blast_results
 
 
+def combine_representative(new, old, out_dir):
+    temp_file = os.path.join(out_dir, 'representative_temp')
+    out_file = os.path.join(out_dir, 'representative.fasta')
+    os.system(f'cat {old} {new} > {temp_file}')
+
+    os.replace(temp_file, out_file)
+
+
 def reinflate_clusters(old_clusters, cd_hit_2d_clusters, not_match_clusters, mcl_file):
     starttime = datetime.now()
 

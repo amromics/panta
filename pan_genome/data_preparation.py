@@ -36,7 +36,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             end = int(cells[4])
             length = end - start
             gene_dict['length'] = length
-            if length < 18:
+            if length < 120:
                 continue
             seq_id = cells[0]
             gene_dict['contig'] = seq_id
@@ -64,12 +64,12 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue
             
-            if re.match(sample_id, gene_id) == None:
-                gene_id = sample_id + '_' + gene_id
-            if gene_id in gene_annotation:
-                logging.info(f'{gene_id} is already existed -- add suffix')
-                gene_id += '_{:05d}'.format(suffix)
-                suffix += 1
+            # if re.match(sample_id, gene_id) == None:
+            #     gene_id = sample_id + '_' + gene_id
+            # if gene_id in gene_annotation:
+            #     logging.info(f'{gene_id} already exists -- add suffix')
+            #     gene_id += '_{:05d}'.format(suffix)
+            #     suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
@@ -94,6 +94,22 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
         gene_annotation[gene_id]['neighbour_genes'] = neighbour_genes
     
     return bed_file, fna_file, gene_annotation
+
+
+    #         gene_position.append(gene_id)
+    # for gene_id in gene_annotation:
+    #     index = gene_position.index(gene_id)
+    #     pre_index = index - 5
+    #     post_index = index + 6
+    #     if pre_index < 0:
+    #         pre_index = 0
+    #     length_of_contig = len(gene_position)
+    #     if post_index >= length_of_contig:
+    #         post_index = length_of_contig
+    #     neighbour_genes = gene_position[pre_index:index] + gene_position[index+1:post_index]
+    #     gene_annotation[gene_id]['neighbour_genes'] = neighbour_genes
+    
+    # return bed_file, fna_file, gene_annotation
 
 def process_single_sample(sample, out_dir, fasta):
     # starttime = datetime.now()

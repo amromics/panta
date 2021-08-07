@@ -1,7 +1,6 @@
 import os
 import logging
 from datetime import datetime
-from pan_genome.utils import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,9 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_in
         for neighbour_gene in neighbours_of_p:
             try:
                 cluster_index = gene_to_cluster_index[neighbour_gene]
+                cluster_indices_around_p.add(cluster_index)
             except:
                 continue
-            cluster_indices_around_p.add(cluster_index)
         cluster_indices_around_paralogs.append(cluster_indices_around_p)
 
     # create data structure to hold new clusters
@@ -88,7 +87,7 @@ def split_paralogs(gene_annotation, unsplit_clusters, dontsplit):
     clusters_not_paralogs = set()
     # run iteratively
     out_clusters = unsplit_clusters
-    for i in range(50):
+    for i in range(5):
         stime = datetime.now()
         in_clusters = out_clusters
         out_clusters = []
@@ -165,7 +164,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
                 cluster_product = ', '.join(cluster_product)
             else:
                 cluster_product = 'unknown'
-        # check if cluster_new_name is already exist
+        # check if cluster_new_name already exists
         if cluster_new_name in annotated_clusters:
             cluster_new_name += '_{:05d}'.format(suffix)
             suffix += 1

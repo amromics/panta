@@ -37,7 +37,7 @@ def single_genome_analysis(samples, work_dir, threads=0, memory=8, timing_log=No
             os.makedirs(sample_dir)
         wrapper.run_single_sample(
             sample, sample_dir=sample_dir, threads=threads,
-            memory=memory, timing_log=timing_log)
+            memory=memory,trim=sample['trim'], timing_log=timing_log)
 
         with open(os.path.join(sample_dir, sample_id + '_dump.json'), 'w') as fn:
             json.dump(sample, fn)

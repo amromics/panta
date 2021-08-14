@@ -50,10 +50,10 @@ def run_single_sample(sample,extraStep=False, sample_dir='.', threads=0, memory=
         sample['assembly'] = assembler.get_assembly(sample['id'], sample['files'],base_dir=sample_dir)
 
     if not 'assembly' in sample.keys() and not reads==None:
-        if trim  and not 'se' in reads:
-            reads['pe1'],reads['pe2'] = assembler.trim_pe_trimmomatic(sample['id'],reads,base_dir=sample_dir, timing_log=timing_log,threads=threads)
+        #if trim  and not 'se' in reads:
+        #    reads['pe1'],reads['pe2'] = assembler.trim_pe_trimmomatic(sample['id'],reads,base_dir=sample_dir, timing_log=timing_log,threads=threads)
         #sample = assemble_spades(sample, base_dir=base_dir, threads=0, memory=memory,timing_log=timing_log)
-        sample['assembly'] = assembler.assemble_shovill(sample['id'],reads, base_dir=sample_dir, threads=0, memory=memory,timing_log=timing_log)
+        sample['assembly'] = assembler.assemble_shovill(sample['id'],reads, base_dir=sample_dir, threads=0, memory=memory,trim=trim,timing_log=timing_log)
     if extraStep and not reads==None :
         sample['se_bam']=qc.map_reads_to_assembly_bwamem(sample['id'],sample['assembly'],reads, base_dir=sample_dir, threads=0, memory=memory,timing_log=timing_log)
     if extraStep  and not reads==None:

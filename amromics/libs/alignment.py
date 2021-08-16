@@ -137,7 +137,7 @@ def run_protein_alignment(roary_folder, collection_dir, threads=8, overwrite=Fal
             gene_dir = os.path.join(alignment_dir, gene_id)
 
             # check if done before
-            gene_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
+            gene_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln.gz')
             if (not overwrite) and os.path.isfile(gene_aln_file):
                 continue
 
@@ -146,7 +146,7 @@ def run_protein_alignment(roary_folder, collection_dir, threads=8, overwrite=Fal
                 logger.info('{} does not exist'.format(gene_aln_file))
                 continue
 
-            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
+            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --bar -j {threads} -a {cmds_file}"
@@ -190,24 +190,25 @@ def create_nucleotide_alignment(roary_folder, collection_dir, threads=8, overwri
         gene_dir = os.path.join(alignment_dir, gene_id)
 
         # check if done before
-        nucleotide_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        nucleotide_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln.gz')
         if (not overwrite) and os.path.isfile(nucleotide_aln_file):
             continue
 
-        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln')
+        protein_aln_file = os.path.join(gene_dir, gene_id + '.faa.aln.gz')
         if not os.path.isfile(protein_aln_file):
             logger.info('{} does not exist'.format(protein_aln_file))
             continue
         protein_dict = {}
-        for seq_record in SeqIO.parse(protein_aln_file, 'fasta'):
-            protein_dict[seq_record.id] = str(seq_record.seq)
+        with gzip.open(protein_aln_file, 'rt') as fh:
+            for seq_record in SeqIO.parse(fh, 'fasta'):
+                protein_dict[seq_record.id] = str(seq_record.seq)
 
         nucleotide_seq_file = os.path.join(gene_dir, gene_id + '.fna')
         nucleotide_dict = {}
         for seq_record in SeqIO.parse(nucleotide_seq_file, 'fasta'):
             nucleotide_dict[seq_record.id] = str(seq_record.seq)
 
-        with open(nucleotide_aln_file, 'w') as fh:
+        with gzip.open(nucleotide_aln_file, 'wt') as fh:
             for seq_id in protein_dict.keys():
                 protein = protein_dict[seq_id]
                 nucleotide = nucleotide_dict[seq_id]
@@ -221,6 +222,12 @@ def create_nucleotide_alignment(roary_folder, collection_dir, threads=8, overwri
                         codon_pos += 1
                 new_record = SeqRecord(Seq(result), id = seq_id, description = '')
                 SeqIO.write(new_record, fh, 'fasta')
+        
+        # remove input files
+        os.remove(nucleotide_seq_file)
+        protein_seq_file = os.path.join(gene_dir, gene_id + '.faa')
+        os.remove(protein_seq_file)
+
     return alignment_dir
 
 
@@ -273,17 +280,18 @@ def create_core_gene_alignment(roary_folder, collection_dir, threads=8, overwrit
         gene_id = re.sub(r'\W+', '', gene_id)
         gene_dir = os.path.join(alignment_dir, gene_id)
 
-        nucleotide_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+        nucleotide_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln.gz')
         if not os.path.isfile(nucleotide_aln_file):
             logger.info('{} does not exist'.format(nucleotide_aln_file))
             continue
         cluster_dict = {}
-        for seq_record in SeqIO.parse(nucleotide_aln_file, 'fasta'):
-            sample_name = re.findall(r'^(.+)_', seq_record.id)
-            sample_name = sample_name[0]
-            if sample_name not in sample_list:
-                raise Exception(f'Error concatenating gene alignment: {sample_name} is not a sample id')
-            cluster_dict[sample_name] = str(seq_record.seq)
+        with gzip.open(nucleotide_aln_file, 'rt') as fh:
+            for seq_record in SeqIO.parse(fh, 'fasta'):
+                sample_name = re.findall(r'^(.+)_', seq_record.id)
+                sample_name = sample_name[0]
+                if sample_name not in sample_list:
+                    raise Exception(f'Error concatenating gene alignment: {sample_name} is not a sample id')
+                cluster_dict[sample_name] = str(seq_record.seq)
         
         for sample_name in cluster_dict:
             seq_dict[sample_name] += cluster_dict[sample_name]

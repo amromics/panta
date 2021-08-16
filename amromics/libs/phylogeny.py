@@ -151,7 +151,7 @@ def run_gene_phylogeny_iqtree(roary_folder, collection_dir, threads=8, overwrite
                 continue
 
             gene_aln_file_roary = os.path.join(roary_folder,'pan_genome_sequences', gene_id + '.fa.aln')
-            gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln')
+            gene_aln_file = os.path.join(gene_dir, gene_id + '.fna.aln.gz')
             if os.path.isfile(gene_aln_file_roary):
                 shutil.move(gene_aln_file_roary,gene_aln_file)
             if not os.path.isfile(gene_aln_file):

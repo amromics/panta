@@ -38,7 +38,10 @@ def species_identification_kraken(prefix_name,assembly, db='db/kraken2/k2std', b
         return None
     return kraken2_report
 ###Sequence typing using mlst
+
+
 def detect_mlst(prefix_name,assembly,  base_dir='.',timing_log=None, threads=0):
+    #TODO: include overwrite
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
@@ -46,9 +49,12 @@ def detect_mlst(prefix_name,assembly,  base_dir='.',timing_log=None, threads=0):
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     mlst_out = os.path.join(path_out, prefix_name + '_mlst.tsv')
+    if os.path.isfile(mlst_out):
+        return mlst_out
 
     gunzip_fna= assembly
     if assembly.endswith('.gz'):
+        #FIXME: check if this is needed
         gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
         cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
         run_command(cmd)

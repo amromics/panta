@@ -11,6 +11,7 @@ from amromics.utils.command import run_command
 import amromics.libs.mlst as mlst
 logger = logging.getLogger(__name__)
 NUM_CORES_DEFAULT = multiprocessing.cpu_count()
+
 def detect_amr_abricate(prefix_name, assembly, base_dir='.', threads=8, overwrite=False, timing_log=None):
     """
     Run abricate to identify resistant genes
@@ -60,6 +61,8 @@ def detect_amr_abricate(prefix_name, assembly, base_dir='.', threads=8, overwrit
     combined_tsv.to_csv(amr_out, index=False,sep='\t', encoding='utf-8-sig')
     #sample['updated'] = True
     return amr_out
+
+
 def detect_amr_amrfinder(prefix_name,faa_file,fna_file,gff_file,genus=None,species=None,  base_dir='.', db='db/amrfinderplus/data/latest', timing_log=None, threads=0):
     """
         Run AMR analysis, using AMRfinderPlus for searching amr genes, virulome genes and point mutaions.
@@ -246,6 +249,8 @@ def detect_virulome(prefix_name,assembly, base_dir='.', threads=0, timing_log=No
     -------
         path to virulent gene file
     """
+
+    #TODO: to include overwrite
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
@@ -254,12 +259,16 @@ def detect_virulome(prefix_name,assembly, base_dir='.', threads=0, timing_log=No
         os.makedirs(path_out)
 
     vir_out = os.path.join(path_out, prefix_name + '_virulome.tsv')
+    if os.path.isfile(vir_out):
+        return vir_out
+
     # cmd = 'abricate --quiet --threads {threads} --nopath --db vfdb {infile} > {outfile}'.format(threads=threads,infile=read_data['assembly'],outfile=vir_out)
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd) != 0:
     #     return None
-    gunzip_fna= assembly;
+    gunzip_fna = assembly
     if assembly.endswith('.gz'):
+        #FIXME: review this step
         gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
         cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
         run_command(cmd)
@@ -280,6 +289,9 @@ def detect_plasmid(prefix_name,assembly,  base_dir='.', threads=0, timing_log=No
 
     #Plasmid finder
     oriREP_out = os.path.join(path_out,prefix_name + '_plasmid.tsv')
+    if os.path.isfile(oriREP_out):
+        return oriREP_out
+
     # cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(threads=threads,infile=read_data['assembly'],outfile=oriREP_out)
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd) != 0:
@@ -294,6 +306,8 @@ def detect_plasmid(prefix_name,assembly,  base_dir='.', threads=0, timing_log=No
         os.remove(os.path.join(path_out,prefix_name+'.fasta'))
 
     return oriREP_out
+
+
 def detect_pmlst(prefix_name,assembly,  base_dir='.', threads=0):
     if threads == 0:
         threads = NUM_CORES_DEFAULT
@@ -304,12 +318,16 @@ def detect_pmlst(prefix_name,assembly,  base_dir='.', threads=0):
 
     #Plasmid finder
     pmlst_out = os.path.join(path_out, prefix_name + '_pmlst.tsv')
+    if os.path.isfile(pmlst_out):
+        return pmlst_out
+
     # cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(threads=threads,infile=read_data['assembly'],outfile=oriREP_out)
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd) != 0:
     #     return None
-    gunzip_fna= assembly;
+    gunzip_fna = assembly
     if assembly.endswith('.gz'):
+        #FIXME: review this
         gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
         cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
         run_command(cmd)
@@ -325,10 +343,8 @@ def detect_pmlst(prefix_name,assembly,  base_dir='.', threads=0):
     #     return None
     if os.path.exists(os.path.join(path_out,prefix_name+'.fasta')):
         os.remove(os.path.join(path_out,prefix_name+'.fasta'))
-
-
-
     return pmlst_out
+
 def detect_insertion_sequence(prefix_name,assembly,  base_dir='.', threads=0):
     """
         Run isescan for searching IS
@@ -336,26 +352,30 @@ def detect_insertion_sequence(prefix_name,assembly,  base_dir='.', threads=0):
         :param base_dir: working directory
         :return: path to output file in result holder
     """
+    # TODO: include overwrite mode
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
     path_out = os.path.join(base_dir, prefix_name+"_isescan")
     if not os.path.exists(path_out):
         os.makedirs(path_out)
-    gunzip_fna= assembly;
+
+    isescan_out = os.path.join(path_out, prefix_name + '_is.tsv')
+    if os.path.isfile(isescan_out):
+        return isescan_out
+
+    gunzip_fna = assembly
     if assembly.endswith('.gz'):
+        #FIXME: this step is not needed
         gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
         cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
         run_command(cmd)
     #Plasmid finder
-    isescan_out = os.path.join(path_out, prefix_name + '_is.tsv')
+
     cmd = 'isescan.py --nthread {threads} --seqfile {asm} --output {output}  '.format(
         threads=threads,
-
         asm=gunzip_fna,
         output=path_out
-
-
     )
     if run_command(cmd) != 0:
         return None
@@ -374,7 +394,9 @@ def detect_insertion_sequence(prefix_name,assembly,  base_dir='.', threads=0):
         os.remove(os.path.join(path_out,prefix_name+'.fasta'))
     return isout
 
+
 def detect_integron(prefix_name,assembly, base_dir='.', timing_log=None,threads=0):
+    # TODO: include overwrite mode
     if threads == 0:
         threads = NUM_CORES_DEFAULT
     #path_out = os.path.join(base_dir, 'integron_finder_' + read_data['sample_id'])
@@ -382,12 +404,18 @@ def detect_integron(prefix_name,assembly, base_dir='.', timing_log=None,threads=
     if not os.path.exists(path_out):
         os.makedirs(path_out)
     #Plasmid finder
+    integron_out = os.path.join(path_out, prefix_name + '_integron.tsv')
+
+    if os.path.isfile(integron_out):
+        return integron_out
+
     gunzip_fna= assembly;
     if assembly.endswith('.gz'):
+        #FIXME: this step may not be necessary
         gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
         cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
         run_command(cmd)
-    integron_out = os.path.join(path_out,prefix_name + '_integron.tsv')
+
     # cmd = 'integron_finder {sequence} --func-annot --local-max --mute --outdir {outdir}'.format(sequence=read_data['assembly'],outdir=path_out)
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd,timing_log) != 0:
@@ -396,7 +424,10 @@ def detect_integron(prefix_name,assembly, base_dir='.', timing_log=None,threads=
     if os.path.exists(os.path.join(path_out,prefix_name+'.fasta')):
         os.remove(os.path.join(path_out,prefix_name+'.fasta'))
     return integron_out
+
+
 def detect_prophage(prefix_name,faa_file, base_dir='.', timing_log=None,threads=0):
+    #TODO: include overwrite mode
     if threads == 0:
         threads = NUM_CORES_DEFAULT
 
@@ -406,6 +437,8 @@ def detect_prophage(prefix_name,faa_file, base_dir='.', timing_log=None,threads=
 
     #Plasmid finder
     prophage_out = os.path.join(path_out,prefix_name + '_prophage.tsv')
+    if os.path.isfile(prophage_out):
+        return prophage_out
     # cmd = 'abricate --quiet --threads {threads} --nopath --db plasmidfinder {infile} > {outfile}'.format(threads=threads,infile=read_data['assembly'],outfile=oriREP_out)
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd) != 0:

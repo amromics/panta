@@ -50,3 +50,6 @@ for j in [50, 100]:
 
 #     cmd = f'python3 experiments/compare_result_2.py tests/Sp200/test8/{str(j)} tests/Sp200/200'
 #     os.system(cmd)
+
+
+# /usr/bin/time -v python3 pan-genome.py main -o /home/ntanh1999/pan-genome/amromics/amromics/pan-genome/tests/Sp50 -t 8 /home/ntanh1999/pan-genome/amromics/amromics/pan-genome/data/Sp50/*.gff > Sp50.log 2>&1

@@ -140,8 +140,6 @@ def run_main_pipeline(args):
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(inflated_clusters, open(os.path.join(out_dir, 'inflated_clusters.json'), 'w'), indent=4, sort_keys=True)
 
     # shutil.rmtree(temp_dir)
 

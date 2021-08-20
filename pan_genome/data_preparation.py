@@ -64,12 +64,12 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue
             
-            # if re.match(sample_id, gene_id) == None:
-            #     gene_id = sample_id + '_' + gene_id
-            # if gene_id in gene_annotation:
-            #     logging.info(f'{gene_id} already exists -- add suffix')
-            #     gene_id += '_{:05d}'.format(suffix)
-            #     suffix += 1
+            if re.match(sample_id, gene_id) == None:
+                gene_id = sample_id + '_' + gene_id
+            if gene_id in gene_annotation:
+                logging.info(f'{gene_id} already exists -- add suffix')
+                gene_id += '_{:05d}'.format(suffix)
+                suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]

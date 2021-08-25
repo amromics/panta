@@ -14,10 +14,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_post_analysis(gene_annotation,inflated_clusters,dontsplit,samples, out_dir):
+def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,samples, out_dir):
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
+        gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
         dontsplit=dontsplit
         )
@@ -93,10 +94,12 @@ def run_main_pipeline(args):
     
     # data preparation
     gene_annotation = {}
+    gene_position = {}
     data_preparation.extract_proteins(
         samples=samples,
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
+        gene_position = gene_position,
         fasta=args.fasta,
         threads=threads)
 
@@ -132,10 +135,11 @@ def run_main_pipeline(args):
         mcl_file=mcl_file)
     
     # post analysis
-    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, samples, out_dir)
+    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, samples, out_dir)
 
     # output for next run
     json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -167,6 +171,7 @@ def run_add_sample_pipeline(args):
     
     # Check required files
     gene_annotation = json.load(open(os.path.join(collection_dir, 'gene_annotation.json'), 'r'))
+    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
 
@@ -189,6 +194,7 @@ def run_add_sample_pipeline(args):
         samples=new_samples,
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
+        gene_position = gene_position,
         fasta=args.fasta,
         threads=threads
         )
@@ -253,10 +259,11 @@ def run_add_sample_pipeline(args):
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
     
-    run_post_analysis(gene_annotation, inflated_clusters, dontsplit, new_samples, out_dir)
+    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, new_samples, out_dir)
 
     # output for next run
     json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, out_dir)
     json.dump(new_clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)

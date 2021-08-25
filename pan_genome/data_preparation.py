@@ -31,15 +31,15 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 continue
             
             gene_dict = {}
-            gene_dict['sample_id'] = sample_id
+            gene_dict['s'] = sample_id
             start = int(cells[3])
             end = int(cells[4])
             length = end - start
-            gene_dict['length'] = length
+            gene_dict['l'] = length
             if length < 120:
                 continue
             seq_id = cells[0]
-            gene_dict['contig'] = seq_id
+            gene_dict['c'] = seq_id
             trand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
@@ -54,13 +54,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 if gene != None:
                     gene_name = gene.group(1)
                     gene_name = re.sub(r'\W', '_', gene_name)
-                    gene_dict['name'] = gene_name
+                    gene_dict['n'] = gene_name
                     continue
                 
                 product = re.match(r"^product=(.+)", tag)
                 if product != None:
                     gene_product = product.group(1)
-                    gene_dict['product'] = gene_product
+                    gene_dict['p'] = gene_product
             if gene_id == None:
                 continue
             
@@ -78,38 +78,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             gene_annotation[gene_id] = gene_dict
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
-    
-    for gene_id in gene_annotation:
-        contig = gene_annotation[gene_id]['contig']
-        genes_of_contig = gene_position[contig]
-        index = genes_of_contig.index(gene_id)
-        pre_index = index - 5
-        post_index = index + 6
-        if pre_index < 0:
-            pre_index = 0
-        length_of_contig = len(genes_of_contig)
-        if post_index >= length_of_contig:
-            post_index = length_of_contig
-        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
-        gene_annotation[gene_id]['neighbour_genes'] = neighbour_genes
-    
-    return bed_file, fna_file, gene_annotation
 
-
-    #         gene_position.append(gene_id)
-    # for gene_id in gene_annotation:
-    #     index = gene_position.index(gene_id)
-    #     pre_index = index - 5
-    #     post_index = index + 6
-    #     if pre_index < 0:
-    #         pre_index = 0
-    #     length_of_contig = len(gene_position)
-    #     if post_index >= length_of_contig:
-    #         post_index = length_of_contig
-    #     neighbour_genes = gene_position[pre_index:index] + gene_position[index+1:post_index]
-    #     gene_annotation[gene_id]['neighbour_genes'] = neighbour_genes
+    return bed_file, fna_file, gene_annotation, gene_position
     
-    # return bed_file, fna_file, gene_annotation
 
 def process_single_sample(sample, out_dir, fasta):
     # starttime = datetime.now()
@@ -120,7 +91,7 @@ def process_single_sample(sample, out_dir, fasta):
         os.makedirs(sample_dir)
     
     # parse gff file
-    bed_file, fna_file, gene_annotation = parse_gff_file(
+    bed_file, fna_file, gene_annotation, gene_position = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
         sample_id = sample_id
@@ -139,10 +110,10 @@ def process_single_sample(sample, out_dir, fasta):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_annotation, faa_file, sample_dir
+    return gene_annotation, faa_file, sample_dir, gene_position
 
 
-def extract_proteins(samples, out_dir, gene_annotation, fasta, threads):
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, threads):
     starttime = datetime.now()
     
     if threads == 0:
@@ -155,6 +126,7 @@ def extract_proteins(samples, out_dir, gene_annotation, fasta, threads):
         gene_annotation.update(result[0])
         sample['faa_file'] = result[1]
         sample['sample_dir'] = result[2]
+        gene_position[sample['id']] = result[3]
     
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')

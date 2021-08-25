@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 def find_paralogs(cluster, gene_annotation):
     samples = {}
     for gene_id in cluster:
-        sample_id = gene_annotation[gene_id]['sample_id']
+        sample_id = gene_annotation[gene_id]['s']
         samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
@@ -24,11 +24,31 @@ def find_paralogs(cluster, gene_annotation):
     return paralog_genes
 
 
-def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index):
+def get_neighbour_genes(gene_annotation, gene_position):
+    gene_neighbour_dict = {}
+    for gene_id in gene_annotation:
+        contig = gene_annotation[gene_id]['c']
+        sample_id = gene_annotation[gene_id]['s']
+        genes_of_contig = gene_position[sample_id][contig]
+        index = genes_of_contig.index(gene_id)
+        pre_index = index - 5
+        post_index = index + 6
+        if pre_index < 0:
+            pre_index = 0
+        length_of_contig = len(genes_of_contig)
+        if post_index >= length_of_contig:
+            post_index = length_of_contig
+        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
+        gene_neighbour_dict[gene_id] = neighbour_genes
+
+    return gene_neighbour_dict
+
+
+def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index):
     # find cluster indices of all the neighbour genes of each paralog gene
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
-        neighbours_of_p = gene_annotation[p]['neighbour_genes']
+        neighbours_of_p = gene_neighbour_dict[p]
         cluster_indices_around_p = set()
         for neighbour_gene in neighbours_of_p:
             try:
@@ -47,7 +67,7 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_in
         if g in paralog_genes:
             continue
 
-        neighbour_genes_of_g = gene_annotation[g]['neighbour_genes']
+        neighbour_genes_of_g = gene_neighbour_dict[g]
         if len(neighbour_genes_of_g) == 0:
             new_clusters[-1].append(g)
             continue
@@ -78,11 +98,13 @@ def create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_in
     
     return new_clusters
 
-def split_paralogs(gene_annotation, unsplit_clusters, dontsplit):
+def split_paralogs(gene_annotation, gene_position, unsplit_clusters, dontsplit):
     if dontsplit == True:
         return unsplit_clusters
 
     starttime = datetime.now()
+    
+    gene_neighbour_dict = get_neighbour_genes(gene_annotation, gene_position)
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -113,7 +135,7 @@ def split_paralogs(gene_annotation, unsplit_clusters, dontsplit):
                 continue
 
             # split paralogs
-            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_annotation, gene_to_cluster_index)
+            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 
@@ -144,20 +166,20 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
             this_gene = gene_annotation[gene_id]
-            if 'name' in this_gene:
-                gene_name = this_gene['name']
+            if 'n' in this_gene:
+                gene_name = this_gene['n']
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_new_name = gene_name
                     max_number = gene_name_count[gene_name]
-                    if 'product' in this_gene:
-                        cluster_product = this_gene['product']
+                    if 'p' in this_gene:
+                        cluster_product = this_gene['p']
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
                 this_gene = gene_annotation[gene_id]
-                if 'product' in this_gene:
-                    gene_product = this_gene['product']
+                if 'p' in this_gene:
+                    gene_product = this_gene['p']
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)
             if len(cluster_product) > 0:

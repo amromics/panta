@@ -146,6 +146,8 @@ def run_main_pipeline(args):
     shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
+    shutil.rmtree(os.path.join(temp_dir, 'samples'))
+    logging.info('Done')
 
     
 
@@ -270,6 +272,8 @@ def run_add_sample_pipeline(args):
     shutil.copy(combined_blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
+    shutil.rmtree(os.path.join(temp_dir, 'samples'))
+    logging.info('Done')
 
 def main():
     parser = argparse.ArgumentParser()

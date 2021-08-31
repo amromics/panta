@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 def find_paralogs(cluster, gene_annotation):
     samples = {}
     for gene_id in cluster:
-        sample_id = gene_annotation[gene_id]['s']
+        sample_id = gene_annotation[gene_id][0]
         samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
@@ -27,8 +27,8 @@ def find_paralogs(cluster, gene_annotation):
 def get_neighbour_genes(gene_annotation, gene_position):
     gene_neighbour_dict = {}
     for gene_id in gene_annotation:
-        contig = gene_annotation[gene_id]['c']
-        sample_id = gene_annotation[gene_id]['s']
+        contig = gene_annotation[gene_id][1]
+        sample_id = gene_annotation[gene_id][0]
         genes_of_contig = gene_position[sample_id][contig]
         index = genes_of_contig.index(gene_id)
         pre_index = index - 5
@@ -166,20 +166,20 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
             this_gene = gene_annotation[gene_id]
-            if 'n' in this_gene:
-                gene_name = this_gene['n']
+            if this_gene[3] != None:
+                gene_name = this_gene[3]
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_new_name = gene_name
                     max_number = gene_name_count[gene_name]
-                    if 'p' in this_gene:
-                        cluster_product = this_gene['p']
+                    if this_gene[4] != None:
+                        cluster_product = this_gene[4]
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
                 this_gene = gene_annotation[gene_id]
-                if 'p' in this_gene:
-                    gene_product = this_gene['p']
+                if this_gene[4] != None:
+                    gene_product = this_gene[4]
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)
             if len(cluster_product) > 0:

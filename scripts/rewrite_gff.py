@@ -1,11 +1,8 @@
 import argparse
 import os
 import re
-import shutil
 import csv
 import logging
-import json
-from glob import glob
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -73,12 +70,16 @@ def rewrite_gff(infile, outfile, dictionary):
                     if gene_id in dictionary:
                         cluster_id = dictionary[gene_id]
                         found = True
+                    else:
+                        logging.info(f'{gene_id} does not found roary result -- skip')
                     break
             if found == True:
                 tags.append('pangenome_id={}'.format(str(cluster_id)))
+                cells[8] = ';'.join(tags)
+                out_fh.write('\t'.join(cells) + '\n')
+            else:
+                out_fh.write(line)
             
-            cells[8] = ';'.join(tags)
-            out_fh.write('\t'.join(cells) + '\n')
 
 
 def rewrite_gffs(gff_files, gene_dict, outdir):
@@ -96,7 +97,7 @@ def rewrite_gffs(gff_files, gene_dict, outdir):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Add tag "pangenome_id=number" into gff files')
 
     parser.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
     parser.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
@@ -112,4 +113,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # python3 rewrite_gff.py -o a -r /home/ntanh1999/disk/results/roary/Sa110_split/gene_presence_absence.csv /home/ntanh1999/disk/datasets/data/Sa110/*.gff
+    # python3 rewrite_gff.py -o out -r /home/ntanh1999/disk/results/roary/Sa110_split/gene_presence_absence.csv /home/ntanh1999/disk/datasets/data/Sa110/*.gff

@@ -39,8 +39,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             trand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
-            gene_name = None
-            gene_product = None
+            gene_name = ''
+            gene_product = ''
             for tag in tags:
                 ID = re.match(r"^ID=(.+)", tag)
                 if ID != None:

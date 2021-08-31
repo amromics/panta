@@ -24,24 +24,6 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4, timing_log=None):
     logging.info(f'Run CD-HIT-2D with 98% identity -- time taken {str(elapsed)}')
     return not_match_fasta, clusters
 
-# def filter_fasta(blast_result, fasta_file, out_dir):
-#     starttime = datetime.now()
-
-#     with open(blast_result, 'r') as fh:
-#         ls = []
-#         for line in fh:
-#             line = line.rstrip()
-#             cells = line.split('\t')
-#             ls.append(cells[0])
-#         ls = set(ls)
-#     print(f'Number of filterd sequences: {len(ls)}')
-#     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-#     create_fasta_exclude(fasta_file=fasta_file, exclude_list=ls, output_file=blast_remain_fasta)
-
-#     elapsed = datetime.now() - starttime
-#     logging.info(f'Filter fasta -- time taken {str(elapsed)}')
-#     return blast_remain_fasta
-
 
 def combine_blast_results(blast_1, blast_2, blast_3, outdir):
     combined_blast_results = os.path.join(outdir, 'combined_blast_results')

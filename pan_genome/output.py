@@ -160,3 +160,30 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
     return representative_fasta
 
 
+def export_gene_annotation(gene_annotation, out_dir):
+    # starttime = datetime.now()
+    
+    with open(os.path.join(out_dir, 'gene_annotation.tsv'),'w') as fh:
+        writer = csv.writer(fh, delimiter='\t')
+        for gene in gene_annotation:
+            row = []
+            row.append(gene)
+            row.extend(gene_annotation[gene])
+            writer.writerow(row)
+    
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')
+
+def import_gene_annotation(annotation_file):
+    # starttime = datetime.now()
+    
+    gene_annotation = {}
+    with open(annotation_file,'r') as fh:
+        csv_reader = csv.reader(fh, delimiter='\t')
+        for row in csv_reader:
+            row[3] = int(row[3])
+            gene_annotation[row[0]] = tuple(row[1:])
+    
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
+    return gene_annotation

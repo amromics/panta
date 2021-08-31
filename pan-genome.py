@@ -5,6 +5,7 @@ import shutil
 import logging
 import json
 from glob import glob
+from datetime import datetime
 from pan_genome import *
 
 logging.basicConfig(
@@ -73,6 +74,8 @@ def collect_sample(sample_id_list, args):
     return samples
 
 def run_main_pipeline(args):
+    starttime = datetime.now()
+
     out_dir = args.outdir
     threads = args.threads
     dontsplit = args.dont_split
@@ -138,7 +141,8 @@ def run_main_pipeline(args):
     run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, samples, out_dir)
 
     # output for next run
-    json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    output.export_gene_annotation(gene_annotation, out_dir)
+    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
@@ -147,11 +151,15 @@ def run_main_pipeline(args):
 
     # shutil.rmtree(temp_dir)
     shutil.rmtree(os.path.join(temp_dir, 'samples'))
-    logging.info('Done')
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
 
     
 
 def run_add_sample_pipeline(args):
+    starttime = datetime.now()
+
     collection_dir = args.collection_dir
     out_dir = args.outdir
     if out_dir == None:
@@ -172,7 +180,11 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     
     # Check required files
-    gene_annotation = json.load(open(os.path.join(collection_dir, 'gene_annotation.json'), 'r'))
+    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
+    if not os.path.isfile(gene_annotation_file):
+        raise Exception(f'{gene_annotation_file} does not exist')
+    gene_annotation = output.import_gene_annotation(gene_annotation_file)
+    
     gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
@@ -264,7 +276,7 @@ def run_add_sample_pipeline(args):
     run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, new_samples, out_dir)
 
     # output for next run
-    json.dump(gene_annotation, open(os.path.join(out_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    output.export_gene_annotation(gene_annotation, out_dir)
     json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, out_dir)
@@ -273,7 +285,9 @@ def run_add_sample_pipeline(args):
 
     # shutil.rmtree(temp_dir)
     shutil.rmtree(os.path.join(temp_dir, 'samples'))
-    logging.info('Done')
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
 
 def main():
     parser = argparse.ArgumentParser()

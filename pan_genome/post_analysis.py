@@ -166,19 +166,19 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
             this_gene = gene_annotation[gene_id]
-            if this_gene[3] != None:
+            if this_gene[3] != '':
                 gene_name = this_gene[3]
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_new_name = gene_name
                     max_number = gene_name_count[gene_name]
-                    if this_gene[4] != None:
+                    if this_gene[4] != '':
                         cluster_product = this_gene[4]
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
                 this_gene = gene_annotation[gene_id]
-                if this_gene[4] != None:
+                if this_gene[4] != '':
                     gene_product = this_gene[4]
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)

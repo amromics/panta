@@ -104,6 +104,7 @@ def run_main_pipeline(args):
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         fasta=args.fasta,
+        table=args.table,
         threads=threads)
 
     combined_faa = data_preparation.combine_proteins(
@@ -210,6 +211,7 @@ def run_add_sample_pipeline(args):
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         fasta=args.fasta,
+        table=args.table,
         threads=threads
         )
     new_combined_faa = data_preparation.combine_proteins(
@@ -306,6 +308,7 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     main_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
+    main_cmd.add_argument('--table', help='codon table', default=11, type=int)
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -321,6 +324,7 @@ def main():
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     add_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
+    add_cmd.add_argument('--table', help='codon table', default=11, type=int)
 
     args = parser.parse_args()
     args.func(args)

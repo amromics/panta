@@ -2,6 +2,7 @@ import os
 import logging
 import re
 from Bio import SeqIO
+from Bio.Seq import Seq
 import shutil
 from datetime import datetime
 
@@ -167,7 +168,7 @@ def translate_dna(sequence, seq_id):
     
     return protein_sequence
 
-def translate_protein(nu_fasta, pro_fasta):
+def translate_protein(nu_fasta, pro_fasta, table):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
             line = line.rstrip()
@@ -176,9 +177,28 @@ def translate_protein(nu_fasta, pro_fasta):
                 result = re.match(r"^(>[^:]+)", line)
                 seq_id = result.group(1)
             else:
-                line = translate_dna(line, seq_id)
-                if line == None:
+                dna = Seq(line)
+                pro = dna.translate(table=table)
+                pro = str(pro)
+                
+                # filter seq with premature codon
+                results = re.findall(r'\*', pro)
+                if len(results) > 1:
+                    logger.info(f'Exclude {seq_id} - have premature codon')
                     continue
-                ls = [line[i:i+60] for i in range(0,len(line), 60)]
+
+                # filter seq which has more than 5% of unknown
+                results_1 = re.findall(r'X', pro)
+                results_2 = re.findall(r'-', pro)
+                if len(results_1 + results_2) / len (pro) > 0.05:
+                    logger.info(f'Exclude {seq_id} - too many unknowns')
+                    continue
+
+                
+                # line = translate_dna(line, seq_id)
+                # if line == None:
+                #     continue
+                
+                ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')

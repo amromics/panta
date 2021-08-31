@@ -78,7 +78,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, fna_file, gene_annotation, gene_position
     
 
-def process_single_sample(sample, out_dir, fasta):
+def process_single_sample(sample, out_dir, fasta, table):
     # starttime = datetime.now()
     
     sample_id = sample['id']
@@ -101,7 +101,7 @@ def process_single_sample(sample, out_dir, fasta):
     
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
-    translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file)
+    translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file, table=table)
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
@@ -109,14 +109,14 @@ def process_single_sample(sample, out_dir, fasta):
     return gene_annotation, faa_file, sample_dir, gene_position
 
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, threads):
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, table, threads):
     starttime = datetime.now()
     
     if threads == 0:
         threads = multiprocessing.cpu_count()
 
     with multiprocessing.Pool(processes=threads) as pool:
-        results = pool.map(partial(process_single_sample, out_dir=out_dir, fasta=fasta), samples)
+        results = pool.map(partial(process_single_sample, out_dir=out_dir, fasta=fasta, table=table), samples)
     
     for sample, result in zip(samples, results):
         gene_annotation.update(result[0])

@@ -30,19 +30,17 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if cells[2] != 'CDS':
                 continue
             
-            gene_dict = {}
-            gene_dict['s'] = sample_id
             start = int(cells[3])
             end = int(cells[4])
             length = end - start
-            gene_dict['l'] = length
             if length < 120:
                 continue
             seq_id = cells[0]
-            gene_dict['c'] = seq_id
             trand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
+            gene_name = None
+            gene_product = None
             for tag in tags:
                 ID = re.match(r"^ID=(.+)", tag)
                 if ID != None:
@@ -54,13 +52,11 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 if gene != None:
                     gene_name = gene.group(1)
                     gene_name = re.sub(r'\W', '_', gene_name)
-                    gene_dict['n'] = gene_name
                     continue
                 
                 product = re.match(r"^product=(.+)", tag)
                 if product != None:
                     gene_product = product.group(1)
-                    gene_dict['p'] = gene_product
             if gene_id == None:
                 continue
             
@@ -75,7 +71,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_annotation           
-            gene_annotation[gene_id] = gene_dict
+            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 

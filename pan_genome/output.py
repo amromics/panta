@@ -27,9 +27,9 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             length_list = []
             this_cluster = annotated_clusters[cluster]
             for gene in this_cluster['gene_id']:
-                sample_id = gene_annotation[gene]['s']
+                sample_id = gene_annotation[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
-                length = gene_annotation[gene]['l']
+                length = gene_annotation[gene][2]
                 length_list.append(length)
             
             # Gene
@@ -48,8 +48,9 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             # Max group size nuc
             row.append(max(length_list))
             # Avg group size nuc
-            row.append(sum(length_list) / len(length_list))
-            
+            nuc_size = sum(length_list) / len(length_list)
+            row.append(round(nuc_size,0))
+
             # sample columns
             for sample in samples:
                 sample_id = sample['id']
@@ -84,7 +85,7 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
             # Samples
             sample_dict = {}
             for gene in annotated_clusters[cluster]['gene_id']:
-                sample_id = gene_annotation[gene]['s']
+                sample_id = gene_annotation[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
             for sample in samples:
                 sample_id = sample['id']
@@ -144,7 +145,7 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
         length_max = 0
         representative = None
         for gene_id in cluster:
-            length = gene_annotation[gene_id]['l']
+            length = gene_annotation[gene_id][2]
             if length > length_max:
                 representative = gene_id
                 length_max = length

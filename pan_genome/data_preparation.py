@@ -105,7 +105,7 @@ def process_single_sample(sample, out_dir, table):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_annotation, faa_file, sample_dir, gene_position
+    return gene_annotation, faa_file, sample_dir, gene_position, extracted_fna_file
 
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):
@@ -122,6 +122,7 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
         sample['faa_file'] = result[1]
         sample['sample_dir'] = result[2]
         gene_position[sample['id']] = result[3]
+        sample['fna_file'] = result[4]
     
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')

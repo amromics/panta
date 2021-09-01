@@ -186,11 +186,15 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 if len(results) > 1:
                     logger.info(f'Exclude {seq_id} - have premature codon')
                     continue
+                
+                # filter seq lacking start and stop codon
+                if pro[0] != 'M' and pro[-1] != '*':
+                    logger.info(f'Exclude {seq_id} - lack both start and stop codon')
+                    continue
 
                 # filter seq which has more than 5% of unknown
-                results_1 = re.findall(r'X', pro)
-                results_2 = re.findall(r'-', pro)
-                if len(results_1 + results_2) / len (pro) > 0.05:
+                results = re.findall(r'X', pro)
+                if len(results) / len (pro) > 0.05:
                     logger.info(f'Exclude {seq_id} - too many unknowns')
                     continue
 

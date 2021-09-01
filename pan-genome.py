@@ -13,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,samples, out_dir):
+def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,samples,combined_faa,out_dir,alignment,threads,timing_log):
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
@@ -43,6 +43,24 @@ def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,
         out_dir=out_dir
     )
 
+    if alignment == True:
+        post_analysis.create_seq_file_for_each_cluster(
+            samples=samples, 
+            combined_faa = combined_faa,
+            annotated_clusters=annotated_clusters, 
+            out_dir=os.path.join(out_dir, 'clusters')
+            )
+
+        post_analysis.run_protein_alignment(annotated_clusters, os.path.join(out_dir, 'clusters'), threads, timing_log)
+        
+        post_analysis.create_nucleotide_alignment(annotated_clusters, os.path.join(out_dir, 'clusters'))
+
+        post_analysis.create_core_gene_alignment(
+            annotated_clusters=annotated_clusters, 
+            gene_annotation=gene_annotation, 
+            samples=samples, 
+            clusters_dir=os.path.join(out_dir, 'clusters'), 
+            out_dir=out_dir)
 
 def collect_sample(sample_id_list, args):
     samples = []
@@ -127,7 +145,7 @@ def run_main_pipeline(args):
         mcl_file=mcl_file)
     
     # post analysis
-    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, samples, out_dir)
+    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, samples, combined_faa, out_dir, args.alignment, threads,timing_log)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -139,7 +157,7 @@ def run_main_pipeline(args):
     shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
-    shutil.rmtree(os.path.join(temp_dir, 'samples'))
+    # shutil.rmtree(os.path.join(temp_dir, 'samples'))
     
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -262,7 +280,7 @@ def run_add_sample_pipeline(args):
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
     
-    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, new_samples, out_dir)
+    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, new_samples, new_combined_faa, out_dir,args.alignment, threads,timing_log)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -295,6 +313,7 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=False, action='store_true')
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -310,6 +329,7 @@ def main():
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
+    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=False, action='store_true')
 
     args = parser.parse_args()
     args.func(args)

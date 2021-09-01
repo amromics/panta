@@ -1,10 +1,8 @@
 import argparse
 import os
-import re
 import shutil
 import logging
 import json
-from glob import glob
 from datetime import datetime
 from pan_genome import *
 
@@ -48,21 +46,12 @@ def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,
 
 def collect_sample(sample_id_list, args):
     samples = []
-    fasta_ext = ('.fasta', '.fna', 'ffn')
     for path in args.gff_files:
         if not path.endswith('gff'):
             raise Exception(f'{path} should be a gff3 file')
         sample = {'gff_file':path}
-        dir_name = os.path.dirname(path)
         base_name = os.path.basename(path)
         sample_id = base_name.rsplit('.', 1)[0]
-        if args.fasta == True:
-            try:
-                fasta_file = [f for f in glob(dir_name+'/'+sample_id+'*') if f.endswith(fasta_ext)][0]
-                sample['fasta_file'] = fasta_file
-            except:
-                raise Exception(f'The corresponding fasta file of {sample_id} does not exist')
-        sample_id = re.sub(r'\W', '_', sample_id)
         if sample_id in sample_id_list:
             logging.info(f'{sample_id} already exists -- skip')
             continue
@@ -103,7 +92,6 @@ def run_main_pipeline(args):
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
         gene_position = gene_position,
-        fasta=args.fasta,
         table=args.table,
         threads=threads)
 
@@ -210,7 +198,6 @@ def run_add_sample_pipeline(args):
         out_dir=temp_dir,
         gene_annotation = gene_annotation,
         gene_position = gene_position,
-        fasta=args.fasta,
         table=args.table,
         threads=threads
         )
@@ -306,7 +293,6 @@ def main():
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
-    main_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
 
@@ -322,7 +308,6 @@ def main():
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
-    add_cmd.add_argument('-f', '--fasta', help='fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff file, and have one of following extension: .fasta .fna .fnn)', default=False, action='store_true')
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
 

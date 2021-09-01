@@ -14,7 +14,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     gene_annotation = {}
     gene_position = {}
     found_fasta = False
-    suffix = 1
+    # suffix = 1
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(fna_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
@@ -45,13 +45,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 ID = re.match(r"^ID=(.+)", tag)
                 if ID != None:
                     gene_id = ID.group(1)
-                    gene_id = re.sub(r'\W', '_', gene_id)
+                    # gene_id = re.sub(r'\W', '_', gene_id)
                     continue
 
                 gene = re.match(r"^gene=(.+)", tag)
                 if gene != None:
                     gene_name = gene.group(1)
-                    gene_name = re.sub(r'\W', '_', gene_name)
+                    # gene_name = re.sub(r'\W', '_', gene_name)
                     continue
                 
                 product = re.match(r"^product=(.+)", tag)
@@ -60,12 +60,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue
             
-            if re.match(sample_id, gene_id) == None:
-                gene_id = sample_id + '_' + gene_id
+            # if re.match(sample_id, gene_id) == None:
+            #     gene_id = sample_id + '_' + gene_id
             if gene_id in gene_annotation:
-                logging.info(f'{gene_id} already exists -- add suffix')
-                gene_id += '_{:05d}'.format(suffix)
-                suffix += 1
+                raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
+                # logging.info(f'{gene_id} already exists -- add suffix')
+                # gene_id += '_{:05d}'.format(suffix)
+                # suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
@@ -78,7 +79,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, fna_file, gene_annotation, gene_position
     
 
-def process_single_sample(sample, out_dir, fasta, table):
+def process_single_sample(sample, out_dir, table):
     # starttime = datetime.now()
     
     sample_id = sample['id']
@@ -92,8 +93,6 @@ def process_single_sample(sample, out_dir, fasta, table):
         sample_dir = sample_dir, 
         sample_id = sample_id
         )
-    if fasta == True:
-        fna_file = sample['fasta_file']
     
     # extract nucleotide region
     extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
@@ -109,14 +108,14 @@ def process_single_sample(sample, out_dir, fasta, table):
     return gene_annotation, faa_file, sample_dir, gene_position
 
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, fasta, table, threads):
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):
     starttime = datetime.now()
     
     if threads == 0:
         threads = multiprocessing.cpu_count()
 
     with multiprocessing.Pool(processes=threads) as pool:
-        results = pool.map(partial(process_single_sample, out_dir=out_dir, fasta=fasta, table=table), samples)
+        results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
     
     for sample, result in zip(samples, results):
         gene_annotation.update(result[0])

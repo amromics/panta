@@ -187,3 +187,23 @@ def import_gene_annotation(annotation_file):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
     return gene_annotation
+
+
+def create_outputs(gene_annotation,annotated_clusters,samples,out_dir):
+
+    spreadsheet_file = create_spreadsheet(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=out_dir
+    )
+    rtab_file = create_rtab(
+        annotated_clusters=annotated_clusters, 
+        gene_annotation=gene_annotation,
+        samples=samples,
+        out_dir=out_dir
+    )
+    summary_file = create_summary(
+        rtab_file=rtab_file, 
+        out_dir=out_dir
+    )

@@ -57,16 +57,15 @@ def run_main_pipeline(args):
     gene_position = {}
     data_preparation.extract_proteins(
         samples=samples,
-        out_dir=temp_dir,
+        out_dir=out_dir,
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         table=args.table,
         threads=threads)
 
     combined_faa = data_preparation.combine_proteins(
-        out_dir=temp_dir,
-        samples=samples,
-        timing_log=timing_log)
+        out_dir=out_dir,
+        samples=samples)
 
     # main_pipeline
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
@@ -108,7 +107,7 @@ def run_main_pipeline(args):
     output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_faa, out_dir, args.alignment, threads, timing_log)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads, timing_log)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -120,8 +119,7 @@ def run_main_pipeline(args):
     shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
-    # shutil.rmtree(os.path.join(temp_dir, 'samples'))
-    
+        
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
@@ -131,17 +129,15 @@ def run_add_sample_pipeline(args):
     starttime = datetime.now()
 
     collection_dir = args.collection_dir
-    out_dir = args.outdir
-    if out_dir == None:
-        out_dir = collection_dir
+    if not os.path.exists(collection_dir):
+        raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
     diamond = args.diamond
     identity = args.identity
 
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    temp_dir = os.path.join(out_dir, 'temp')
-    timing_log = os.path.join(out_dir, 'time.log')
+
+    temp_dir = os.path.join(collection_dir, 'temp')
+    timing_log = os.path.join(collection_dir, 'time.log')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
@@ -149,6 +145,10 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     
     # Check required files
+    samples_dir = os.path.join(collection_dir, 'samples')
+    if not os.path.exists(samples_dir):
+        raise Exception(f'{samples_dir} does not exist')
+
     gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
     if not os.path.isfile(gene_annotation_file):
         raise Exception(f'{gene_annotation_file} does not exist')
@@ -175,16 +175,15 @@ def run_add_sample_pipeline(args):
     # data preparation
     data_preparation.extract_proteins(
         samples=new_samples,
-        out_dir=temp_dir,
+        out_dir=collection_dir,
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         table=args.table,
         threads=threads
         )
     new_combined_faa = data_preparation.combine_proteins(
-        out_dir=temp_dir,
-        samples=new_samples,
-        timing_log=timing_log)
+        out_dir=collection_dir,
+        samples=new_samples)
 
     not_match_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = old_represent_faa,
@@ -252,21 +251,20 @@ def run_add_sample_pipeline(args):
         unlabeled_clusters=split_clusters, 
         gene_annotation=gene_annotation)
 
-    output.create_outputs(gene_annotation,annotated_clusters,new_samples,out_dir)
+    output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, new_combined_faa, out_dir, args.alignment, threads, timing_log)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads, timing_log)
 
     # output for next run
-    output.export_gene_annotation(gene_annotation, out_dir)
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(new_samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, out_dir)
-    json.dump(new_clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(combined_blast_result, os.path.join(out_dir, 'blast.tsv'))
+    output.export_gene_annotation(gene_annotation, collection_dir)
+    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
+    json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
-    shutil.rmtree(os.path.join(temp_dir, 'samples'))
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -299,7 +297,6 @@ def main():
     add_cmd.set_defaults(func=run_add_sample_pipeline)
     add_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
-    add_cmd.add_argument('-o', '--outdir', help='output directory',default=None, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)

@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 def parse_gff_file(ggf_file, sample_dir, sample_id):
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
-    fna_file = os.path.join(sample_dir, sample_id + '.fna')
+    assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_annotation = {}
     gene_position = {}
     found_fasta = False
     # suffix = 1
-    with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(fna_file, 'w') as fna_fh:
+    with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
                 fna_fh.write(line)
@@ -76,7 +76,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 
-    return bed_file, fna_file, gene_annotation, gene_position
+    return bed_file, assembly_file, gene_annotation, gene_position
     
 
 def process_single_sample(sample, out_dir, table):
@@ -88,24 +88,28 @@ def process_single_sample(sample, out_dir, table):
         os.makedirs(sample_dir)
     
     # parse gff file
-    bed_file, fna_file, gene_annotation, gene_position = parse_gff_file(
+    bed_file, assembly_file, gene_annotation, gene_position = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
         sample_id = sample_id
         )
     
     # extract nucleotide region
-    extracted_fna_file = os.path.join(sample_dir, sample_id +'.extracted.fna')
-    os.system(f"bedtools getfasta -s -fi {fna_file} -bed {bed_file} -fo {extracted_fna_file} -name > /dev/null 2>&1")
+    fna_file = os.path.join(sample_dir, sample_id +'.fna')
+    os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
     
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
-    translate_protein(nu_fasta=extracted_fna_file, pro_fasta=faa_file, table=table)
+    translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
     
+    os.remove(assembly_file)
+    os.remove(bed_file)
+    os.remove(assembly_file + '.fai')
+
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_annotation, faa_file, sample_dir, gene_position, extracted_fna_file
+    return gene_annotation, gene_position
 
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):
@@ -119,25 +123,21 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
     
     for sample, result in zip(samples, results):
         gene_annotation.update(result[0])
-        sample['faa_file'] = result[1]
-        sample['sample_dir'] = result[2]
-        gene_position[sample['id']] = result[3]
-        sample['fna_file'] = result[4]
-    
+        gene_position[sample['id']] = result[1]
+        
+
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
 
-def combine_proteins(out_dir, samples, timing_log=None):
+def combine_proteins(out_dir, samples):
     # starttime = datetime.now()
 
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    combined_faa_file = os.path.join(out_dir, 'combined.faa')
+    combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
     faa_file_list =[]
     for sample in samples:
-        faa_file = sample['faa_file']
+        sample_id = sample['id']
+        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
         faa_file_list.append(faa_file)
 
     cmd = "cat {} > {}".format(" ".join(faa_file_list),combined_faa_file)

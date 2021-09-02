@@ -4,22 +4,8 @@ import re
 from Bio import SeqIO
 from Bio.Seq import Seq
 import shutil
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
-def run_command(cmd, timing_log=None):
-    """
-    Run a command line, return the returning code of the command
-    :param cmd:
-    :param timing_log:
-    :return:
-    """
-    #logger.info('Run "' + cmd + '"')
-    if timing_log is not None:
-        cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
-    ret = os.system(cmd)
-    return ret
 
 
 def parse_cluster_file(cd_hit_cluster_file): 
@@ -117,56 +103,6 @@ def create_fasta_include(fasta_file, include_list, output_file):
                 else:
                     fh_out.write(line)
 
-
-def translate_dna(sequence, seq_id):
-    codontable = {'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
-                'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
-                'AAC': 'N', 'AAT': 'N', 'AAA': 'K', 'AAG': 'K',
-                'AGC': 'S', 'AGT': 'S', 'AGA': 'R', 'AGG': 'R',
-                'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',
-                'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
-                'CAC': 'H', 'CAT': 'H', 'CAA': 'Q', 'CAG': 'Q',
-                'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',
-                'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
-                'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',
-                'GAC': 'D', 'GAT': 'D', 'GAA': 'E', 'GAG': 'E',
-                'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
-                'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
-                'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
-                'TAC': 'Y', 'TAT': 'Y', 'TAA': '*', 'TAG': '*',
-                'TGC': 'C', 'TGT': 'C', 'TGA': '*', 'TGG': 'W',
-                }
-    seq = sequence.upper()
-    prot = []
-    num_unknown = 0
-    for n in range(0, len(seq), 3):
-        codon = seq[n:n + 3]
-        if codon in codontable:
-            residue = codontable[codon]
-        else:
-            residue = "X"
-            num_unknown += 1
-        prot.append(residue)
-    
-    protein_sequence = "".join(prot)
-
-    # filter seq which has more than 5% of unknown
-    if num_unknown / len (prot) > 0.05:
-        logger.info(f'Exclude {seq_id} - too many unknowns')
-        return None
-    
-    # filter seq lacking start and stop codon
-    if prot[0] != 'M' and prot[-1] != '*':
-        logger.info(f'Exclude {seq_id} - lack start and stop codon')
-        return None
-
-    # filter seq with premature codon
-    results = re.findall(r'\*', protein_sequence)
-    if len(results) > 1:
-        logger.info(f'Exclude {seq_id} - have premature codon')
-        return None
-    
-    return protein_sequence
 
 def translate_protein(nu_fasta, pro_fasta, table):
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:

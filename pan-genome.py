@@ -40,7 +40,6 @@ def run_main_pipeline(args):
     identity = args.identity
     
     temp_dir = os.path.join(out_dir, 'temp')
-    timing_log = os.path.join(out_dir, 'time.log')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     if not os.path.exists(temp_dir):
@@ -71,8 +70,7 @@ def run_main_pipeline(args):
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
         faa_file=combined_faa,
         out_dir=temp_dir,
-        threads=threads, 
-        timing_log=timing_log)
+        threads=threads)
 
     blast_result = main_pipeline.pairwise_alignment(
         diamond=diamond,
@@ -80,14 +78,12 @@ def run_main_pipeline(args):
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
         identity=identity,
-        threads=threads, 
-        timing_log=timing_log)
+        threads=threads)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
         blast_result = blast_result,
-        threads=threads,
-        timing_log=timing_log)
+        threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -107,7 +103,7 @@ def run_main_pipeline(args):
     output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads, timing_log)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -137,7 +133,6 @@ def run_add_sample_pipeline(args):
 
 
     temp_dir = os.path.join(collection_dir, 'temp')
-    timing_log = os.path.join(collection_dir, 'time.log')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
@@ -189,14 +184,12 @@ def run_add_sample_pipeline(args):
         database_1 = old_represent_faa,
         database_2 = new_combined_faa,
         out_dir = temp_dir,
-        threads=threads, 
-        timing_log=timing_log)
+        threads=threads)
 
     not_match_represent_faa, not_match_clusters = main_pipeline.run_cd_hit(
         faa_file=not_match_faa,
         out_dir=temp_dir,
-        threads=threads, 
-        timing_log=timing_log)
+        threads=threads)
 
     blast_1_result = main_pipeline.pairwise_alignment(
         diamond=diamond,
@@ -204,8 +197,7 @@ def run_add_sample_pipeline(args):
         query_fasta = not_match_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
         identity=identity,
-        threads=threads, 
-        timing_log=timing_log
+        threads=threads
         )
 
     blast_2_result = main_pipeline.pairwise_alignment(
@@ -214,8 +206,7 @@ def run_add_sample_pipeline(args):
         query_fasta = not_match_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast2'),
         identity=identity,
-        threads=threads, 
-        timing_log=timing_log
+        threads=threads
         )
 
     combined_blast_result = add_sample_pipeline.combine_blast_results(
@@ -227,8 +218,7 @@ def run_add_sample_pipeline(args):
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
         blast_result = combined_blast_result,
-        threads=threads, 
-        timing_log=timing_log)
+        threads=threads)
 
     inflated_clusters, new_clusters = add_sample_pipeline.reinflate_clusters(
         old_clusters=old_clusters, 
@@ -254,7 +244,7 @@ def run_add_sample_pipeline(args):
     output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads, timing_log)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, collection_dir)

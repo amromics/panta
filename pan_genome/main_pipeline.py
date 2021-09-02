@@ -7,37 +7,14 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
-# def exclude_full_clusters(cd_hit_cluster_file, faa_file, number_of_samples, excluded_cluster, greater_than):
-    
-#     clusters = parse_cluster_file(cd_hit_cluster_file)
 
-#     full_cluster_gene_names =[]
-#     for cluster_represent in clusters:
-#         other_genes = clusters[cluster_represent]
-#         this_cluster = [cluster_represent] + other_genes
-#         if greater_than==True and len(this_cluster) >= number_of_samples:
-#             full_cluster_gene_names.extend(this_cluster)
-#             excluded_cluster[cluster_represent] = clusters[cluster_represent]
-#         if greater_than==False and len(this_cluster) == number_of_samples:
-#             full_cluster_gene_names.extend(this_cluster)
-#             excluded_cluster[cluster_represent] = clusters[cluster_represent]
-#     cluster_filtered_faa_file = faa_file + '.filtered'
-#     full_cluster_gene_names = set(full_cluster_gene_names)
-#     create_fasta_exclude(
-#         fasta_file=faa_file, 
-#         exclude_list=full_cluster_gene_names, 
-#         output_file=cluster_filtered_faa_file
-#         )
-#     shutil.move(cluster_filtered_faa_file, faa_file)
-
-
-def run_cd_hit(faa_file, out_dir, threads=4, timing_log=None):
+def run_cd_hit(faa_file, out_dir, threads=4):
     starttime = datetime.now()
     
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = run_command(cmd, timing_log)
+    ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running cd-hit')
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
@@ -47,7 +24,7 @@ def run_cd_hit(faa_file, out_dir, threads=4, timing_log=None):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
+def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -56,7 +33,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timi
     # make blast database
     blast_db = os.path.join(out_dir, 'output_contigs')
     cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
-    ret = run_command(cmd, timing_log)
+    ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running makeblastdb')
     
@@ -75,7 +52,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timi
             cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
     cmd = f"parallel -j {threads} -a {blast_cmds_file}"
-    ret = run_command(cmd, timing_log)
+    ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running parallel all-against-all blast')
 
@@ -91,7 +68,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4, timi
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
+def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -100,7 +77,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, ti
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
-    ret = run_command(cmd, timing_log)
+    ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running diamond makedb')
     
@@ -115,15 +92,14 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4, ti
     return diamond_result
 
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, threads=4, timing_log=None):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, threads=4):
     if diamond == False:
         blast_result = run_blast(
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
             identity=identity,
-            threads=threads, 
-            timing_log=timing_log
+            threads=threads
             )
     else:
         blast_result = run_diamond(
@@ -131,16 +107,15 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=9
             query_fasta = query_fasta,
             out_dir = out_dir,
             identity=identity,
-            threads=threads, 
-            timing_log=timing_log
+            threads=threads
             )
     return blast_result
 
-def cluster_with_mcl(blast_result, out_dir, threads=4, timing_log=None):
+def cluster_with_mcl(blast_result, out_dir, threads=4):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
-    ret = run_command(cmd, timing_log)
+    ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running mcl')
     elapsed = datetime.now() - starttime
@@ -177,25 +152,3 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return inflated_clusters, clusters
-
-
-# def create_representative_fasta(cd_hit_clusters, excluded_cluster, in_fasta, outdir):
-#     starttime = datetime.now()
-
-#     representative_set = set()
-#     for gene in cd_hit_clusters:
-#         representative_set.add(gene)
-
-#     for gene in excluded_cluster:
-#         representative_set.add(gene)
-
-#     representative_fasta = os.path.join(outdir, 'representative.fasta')
-#     create_fasta_include(
-#         fasta_file=in_fasta, 
-#         include_list=representative_set, 
-#         output_file=representative_fasta
-#         )
-#     logging.info(f'Number of representative sequences: {len(representative_set)}')
-#     elapsed = datetime.now() - starttime
-#     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
-#     return representative_fasta

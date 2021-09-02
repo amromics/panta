@@ -210,7 +210,8 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     pan_ref_file = os.path.join(out_dir, 'pan_genome_reference.fna')
     with open(pan_ref_file, 'w') as ref_fh:
         for sample in samples:
-            fna_file = sample['fna_file']
+            sample_id = sample['id']
+            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna')
             with open(fna_file, 'r') as in_fh:
                 for line in in_fh:
                     line = line.rstrip()
@@ -233,31 +234,34 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
 
 
-def create_pro_file_for_each_cluster(combined_faa, gene_to_cluster_name, out_dir):
+def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     starttime = datetime.now()
     
-    with open(combined_faa, 'r') as in_fh:
-        last_seq_id = None
-        line_list = []
-        for line in in_fh:
-            line = line.rstrip()
-            result = re.match(r"^>(.+)", line)
-            if result != None:
-                seq_id = result.group(1)
-                if last_seq_id != None:
-                    cluster_name = gene_to_cluster_name[last_seq_id]
-                    with open(os.path.join(out_dir, cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-                        out_fh.write('>'+ last_seq_id + '\n')
-                        out_fh.write('\n'.join(line_list) + '\n')
-                last_seq_id = seq_id
-                line_list = []
-            else:
-                line_list.append(line)
+    for sample in samples:
+        sample_id = sample['id']
+        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+        with open(faa_file, 'r') as in_fh:
+            last_seq_id = None
+            line_list = []
+            for line in in_fh:
+                line = line.rstrip()
+                result = re.match(r"^>(.+)", line)
+                if result != None:
+                    seq_id = result.group(1)
+                    if last_seq_id != None:
+                        cluster_name = gene_to_cluster_name[last_seq_id]
+                        with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+                            out_fh.write('>'+ last_seq_id + '\n')
+                            out_fh.write('\n'.join(line_list) + '\n')
+                    last_seq_id = seq_id
+                    line_list = []
+                else:
+                    line_list.append(line)
 
-        cluster_name = gene_to_cluster_name[last_seq_id]
-        with open(os.path.join(out_dir, cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-            out_fh.write('>'+ last_seq_id + '\n')
-            out_fh.write('\n'.join(line_list) + '\n')
+            cluster_name = gene_to_cluster_name[last_seq_id]
+            with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+                out_fh.write('>'+ last_seq_id + '\n')
+                out_fh.write('\n'.join(line_list) + '\n')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
@@ -266,10 +270,12 @@ def create_pro_file_for_each_cluster(combined_faa, gene_to_cluster_name, out_dir
 def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log):
     starttime = datetime.now()
 
-    cmds_file = os.path.join(out_dir,"pro_align_cmds")
+    clusters_dir = os.path.join(out_dir, 'clusters')
+
+    cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
     with open(cmds_file,'w') as cmds:
         for cluster_name in annotated_clusters:
-            cluster_dir = os.path.join(out_dir, cluster_name)
+            cluster_dir = os.path.join(clusters_dir, cluster_name)
             gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
             gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
             if not os.path.isfile(gene_seq_file):
@@ -278,44 +284,47 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log
             cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
             cmds.write(cmd + '\n')
 
-    cmd = f"parallel --bar -j {threads} -a {cmds_file}"
+    cmd = f"parallel --progress -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mafft')
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run cluster protein alignment -- time taken {str(elapsed)}')
+    logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
 
 def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads, timing_log):
     starttime = datetime.now()
 
-    cmds_file = os.path.join(out_dir,"nu_align_cmds")
+    clusters_dir = os.path.join(out_dir, 'clusters')
+
+    cmds_file = os.path.join(clusters_dir,"nu_align_cmds")
     with open(cmds_file,'w') as cmds:
         for cluster_name in annotated_clusters:
-            cluster_dir = os.path.join(out_dir, cluster_name)
+            cluster_dir = os.path.join(clusters_dir, cluster_name)
             gene_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
             gene_seq_file = os.path.join(cluster_dir, cluster_name + '.fna')
             if not os.path.isfile(gene_seq_file):
                 logger.info('{} does not exist'.format(gene_aln_file))
                 continue
             cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
+            # cmd += f' && rm {gene_seq_file}'
             cmds.write(cmd + '\n')
 
-    cmd = f"parallel --bar -j {threads} -a {cmds_file}"
+    cmd = f"parallel --progress -j {threads} -a {cmds_file}"
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running mafft')
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run cluster nucleotide alignment -- time taken {str(elapsed)}')
+    logging.info(f'Run nucleotide alignment -- time taken {str(elapsed)}')
 
 
 def create_nucleotide_alignment(annotated_clusters, out_dir):
     starttime = datetime.now()
 
     for cluster_name in annotated_clusters:
-        cluster_dir = os.path.join(out_dir, cluster_name)
+        cluster_dir = os.path.join(out_dir, 'clusters', cluster_name)
         
         protein_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
         if not os.path.isfile(protein_aln_file):
@@ -350,8 +359,11 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
                 new_record = SeqRecord(Seq(result), id = seq_id, description = '')
                 SeqIO.write(new_record, fh, 'fasta')
 
+        # os.remove(nucleotide_seq_file)
+        # os.remove(os.path.join(cluster_dir, cluster_name + '.faa'))
+
     elapsed = datetime.now() - starttime
-    logging.info(f'Create cluster nucletide alignment -- time taken {str(elapsed)}')
+    logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
 
 def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir):
     starttime = datetime.now()
@@ -403,20 +415,20 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
 
 
-def run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_faa, outdir, alignment, threads, timing_log):
-    # json.dump(annotated_clusters, open(os.path.join(outdir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
-    # json.dump(gene_annotation, open(os.path.join(outdir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
-    # json.dump(samples, open(os.path.join(outdir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, alignment, threads, timing_log):
     
     gene_to_cluster_name = {}
     pan_ref_list = set()
 
-    clusters_dir = os.path.join(outdir, 'clusters')
-    if not os.path.exists(clusters_dir):
+    clusters_dir = os.path.join(collection_dir, 'clusters')
+    if os.path.exists(clusters_dir):
+        shutil.rmtree(clusters_dir)
+        os.mkdir(clusters_dir)
+    else:
         os.mkdir(clusters_dir)
 
     for cluster_name in annotated_clusters:
-        cluster_dir = os.path.join(outdir, 'clusters', cluster_name)
+        cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
         if not os.path.exists(cluster_dir):
             os.mkdir(cluster_dir)
         length_max = 0
@@ -430,27 +442,34 @@ def run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_fa
         pan_ref_list.add(representative)
 
     if alignment == 'protein':
-        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, outdir)
-        create_pro_file_for_each_cluster(combined_faa, gene_to_cluster_name, clusters_dir)
-        run_mafft_protein_alignment(annotated_clusters, clusters_dir, threads, timing_log)
-        create_nucleotide_alignment(annotated_clusters, clusters_dir)
+        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)
+        run_mafft_protein_alignment(annotated_clusters, collection_dir, threads, timing_log)
+        create_nucleotide_alignment(annotated_clusters, collection_dir)
     if alignment == 'nucleotide':
-        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, outdir)
-        run_mafft_nucleotide_alignment(annotated_clusters, clusters_dir, threads, timing_log)
+        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads, timing_log)
     
-    create_core_gene_alignment(annotated_clusters, gene_annotation,samples,outdir)
+    create_core_gene_alignment(annotated_clusters, gene_annotation,samples,collection_dir)
 
 
 
 
 if __name__ == "__main__":
 
+    # json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    # json.dump(gene_annotation, open(os.path.join(collection_dir, 'gene_annotation.json'), 'w'), indent=4, sort_keys=True)
+    # json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+
+
     annotated_clusters = json.load(open(os.path.join('/home/ntanh1999/pan-genome/panta/test/annotated_clusters.json'), 'r'))
     gene_annotation = json.load(open(os.path.join('/home/ntanh1999/pan-genome/panta/test/gene_annotation.json'), 'r'))
     samples = json.load(open(os.path.join('/home/ntanh1999/pan-genome/panta/test/samples.json'), 'r'))
     combined_faa ='/home/ntanh1999/pan-genome/panta/test/temp/combined.faa'
     timing_log = '/home/ntanh1999/pan-genome/panta/test/time.log'
-    outdir = '/home/ntanh1999/pan-genome/panta/test'
+    collection_dir = '/home/ntanh1999/pan-genome/panta/test'
     threads = 4
     alignment = 'protein'
-    run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_faa, outdir, alignment, threads, timing_log)
+
+
+    run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_faa, collection_dir, alignment, threads, timing_log)

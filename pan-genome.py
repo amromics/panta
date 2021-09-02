@@ -13,55 +13,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_post_analysis(gene_annotation,gene_position,inflated_clusters,dontsplit,samples,combined_faa,out_dir,alignment,threads,timing_log):
-    # post analysis
-    split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
-        unsplit_clusters= inflated_clusters,
-        dontsplit=dontsplit
-        )
-    annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
-        gene_annotation=gene_annotation)
-
-    # output
-    spreadsheet_file = output.create_spreadsheet(
-        annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
-        samples=samples,
-        out_dir=out_dir
-    )
-    rtab_file = output.create_rtab(
-        annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
-        samples=samples,
-        out_dir=out_dir
-    )
-    summary_file = output.create_summary(
-        rtab_file=rtab_file, 
-        out_dir=out_dir
-    )
-
-    if alignment == True:
-        post_analysis.create_seq_file_for_each_cluster(
-            samples=samples, 
-            combined_faa = combined_faa,
-            annotated_clusters=annotated_clusters, 
-            out_dir=os.path.join(out_dir, 'clusters')
-            )
-
-        post_analysis.run_protein_alignment(annotated_clusters, os.path.join(out_dir, 'clusters'), threads, timing_log)
-        
-        post_analysis.create_nucleotide_alignment(annotated_clusters, os.path.join(out_dir, 'clusters'))
-
-        post_analysis.create_core_gene_alignment(
-            annotated_clusters=annotated_clusters, 
-            gene_annotation=gene_annotation, 
-            samples=samples, 
-            clusters_dir=os.path.join(out_dir, 'clusters'), 
-            out_dir=out_dir)
-
 def collect_sample(sample_id_list, args):
     samples = []
     for path in args.gff_files:
@@ -85,7 +36,6 @@ def run_main_pipeline(args):
 
     out_dir = args.outdir
     threads = args.threads
-    dontsplit = args.dont_split
     diamond = args.diamond
     identity = args.identity
     
@@ -145,7 +95,20 @@ def run_main_pipeline(args):
         mcl_file=mcl_file)
     
     # post analysis
-    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, samples, combined_faa, out_dir, args.alignment, threads,timing_log)
+    split_clusters = post_analysis.split_paralogs(
+        gene_annotation=gene_annotation,
+        gene_position=gene_position,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters, 
+        gene_annotation=gene_annotation)
+    
+    output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
+
+    if args.alignment != None:
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, combined_faa, out_dir, args.alignment, threads, timing_log)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -172,7 +135,6 @@ def run_add_sample_pipeline(args):
     if out_dir == None:
         out_dir = collection_dir
     threads = args.threads
-    dontsplit = args.dont_split
     diamond = args.diamond
     identity = args.identity
 
@@ -280,7 +242,20 @@ def run_add_sample_pipeline(args):
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
     
-    run_post_analysis(gene_annotation, gene_position, inflated_clusters, dontsplit, new_samples, new_combined_faa, out_dir,args.alignment, threads,timing_log)
+    split_clusters = post_analysis.split_paralogs(
+        gene_annotation=gene_annotation,
+        gene_position=gene_position,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters, 
+        gene_annotation=gene_annotation)
+
+    output.create_outputs(gene_annotation,annotated_clusters,new_samples,out_dir)
+
+    if args.alignment != None:
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, new_combined_faa, out_dir, args.alignment, threads, timing_log)
 
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
@@ -313,7 +288,8 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=False, action='store_true')
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default='protein', action='store', choices=['protein', 'nucleotide'])
+
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -329,7 +305,7 @@ def main():
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=False, action='store_true')
+    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
 
     args = parser.parse_args()
     args.func(args)

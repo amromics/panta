@@ -108,7 +108,6 @@ def run_main_pipeline(args):
     # output for next run
     output.export_gene_annotation(gene_annotation, out_dir)
     json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -276,7 +275,7 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default='protein', action='store', choices=['protein', 'nucleotide'])
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
 
 
     add_cmd = subparsers.add_parser(

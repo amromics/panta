@@ -296,11 +296,7 @@ def detect_plasmid(prefix_name,assembly,  base_dir='.', threads=0, timing_log=No
     # cmd = "bash -c '{}'".format(cmd)
     # if run_command(cmd) != 0:
     #     return None
-    gunzip_fna= assembly;
-    if assembly.endswith('.gz'):
-        gunzip_fna =os.path.join(path_out,prefix_name+'.fasta')
-        cmd = 'gunzip -c {} > {}'.format(assembly, gunzip_fna)
-        run_command(cmd)
+
     element_finder.search_plasmid(sample=assembly,output=oriREP_out,threads=threads)
     if not os.path.exists(os.path.join(path_out,prefix_name+'.fasta')):
         os.remove(os.path.join(path_out,prefix_name+'.fasta'))

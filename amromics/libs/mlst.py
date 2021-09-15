@@ -118,9 +118,9 @@ def find_mlst(query_file,num_threads=1,blastdb='db/mlst/blast/mlst.fa',mlstdb='d
         #print(STs)
         map_gene_name[k]=genes
         sig=get_signature(genes,res[k])
-        print (sig)
+        #print (sig)
         ST=get_sequence_type(STs,sig)
-        print (ST)
+        #print (ST)
         if not ST=='-' and '-' in sig:
                 sig=sig.replace('-','0')
         nlocii=len(genes)
@@ -159,7 +159,7 @@ def find_mlst(query_file,num_threads=1,blastdb='db/mlst/blast/mlst.fa',mlstdb='d
     else:
         #return {'name':'-','ST':'-','sig':'-/-/-/-/-/-/-','score':0}
         ret={'file':os.path.basename(query_file),'scheme':'','st':'-','profile':[]}
-    print(ret)
+    #print(ret)
     return ret
 
 def load_scheme(db):
@@ -169,7 +169,7 @@ def load_scheme(db):
     scheme={}
     #read all name in mslt folder, each name save text file path with name in dict
     listOfDir = os.listdir(db)
-    print(len(listOfDir))
+    #print(len(listOfDir))
     for entry in listOfDir:
         # Create full path
         fullPath = os.path.join(db, entry,entry+".txt")

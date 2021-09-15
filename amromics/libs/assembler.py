@@ -116,7 +116,7 @@ def assemble_skesa(prefix_name, reads,base_dir = '.', threads=0, memory=50, timi
             contig.set_name(prefix_name + '_C' + str(i+1))
             f.write(contig.format_fasta())
     return assembly_file
-def assemble_shovill(prefix_name, reads,base_dir, trim=False, threads=4, memory=50, overwrite=False, timing_log=None):
+def assemble_shovill(prefix_name, reads,base_dir, trim=False, threads=4, memory=50, overwrite=False, timing_log=None,gsize=None):
     """
         Run assembly process for pair-end input using shovill
         :param prefix_name: sample name, sample id, etc
@@ -143,7 +143,8 @@ def assemble_shovill(prefix_name, reads,base_dir, trim=False, threads=4, memory=
         cmd += ' --force  --R1 {pe1} --R2 {pe2}'.format(pe1=reads['pe1'], pe2=reads['pe2'])
     else:
        raise Exception('Only support pair-end reads!')
-
+    if gsize:
+        cmd +=' --gsize {gsize}'.format(gsize=gsize)
     ret = run_command(cmd, timing_log)
     if ret != 0:
         raise Exception('Error running shovill!')

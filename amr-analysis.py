@@ -63,7 +63,8 @@ def input_file_to_samples(input_file, sep='\t'):
 
     if 'metadata' not in sample_df.columns:
         sample_df['metadata'] = ''
-
+    if 'gsize' not in sample_df.columns:
+        sample_df['gsize'] = None
     # 1. validate input
     for i, row in sample_df.iterrows():
         sample_id = row['sample_id']
@@ -100,6 +101,7 @@ def input_file_to_samples(input_file, sep='\t'):
             'trim': row['trim'],
             'metadata': mt,
             'updated': False,
+            'gsize':row['gsize']
         }
         sample_report.append(sample)
     return sample_report

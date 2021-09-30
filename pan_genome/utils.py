@@ -105,6 +105,9 @@ def create_fasta_include(fasta_file, include_list, output_file):
 
 
 def translate_protein(nu_fasta, pro_fasta, table):
+    premature = []
+    startstop = []
+    unknown = []
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
             line = line.rstrip()
@@ -120,18 +123,18 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 # filter seq with premature codon
                 results = re.findall(r'\*', pro)
                 if len(results) > 1:
-                    logger.info(f'Exclude {seq_id} - have premature codon')
+                    premature.append(seq_id)
                     continue
                 
                 # filter seq lacking start and stop codon
                 if pro[0] != 'M' and pro[-1] != '*':
-                    logger.info(f'Exclude {seq_id} - lack both start and stop codon')
+                    startstop.append(seq_id)
                     continue
 
                 # filter seq which has more than 5% of unknown
                 results = re.findall(r'X', pro)
                 if len(results) / len (pro) > 0.05:
-                    logger.info(f'Exclude {seq_id} - too many unknowns')
+                    unknown.append(seq_id)
                     continue
 
                 
@@ -142,3 +145,9 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')
+    if len(premature)!= 0:
+        logger.info('Have premature codon - exclude {}'.format(', '.join(premature)))
+    if len(startstop)!= 0:
+        logger.info('Lack both start and stop codon - exclude {}'.format(', '.join(startstop)))
+    if len(unknown)!= 0:
+        logger.info('Too many unknowns - exclude {}'.format(', '.join(unknown)))

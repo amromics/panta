@@ -14,7 +14,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     gene_annotation = {}
     gene_position = {}
     found_fasta = False
-    # suffix = 1
+    suffix = 1
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
@@ -63,10 +63,10 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             # if re.match(sample_id, gene_id) == None:
             #     gene_id = sample_id + '_' + gene_id
             if gene_id in gene_annotation:
-                raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
-                # logging.info(f'{gene_id} already exists -- add suffix')
-                # gene_id += '_{:05d}'.format(suffix)
-                # suffix += 1
+                # raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
+                logging.info(f'{gene_id} already exists -- add suffix')
+                gene_id += '_{:05d}'.format(suffix)
+                suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
@@ -93,6 +93,8 @@ def process_single_sample(sample, out_dir, table):
         sample_dir = sample_dir, 
         sample_id = sample_id
         )
+    if sample['assembly'] != None:
+        assembly_file = sample['assembly']
     
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
@@ -102,7 +104,8 @@ def process_single_sample(sample, out_dir, table):
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
     
-    os.remove(assembly_file)
+    if sample['assembly'] == None:
+        os.remove(assembly_file)
     os.remove(bed_file)
     os.remove(assembly_file + '.fai')
 
@@ -122,10 +125,14 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
     
     for sample, result in zip(samples, results):
-        gene_annotation.update(result[0])
+        # gene_annotation.update(result[0])
+        for k, v in result[0].items():
+            if k in gene_annotation:
+                logging.info(f'{k} already exists -- add prefix')
+                k = sample['id'] + '_' + k
+            gene_annotation[k] = v
         gene_position[sample['id']] = result[1]
         
-
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 

@@ -24,7 +24,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4):
+def run_blast(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6,threads=4):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -48,7 +48,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4):
         for chunked_file in chunked_file_list:
             blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
             blast_output_file_list.append(blast_output_file)
-            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue 1E-6 -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
+            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
             cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
             fh.write(cmd + '\n')
     cmd = f"parallel -j {threads} -a {blast_cmds_file}"
@@ -68,7 +68,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, threads=4):
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4):
+def run_diamond(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -83,7 +83,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4):
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --ultra-sensitive --outfmt 6 "
+    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 --max-target-seqs 2000 "
     cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + diamond_result
     subprocess.call(cmd, shell=True)
 
@@ -92,13 +92,14 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, threads=4):
     return diamond_result
 
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, threads=4):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6 ,threads=4):
     if diamond == False:
         blast_result = run_blast(
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
             identity=identity,
+            evalue = evalue,
             threads=threads
             )
     else:
@@ -107,6 +108,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=9
             query_fasta = query_fasta,
             out_dir = out_dir,
             identity=identity,
+            evalue = evalue,
             threads=threads
             )
     return blast_result

@@ -16,7 +16,7 @@ for row in csv.reader(open(file1, 'r')):
             if gene == '':
                 continue
             this_cluster.add(gene)
-    old_clusters.append([row[3], this_cluster])
+    old_clusters.append([row[2], this_cluster, row[3]])
 
 new_clusters = []
 for row in csv.reader(open(file2, 'r')):
@@ -29,7 +29,7 @@ for row in csv.reader(open(file2, 'r')):
             if gene == '':
                 continue
             this_cluster.add(gene)
-    new_clusters.append([row[3], this_cluster])
+    new_clusters.append([row[2], this_cluster, row[3]])
 
 same = 0
 difference = 0
@@ -41,7 +41,7 @@ for i in old_clusters:
             subset = True
     
 
-    ls = [i[0], ]
+    ls = [i[0], i[2]]
     if subset == True:
         same += 1
         ls.append('Same')
@@ -51,5 +51,4 @@ for i in old_clusters:
     total += 1
     print('\t'.join(ls))
 
-print(str(same) + '\t' + str(difference) + '\t'+ str(total))
-
+# print(str(same) + '\t' + str(difference) + '\t'+ str(total))

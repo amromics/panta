@@ -3,6 +3,7 @@ import os
 import shutil
 import logging
 import json
+import csv
 from datetime import datetime
 from pan_genome import *
 
@@ -15,19 +16,40 @@ logger = logging.getLogger(__name__)
 
 def collect_sample(sample_id_list, args):
     samples = []
-    for path in args.gff_files:
-        if not path.endswith('gff'):
-            raise Exception(f'{path} should be a gff3 file')
-        sample = {'gff_file':path}
-        base_name = os.path.basename(path)
-        sample_id = base_name.rsplit('.', 1)[0]
-        if sample_id in sample_id_list:
-            logging.info(f'{sample_id} already exists -- skip')
-            continue
-        else:
-            sample_id_list.append(sample_id)
-        sample['id'] = sample_id
-        samples.append(sample)
+    if args.tsv != None:
+        with open(args.tsv,'r') as fh:
+            csv_reader = csv.reader(fh, delimiter='\t')
+            for row in csv_reader:
+                gff = row[1]
+                if not gff.endswith('gff'):
+                    raise Exception(f'{gff} should be a gff3 file')
+                sample_id = row[0]
+                if sample_id in sample_id_list:
+                    logging.info(f'{sample_id} already exists -- skip')
+                    continue
+                else:
+                    sample_id_list.append(sample_id)
+                assembly = row[2]
+                if row[2] == '':
+                    assembly = None
+                samples.append({'id':sample_id, 'gff_file':gff, 'assembly':assembly})
+                
+    elif args.gff != None:
+        gff_list = args.gff
+        for gff in gff_list:
+            if not gff.endswith('gff'):
+                raise Exception(f'{gff} should be a gff3 file')
+            base_name = os.path.basename(gff)
+            sample_id = base_name.rsplit('.', 1)[0]
+            if sample_id in sample_id_list:
+                logging.info(f'{sample_id} already exists -- skip')
+                continue
+            else:
+                sample_id_list.append(sample_id)
+            samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
+    else:
+        raise Exception(f'Please specify -t or -g')
+    
     samples.sort(key= lambda x:x['id'])
     return samples
 
@@ -38,6 +60,7 @@ def run_main_pipeline(args):
     threads = args.threads
     diamond = args.diamond
     identity = args.identity
+    evalue = args.evalue
     
     temp_dir = os.path.join(out_dir, 'temp')
     if not os.path.exists(out_dir):
@@ -78,6 +101,7 @@ def run_main_pipeline(args):
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
         identity=identity,
+        evalue = evalue,
         threads=threads)
 
     mcl_file = main_pipeline.cluster_with_mcl(
@@ -129,6 +153,7 @@ def run_add_sample_pipeline(args):
     threads = args.threads
     diamond = args.diamond
     identity = args.identity
+    evalue = args.evalue
 
 
     temp_dir = os.path.join(collection_dir, 'temp')
@@ -196,6 +221,7 @@ def run_add_sample_pipeline(args):
         query_fasta = not_match_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
         identity=identity,
+        evalue = evalue,
         threads=threads
         )
 
@@ -205,6 +231,7 @@ def run_add_sample_pipeline(args):
         query_fasta = not_match_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast2'),
         identity=identity,
+        evalue = evalue,
         threads=threads
         )
 
@@ -268,11 +295,13 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     main_cmd.set_defaults(func=run_main_pipeline)
-    main_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
+    main_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
+    main_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
     main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
@@ -284,11 +313,13 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     add_cmd.set_defaults(func=run_add_sample_pipeline)
-    add_cmd.add_argument('gff_files', help='a.gff b.gff ... (*.gff)', type=str, nargs='+')
+    add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
+    add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
     add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])

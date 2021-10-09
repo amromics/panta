@@ -141,13 +141,17 @@ def combine_proteins(out_dir, samples):
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
-    faa_file_list =[]
-    for sample in samples:
-        sample_id = sample['id']
-        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
-        faa_file_list.append(faa_file)
+    protein_files = os.path.join(out_dir, 'temp', 'protein.txt')
+    with open(protein_files, 'w') as fh:
+        for sample in samples:
+            sample_id = sample['id']
+            faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+            if os.path.isfile(faa_file):
+                fh.write(faa_file + '\n')
+            else:
+                raise Exception(f'{faa_file} does not exist')
 
-    cmd = "cat {} > {}".format(" ".join(faa_file_list),combined_faa_file)
+    cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
     os.system(cmd)
     
     # elapsed = datetime.now() - starttime

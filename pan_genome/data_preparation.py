@@ -33,7 +33,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             start = int(cells[3])
             end = int(cells[4])
             length = end - start
-            if length < 120:
+            if length < 18:
                 continue
             seq_id = cells[0]
             trand = cells[6]

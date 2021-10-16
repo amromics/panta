@@ -51,11 +51,13 @@ for i in clusters_2:
 
     if match == None:
         diff += 1
+        total +=1
+        print('notmatch')
         continue    
 
     ls = [i[0], i[1]]
 
-    if i == match:
+    if i[2] == match[2]:
         same += 1
         ls.append('Same')
     else:

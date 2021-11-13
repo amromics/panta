@@ -164,10 +164,6 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     
     # Check required files
-    samples_dir = os.path.join(collection_dir, 'samples')
-    if not os.path.exists(samples_dir):
-        raise Exception(f'{samples_dir} does not exist')
-
     gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
     if not os.path.isfile(gene_annotation_file):
         raise Exception(f'{gene_annotation_file} does not exist')
@@ -270,6 +266,10 @@ def run_add_sample_pipeline(args):
     output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
+        samples_dir = os.path.join(collection_dir, 'samples')
+        if not os.path.exists(samples_dir):
+            raise Exception(f'{samples_dir} does not exist')
+        
         post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run

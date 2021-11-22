@@ -24,7 +24,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6,threads=4):
+def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -48,8 +48,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6,thr
         for chunked_file in chunked_file_list:
             blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
             blast_output_file_list.append(blast_output_file)
-            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -outfmt 6 -max_target_seqs 2000 " 
-            cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + blast_output_file
+            cmd = f"blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -outfmt 6 -max_target_seqs 2000 2> /dev/null 1> {blast_output_file}"
             fh.write(cmd + '\n')
     cmd = f"parallel -j {threads} -a {blast_cmds_file}"
     ret = os.system(cmd)
@@ -68,7 +67,7 @@ def run_blast(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6,thr
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6, threads=4):
+def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -83,8 +82,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6, 
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 --max-target-seqs 2000 "
-    cmd += "| awk '{ if ($3 > " + str(identity) + ") print $0;}' 2> /dev/null 1> " + diamond_result
+    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 --max-target-seqs 2000 2> /dev/null 1> {diamond_result}"
     subprocess.call(cmd, shell=True)
 
     elapsed = datetime.now() - starttime
@@ -92,13 +90,12 @@ def run_diamond(database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6, 
     return diamond_result
 
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=95, evalue=1E-6 ,threads=4):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
     if diamond == False:
         blast_result = run_blast(
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
-            identity=identity,
             evalue = evalue,
             threads=threads
             )
@@ -107,13 +104,40 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, identity=9
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
-            identity=identity,
             evalue = evalue,
             threads=threads
             )
     return blast_result
 
-def cluster_with_mcl(blast_result, out_dir, threads=4):
+
+def filter_blast_result(blast_result, gene_annotation, out_dir, identity, length_difference, alignment_coverage_short, alignment_coverage_long):
+    filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
+
+    with open(filtered_blast_result, 'w') as fh:
+        for line in open(blast_result, 'r'):
+            cells = line.rstrip().split('\t')
+            qseqid = cells[0]
+            sseqid = cells[1]
+            qlen = gene_annotation[qseqid][2]
+            slen = gene_annotation[sseqid][2]
+            pident = float(cells[2]) / 100
+            alignment_length = int(cells[3]) * 3
+
+            short_seq = min(qlen, slen)
+            long_seq = max(qlen, slen)
+            len_diff = short_seq / long_seq
+            align_short = alignment_length / short_seq
+            align_long = alignment_length / long_seq
+            
+            if pident <= identity or len_diff <= length_difference or align_short <= alignment_coverage_short or align_long <= alignment_coverage_long:
+                continue
+
+            fh.write(line)
+
+    return filtered_blast_result
+
+            
+def cluster_with_mcl(blast_result, out_dir):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"

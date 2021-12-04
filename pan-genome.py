@@ -58,9 +58,6 @@ def run_main_pipeline(args):
 
     out_dir = args.outdir
     threads = args.threads
-    diamond = args.diamond
-    identity = args.identity
-    evalue = args.evalue
     
     temp_dir = os.path.join(out_dir, 'temp')
     if not os.path.exists(out_dir):
@@ -96,18 +93,25 @@ def run_main_pipeline(args):
         threads=threads)
 
     blast_result = main_pipeline.pairwise_alignment(
-        diamond=diamond,
+        diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
-        identity=identity,
-        evalue = evalue,
+        evalue = args.evalue,
         threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result, 
+        gene_annotation=gene_annotation, 
+        out_dir = temp_dir, 
+        identity=args.identity, 
+        length_difference=args.LD, 
+        alignment_coverage_short=args.AS, 
+        alignment_coverage_long=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = blast_result,
-        threads=threads)
+        blast_result = filtered_blast_result)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -168,10 +172,6 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     
     # Check required files
-    samples_dir = os.path.join(collection_dir, 'samples')
-    if not os.path.exists(samples_dir):
-        raise Exception(f'{samples_dir} does not exist')
-
     gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
     if not os.path.isfile(gene_annotation_file):
         raise Exception(f'{gene_annotation_file} does not exist')
@@ -224,7 +224,6 @@ def run_add_sample_pipeline(args):
         database_fasta = old_represent_faa,
         query_fasta = unmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
-        identity=identity,
         evalue = evalue,
         threads=threads)
 
@@ -238,14 +237,21 @@ def run_add_sample_pipeline(args):
         database_fasta = blast_remain_fasta,
         query_fasta = blast_remain_fasta,
         out_dir = os.path.join(temp_dir, 'blast2'),
-        identity=identity,
         evalue = evalue,
         threads=threads)
 
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=combined_blast_result, 
+        gene_annotation=gene_annotation, 
+        out_dir = temp_dir, 
+        identity=args.identity, 
+        length_difference=args.LD, 
+        alignment_coverage_short=args.AS, 
+        alignment_coverage_long=args.AL)
+
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = blast_2_result,
-        threads=threads)
+        blast_result = filtered_blast_result)
 
     inflated_clusters = add_sample_pipeline.reinflate_clusters_2(
         old_clusters=old_clusters,
@@ -272,6 +278,10 @@ def run_add_sample_pipeline(args):
     output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
+        samples_dir = os.path.join(collection_dir, 'samples')
+        if not os.path.exists(samples_dir):
+            raise Exception(f'{samples_dir} does not exist')
+        
         post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
@@ -302,7 +312,10 @@ def main():
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
+    main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
+    main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
@@ -320,7 +333,10 @@ def main():
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=95, type=float)
+    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
+    add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
+    add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)

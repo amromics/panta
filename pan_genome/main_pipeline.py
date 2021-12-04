@@ -110,7 +110,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-
     return blast_result
 
 
-def filter_blast_result(blast_result, gene_annotation, out_dir, identity, length_difference, alignment_coverage_short, alignment_coverage_long):
+def filter_blast_result(blast_result, gene_annotation, out_dir, identity, LD, AS, AL):
     filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
 
     with open(filtered_blast_result, 'w') as fh:
@@ -129,7 +129,7 @@ def filter_blast_result(blast_result, gene_annotation, out_dir, identity, length
             align_short = alignment_length / short_seq
             align_long = alignment_length / long_seq
             
-            if pident <= identity or len_diff <= length_difference or align_short <= alignment_coverage_short or align_long <= alignment_coverage_long:
+            if pident <= identity or len_diff <= LD or align_short <= AS or align_long <= AL:
                 continue
 
             fh.write(line)

@@ -104,10 +104,7 @@ def run_main_pipeline(args):
         blast_result=blast_result, 
         gene_annotation=gene_annotation, 
         out_dir = temp_dir, 
-        identity=args.identity, 
-        length_difference=args.LD, 
-        alignment_coverage_short=args.AS, 
-        alignment_coverage_long=args.AL)
+        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
@@ -143,7 +140,6 @@ def run_main_pipeline(args):
     json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     json.dump(split_clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
         
@@ -159,9 +155,6 @@ def run_add_sample_pipeline(args):
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
-    diamond = args.diamond
-    identity = args.identity
-    evalue = args.evalue
 
 
     temp_dir = os.path.join(collection_dir, 'temp')
@@ -184,10 +177,6 @@ def run_add_sample_pipeline(args):
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
-    
-    old_blast_result = os.path.join(collection_dir, 'blast.tsv')
-    if not os.path.isfile(old_blast_result):
-        raise Exception(f'{old_blast_result} does not exist')
 
     # collect new samples
     sample_id_list = [sample['id'] for sample in old_samples]
@@ -220,43 +209,46 @@ def run_add_sample_pipeline(args):
         threads=threads)
 
     blast_1_result = main_pipeline.pairwise_alignment(
-        diamond=diamond,
+        diamond=args.diamond,
         database_fasta = old_represent_faa,
         query_fasta = unmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
-        evalue = evalue,
+        evalue = args.evalue,
         threads=threads)
 
-    blast_remain_fasta = add_sample_pipeline.filter_fasta(
+    remain_fasta = add_sample_pipeline.add_gene_to_old_clusters(
+        old_clusters=old_clusters,
+        cd_hit_2d_clusters=cd_hit_2d_clusters,
+        unmatched_clusters = unmatched_clusters,
         blast_result=blast_1_result, 
         fasta_file=unmatched_represent_faa, 
-        out_dir=temp_dir)
+        out_dir=temp_dir,
+        gene_annotation=gene_annotation, 
+        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
     blast_2_result = main_pipeline.pairwise_alignment(
-        diamond=diamond,
-        database_fasta = blast_remain_fasta,
-        query_fasta = blast_remain_fasta,
+        diamond=args.diamond,
+        database_fasta = remain_fasta,
+        query_fasta = remain_fasta,
         out_dir = os.path.join(temp_dir, 'blast2'),
-        evalue = evalue,
+        evalue = args.evalue,
         threads=threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=combined_blast_result, 
+        blast_result=blast_2_result, 
         gene_annotation=gene_annotation, 
         out_dir = temp_dir, 
         identity=args.identity, 
-        length_difference=args.LD, 
-        alignment_coverage_short=args.AS, 
-        alignment_coverage_long=args.AL)
+        LD=args.LD, 
+        AS=args.AS, 
+        AL=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
         blast_result = filtered_blast_result)
 
-    inflated_clusters = add_sample_pipeline.reinflate_clusters_2(
-        old_clusters=old_clusters,
-        cd_hit_2d_clusters=cd_hit_2d_clusters,
-        blast_1_result=blast_1_result, 
+    inflated_clusters = add_sample_pipeline.reinflate_clusters(
+        old_clusters = old_clusters,
         unmatched_clusters = unmatched_clusters,
         mcl_file=mcl_file
         )
@@ -288,10 +280,16 @@ def run_add_sample_pipeline(args):
     output.export_gene_annotation(gene_annotation, collection_dir)
     json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    add_sample_pipeline.combine_representative(unmatched_represent_faa, old_represent_faa, collection_dir)
-    json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
-
+    json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    
+    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
+    os.system(f'cat {old_represent_faa} {unmatched_represent_faa} > {rep_temp_file}')
+    output.create_representative_fasta(
+        clusters=split_clusters, 
+        gene_annotation=gene_annotation, 
+        faa_fasta=rep_temp_file, 
+        out_dir=collection_dir)   
+    
     # shutil.rmtree(temp_dir)
 
     elapsed = datetime.now() - starttime

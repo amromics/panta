@@ -137,15 +137,15 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
 
-def combine_proteins(out_dir, samples):
+def combine_proteins(collection_dir, out_dir, samples):
     # starttime = datetime.now()
 
-    combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
-    protein_files = os.path.join(out_dir, 'temp', 'protein.txt')
+    combined_faa_file = os.path.join(out_dir, 'combined.faa')
+    protein_files = os.path.join(out_dir, 'protein.txt')
     with open(protein_files, 'w') as fh:
         for sample in samples:
             sample_id = sample['id']
-            faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+            faa_file = os.path.join(collection_dir, 'samples', sample_id, sample_id + '.faa')
             if os.path.isfile(faa_file):
                 fh.write(faa_file + '\n')
             else:

@@ -82,38 +82,123 @@ def run_main_pipeline(args):
         table=args.table,
         threads=threads)
 
-    combined_faa = data_preparation.combine_proteins(
-        out_dir=out_dir,
-        samples=samples)
+    number = args.number
+    if number == 0:
+        subset = samples[0:]
+        remain = []
+    else:
+        subset = samples[0:number]
+        remain = samples[number:]
 
-    # main_pipeline
+    # run a subset of collection
+    subset_dir = os.path.join(temp_dir, 'subset')
+    if not os.path.exists(subset_dir):
+        os.makedirs(subset_dir)
+    
+    subset_combined_faa = data_preparation.combine_proteins(
+        collection_dir= out_dir, 
+        out_dir=subset_dir,
+        samples=subset)
+
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
-        faa_file=combined_faa,
-        out_dir=temp_dir,
+        faa_file=subset_combined_faa,
+        out_dir=subset_dir,
         threads=threads)
 
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
-        out_dir = os.path.join(temp_dir, 'blast'),
+        out_dir = os.path.join(subset_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result, 
         gene_annotation=gene_annotation, 
-        out_dir = temp_dir, 
+        out_dir = subset_dir, 
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
-    mcl_file = main_pipeline.cluster_with_mcl(
-        out_dir = temp_dir,
+    subset_mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = subset_dir,
         blast_result = filtered_blast_result)
 
-    inflated_clusters, clusters = main_pipeline.reinflate_clusters(
+    subset_inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
-        mcl_file=mcl_file)
-    
+        mcl_file=subset_mcl_file)
+
+    # run the remain of collection
+    if len(remain) == 0:
+        inflated_clusters = subset_inflated_clusters
+        remain_combined_faa = ""
+    else:
+        remain_dir = os.path.join(temp_dir, 'remain')
+        if not os.path.exists(remain_dir):
+            os.makedirs(remain_dir)
+        
+        subset_representative_fasta = output.create_representative_fasta(
+            clusters=subset_inflated_clusters, 
+            gene_annotation=gene_annotation, 
+            faa_fasta=subset_combined_faa, 
+            out_dir=subset_dir)
+
+        remain_combined_faa = data_preparation.combine_proteins(
+            collection_dir= out_dir, 
+            out_dir=remain_dir,
+            samples=remain)
+
+        unmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
+            database_1 = subset_representative_fasta,
+            database_2 = remain_combined_faa,
+            out_dir = remain_dir,
+            threads=threads)
+
+        unmatched_represent_faa, unmatched_clusters = main_pipeline.run_cd_hit(
+            faa_file=unmatched_faa,
+            out_dir=remain_dir,
+            threads=threads)
+
+        blast_1_result = main_pipeline.pairwise_alignment(
+            diamond=args.diamond,
+            database_fasta = subset_representative_fasta,
+            query_fasta = unmatched_represent_faa,
+            out_dir = os.path.join(remain_dir, 'blast1'),
+            evalue = args.evalue,
+            threads=threads)
+
+        remain_fasta = add_sample_pipeline.add_gene_to_old_clusters(
+            old_clusters=subset_inflated_clusters,
+            cd_hit_2d_clusters=cd_hit_2d_clusters,
+            unmatched_clusters = unmatched_clusters,
+            blast_result=blast_1_result, 
+            fasta_file=unmatched_represent_faa, 
+            out_dir=remain_dir,
+            gene_annotation=gene_annotation, 
+            identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+
+        blast_2_result = main_pipeline.pairwise_alignment(
+            diamond=args.diamond,
+            database_fasta = remain_fasta,
+            query_fasta = remain_fasta,
+            out_dir = os.path.join(remain_dir, 'blast2'),
+            evalue = args.evalue,
+            threads=threads)
+
+        filtered_blast_result = main_pipeline.filter_blast_result(
+            blast_result=blast_2_result, 
+            gene_annotation=gene_annotation, 
+            out_dir = remain_dir, 
+            identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+
+        remain_mcl_file = main_pipeline.cluster_with_mcl(
+            out_dir = remain_dir,
+            blast_result = filtered_blast_result)
+
+        inflated_clusters = add_sample_pipeline.reinflate_clusters(
+            old_clusters = subset_inflated_clusters,
+            unmatched_clusters = unmatched_clusters,
+            mcl_file=remain_mcl_file)
+
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
@@ -131,11 +216,14 @@ def run_main_pipeline(args):
         post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads)
 
     # output for next run
+    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
+    os.system(f'cat {subset_combined_faa} {remain_combined_faa} > {rep_temp_file}')
     output.create_representative_fasta(
         clusters=split_clusters, 
         gene_annotation=gene_annotation, 
-        faa_fasta=combined_faa, 
-        out_dir=out_dir)
+        faa_fasta=rep_temp_file, 
+        out_dir=collection_dir)
+    
     output.export_gene_annotation(gene_annotation, out_dir)
     json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
@@ -194,7 +282,8 @@ def run_add_sample_pipeline(args):
         threads=threads
         )
     new_combined_faa = data_preparation.combine_proteins(
-        out_dir=collection_dir,
+        collection_dir= collection_dir, 
+        out_dir=temp_dir,
         samples=new_samples)
 
     unmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
@@ -238,10 +327,7 @@ def run_add_sample_pipeline(args):
         blast_result=blast_2_result, 
         gene_annotation=gene_annotation, 
         out_dir = temp_dir, 
-        identity=args.identity, 
-        LD=args.LD, 
-        AS=args.AS, 
-        AL=args.AL)
+        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
@@ -318,7 +404,7 @@ def main():
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
     main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
-
+    main_cmd.add_argument('-n', '--number', help='number of samples which are analysed first', default=0, type=int)
 
     add_cmd = subparsers.add_parser(
         'add',

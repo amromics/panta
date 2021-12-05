@@ -53,234 +53,7 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
-def run_main_pipeline(args):
-    starttime = datetime.now()
-
-    out_dir = args.outdir
-    threads = args.threads
-    
-    temp_dir = os.path.join(out_dir, 'temp')
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)    
-
-    # collect samples
-    sample_id_list = []
-    samples = collect_sample(sample_id_list, args)
-    if len(samples) < 2:
-        raise Exception(f'There must be at least 2 samples')
-    
-    # data preparation
-    gene_annotation = {}
-    gene_position = {}
-    data_preparation.extract_proteins(
-        samples=samples,
-        out_dir=out_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
-        table=args.table,
-        threads=threads)
-
-    number = args.number
-    if number == 0:
-        subset = samples[0:]
-        remain = []
-    else:
-        subset = samples[0:number]
-        remain = samples[number:]
-
-    # run a subset of collection
-    subset_dir = os.path.join(temp_dir, 'subset')
-    if not os.path.exists(subset_dir):
-        os.makedirs(subset_dir)
-    
-    subset_combined_faa = data_preparation.combine_proteins(
-        collection_dir= out_dir, 
-        out_dir=subset_dir,
-        samples=subset)
-
-    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
-        faa_file=subset_combined_faa,
-        out_dir=subset_dir,
-        threads=threads)
-
-    blast_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
-        database_fasta = cd_hit_represent_fasta,
-        query_fasta = cd_hit_represent_fasta,
-        out_dir = os.path.join(subset_dir, 'blast'),
-        evalue = args.evalue,
-        threads=threads)
-
-    filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_result, 
-        gene_annotation=gene_annotation, 
-        out_dir = subset_dir, 
-        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
-
-    subset_mcl_file = main_pipeline.cluster_with_mcl(
-        out_dir = subset_dir,
-        blast_result = filtered_blast_result)
-
-    subset_inflated_clusters, clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=cd_hit_clusters,
-        mcl_file=subset_mcl_file)
-
-    # run the remain of collection
-    if len(remain) == 0:
-        inflated_clusters = subset_inflated_clusters
-        remain_combined_faa = ""
-    else:
-        remain_dir = os.path.join(temp_dir, 'remain')
-        if not os.path.exists(remain_dir):
-            os.makedirs(remain_dir)
-        
-        subset_representative_fasta = output.create_representative_fasta(
-            clusters=subset_inflated_clusters, 
-            gene_annotation=gene_annotation, 
-            faa_fasta=subset_combined_faa, 
-            out_dir=subset_dir)
-
-        remain_combined_faa = data_preparation.combine_proteins(
-            collection_dir= out_dir, 
-            out_dir=remain_dir,
-            samples=remain)
-
-        unmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
-            database_1 = subset_representative_fasta,
-            database_2 = remain_combined_faa,
-            out_dir = remain_dir,
-            threads=threads)
-
-        unmatched_represent_faa, unmatched_clusters = main_pipeline.run_cd_hit(
-            faa_file=unmatched_faa,
-            out_dir=remain_dir,
-            threads=threads)
-
-        blast_1_result = main_pipeline.pairwise_alignment(
-            diamond=args.diamond,
-            database_fasta = subset_representative_fasta,
-            query_fasta = unmatched_represent_faa,
-            out_dir = os.path.join(remain_dir, 'blast1'),
-            evalue = args.evalue,
-            threads=threads)
-
-        remain_fasta = add_sample_pipeline.add_gene_to_old_clusters(
-            old_clusters=subset_inflated_clusters,
-            cd_hit_2d_clusters=cd_hit_2d_clusters,
-            unmatched_clusters = unmatched_clusters,
-            blast_result=blast_1_result, 
-            fasta_file=unmatched_represent_faa, 
-            out_dir=remain_dir,
-            gene_annotation=gene_annotation, 
-            identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
-
-        blast_2_result = main_pipeline.pairwise_alignment(
-            diamond=args.diamond,
-            database_fasta = remain_fasta,
-            query_fasta = remain_fasta,
-            out_dir = os.path.join(remain_dir, 'blast2'),
-            evalue = args.evalue,
-            threads=threads)
-
-        filtered_blast_result = main_pipeline.filter_blast_result(
-            blast_result=blast_2_result, 
-            gene_annotation=gene_annotation, 
-            out_dir = remain_dir, 
-            identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
-
-        remain_mcl_file = main_pipeline.cluster_with_mcl(
-            out_dir = remain_dir,
-            blast_result = filtered_blast_result)
-
-        inflated_clusters = add_sample_pipeline.reinflate_clusters(
-            old_clusters = subset_inflated_clusters,
-            unmatched_clusters = unmatched_clusters,
-            mcl_file=remain_mcl_file)
-
-    # post analysis
-    split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
-        unsplit_clusters= inflated_clusters,
-        dontsplit=args.dont_split
-        )
-    annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
-        gene_annotation=gene_annotation)
-    
-    output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
-
-    if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads)
-
-    # output for next run
-    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
-    os.system(f'cat {subset_combined_faa} {remain_combined_faa} > {rep_temp_file}')
-    output.create_representative_fasta(
-        clusters=split_clusters, 
-        gene_annotation=gene_annotation, 
-        faa_fasta=rep_temp_file, 
-        out_dir=collection_dir)
-    
-    output.export_gene_annotation(gene_annotation, out_dir)
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(split_clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-
-    # shutil.rmtree(temp_dir)
-        
-    elapsed = datetime.now() - starttime
-    logging.info(f'Done -- time taken {str(elapsed)}')
-
-    
-
-def run_add_sample_pipeline(args):
-    starttime = datetime.now()
-
-    collection_dir = args.collection_dir
-    if not os.path.exists(collection_dir):
-        raise Exception(f'{collection_dir} does not exist')
-    threads = args.threads
-
-
-    temp_dir = os.path.join(collection_dir, 'temp')
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir)
-    else:
-        os.makedirs(temp_dir)
-    
-    # Check required files
-    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
-    if not os.path.isfile(gene_annotation_file):
-        raise Exception(f'{gene_annotation_file} does not exist')
-    gene_annotation = output.import_gene_annotation(gene_annotation_file)
-
-    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
-    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
-    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
-
-    old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
-    if not os.path.isfile(old_represent_faa):
-        raise Exception(f'{old_represent_faa} does not exist')
-
-    # collect new samples
-    sample_id_list = [sample['id'] for sample in old_samples]
-    new_samples = collect_sample(sample_id_list, args)
-    if len(new_samples) == 0:
-        raise Exception(f'There must be at least one new sample')
-    
-    # data preparation
-    data_preparation.extract_proteins(
-        samples=new_samples,
-        out_dir=collection_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
-        table=args.table,
-        threads=threads
-        )
+def add_samples(temp_dir, new_samples, old_represent_faa, old_clusters, gene_annotation, collection_dir, threads, args):
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
         out_dir=temp_dir,
@@ -339,6 +112,203 @@ def run_add_sample_pipeline(args):
         mcl_file=mcl_file
         )
 
+    return inflated_clusters, new_combined_faa
+
+
+
+def run_main_pipeline(args):
+    starttime = datetime.now()
+
+    collection_dir = args.outdir
+    threads = args.threads
+    
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if not os.path.exists(collection_dir):
+        os.makedirs(collection_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)    
+
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+    
+    # data preparation
+    gene_annotation = {}
+    gene_position = {}
+    data_preparation.extract_proteins(
+        samples=samples,
+        out_dir=collection_dir,
+        gene_annotation = gene_annotation,
+        gene_position = gene_position,
+        table=args.table,
+        threads=threads)
+
+    number = args.number
+    if number == 0:
+        subset = samples[0:]
+        remain = []
+    else:
+        subset = samples[0:number]
+        remain = samples[number:]
+
+    # run a subset of collection
+    subset_dir = os.path.join(temp_dir, 'subset')
+    if not os.path.exists(subset_dir):
+        os.makedirs(subset_dir)
+    
+    subset_combined_faa = data_preparation.combine_proteins(
+        collection_dir= collection_dir, 
+        out_dir=subset_dir,
+        samples=subset)
+
+    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+        faa_file=subset_combined_faa,
+        out_dir=subset_dir,
+        threads=threads)
+
+    blast_result = main_pipeline.pairwise_alignment(
+        diamond=args.diamond,
+        database_fasta = cd_hit_represent_fasta,
+        query_fasta = cd_hit_represent_fasta,
+        out_dir = os.path.join(subset_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result, 
+        gene_annotation=gene_annotation, 
+        out_dir = subset_dir, 
+        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+
+    subset_mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = subset_dir,
+        blast_result = filtered_blast_result)
+
+    subset_inflated_clusters, clusters = main_pipeline.reinflate_clusters(
+        cd_hit_clusters=cd_hit_clusters,
+        mcl_file=subset_mcl_file)
+
+    # run the remain of collection
+    if len(remain) == 0:
+        inflated_clusters = subset_inflated_clusters
+        remain_combined_faa = ""
+    else:
+        remain_dir = os.path.join(temp_dir, 'remain')
+        if not os.path.exists(remain_dir):
+            os.makedirs(remain_dir)
+        
+        subset_representative_fasta = output.create_representative_fasta(
+            clusters=subset_inflated_clusters, 
+            gene_annotation=gene_annotation, 
+            faa_fasta=subset_combined_faa, 
+            out_dir=subset_dir)
+        
+        inflated_clusters, remain_combined_faa = add_samples(
+            temp_dir=remain_dir, 
+            new_samples=remain, 
+            old_represent_faa=subset_representative_fasta,
+            old_clusters=subset_inflated_clusters, 
+            gene_annotation=gene_annotation, 
+            collection_dir=collection_dir, 
+            threads=threads, 
+            args=args)
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs(
+        gene_annotation=gene_annotation,
+        gene_position=gene_position,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters, 
+        gene_annotation=gene_annotation)
+    
+    output.create_outputs(gene_annotation,annotated_clusters,samples,collection_dir)
+
+    if args.alignment != None:
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, args.alignment, threads)
+
+    # output for next run
+    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
+    os.system(f'cat {subset_combined_faa} {remain_combined_faa} > {rep_temp_file}')
+    output.create_representative_fasta(
+        clusters=split_clusters, 
+        gene_annotation=gene_annotation, 
+        faa_fasta=rep_temp_file, 
+        out_dir=collection_dir)
+    
+    output.export_gene_annotation(gene_annotation, collection_dir)
+    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+
+    # shutil.rmtree(temp_dir)
+        
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
+
+    
+
+def run_add_sample_pipeline(args):
+    starttime = datetime.now()
+
+    collection_dir = args.collection_dir
+    if not os.path.exists(collection_dir):
+        raise Exception(f'{collection_dir} does not exist')
+    threads = args.threads
+
+
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir)
+    else:
+        os.makedirs(temp_dir)
+    
+    # Check required files
+    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
+    if not os.path.isfile(gene_annotation_file):
+        raise Exception(f'{gene_annotation_file} does not exist')
+    gene_annotation = output.import_gene_annotation(gene_annotation_file)
+
+    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
+    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
+
+    old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
+    if not os.path.isfile(old_represent_faa):
+        raise Exception(f'{old_represent_faa} does not exist')
+
+    # collect new samples
+    sample_id_list = [sample['id'] for sample in old_samples]
+    new_samples = collect_sample(sample_id_list, args)
+    if len(new_samples) == 0:
+        raise Exception(f'There must be at least one new sample')
+    
+    # data preparation
+    data_preparation.extract_proteins(
+        samples=new_samples,
+        out_dir=collection_dir,
+        gene_annotation = gene_annotation,
+        gene_position = gene_position,
+        table=args.table,
+        threads=threads
+        )
+
+    inflated_clusters, new_combined_faa = add_samples(
+        temp_dir=temp_dir, 
+        new_samples=new_samples, 
+        old_represent_faa=old_represent_faa,
+        old_clusters=old_clusters,
+        gene_annotation=gene_annotation, 
+        collection_dir=collection_dir, 
+        threads=threads, 
+        args=args)
+
     # post analysis
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
@@ -369,7 +339,7 @@ def run_add_sample_pipeline(args):
     json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     
     rep_temp_file = os.path.join(temp_dir, 'representative_temp')
-    os.system(f'cat {old_represent_faa} {unmatched_represent_faa} > {rep_temp_file}')
+    os.system(f'cat {old_represent_faa} {new_combined_faa} > {rep_temp_file}')
     output.create_representative_fasta(
         clusters=split_clusters, 
         gene_annotation=gene_annotation, 

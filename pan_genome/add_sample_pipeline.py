@@ -25,18 +25,24 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4):
     return not_match_fasta, clusters
 
 
-def add_gene_to_old_clusters(old_clusters, cd_hit_2d_clusters, unmatched_clusters, blast_result, fasta_file, out_dir, gene_annotation, identity, LD, AL, AS):
+def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
     starttime = datetime.now()
-    
-    gene_to_cluster_index = {gene:index for index,genes in enumerate(old_clusters) for gene in genes}
+    gene_to_cluster = {gene:index for index,genes in enumerate(old_clusters) for gene in genes}
 
     # add gene matched in CD-HIT-2D step
     for old in cd_hit_2d_clusters:
-        cluster_index = gene_to_cluster_index[old]
+        cluster_index = gene_to_cluster[old]
         for gene in cd_hit_2d_clusters[old]:
             old_clusters[cluster_index].append(gene)
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')
+    return gene_to_cluster, old_clusters
 
-    # add gene matched in blast step
+
+def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, gene_annotation, identity, LD, AL, AS):
+    starttime = datetime.now()
+    
     blast_dataframe = pd.read_csv(blast_result, sep='\t', header = None)
     match_dict = {}
     min_evalue = 1000
@@ -71,7 +77,7 @@ def add_gene_to_old_clusters(old_clusters, cd_hit_2d_clusters, unmatched_cluster
     
     for new in match_dict:
         old = match_dict[new]
-        cluster_index = gene_to_cluster_index[old]
+        cluster_index = gene_to_cluster[old]
         old_clusters[cluster_index].append(new)
         old_clusters[cluster_index].extend(unmatched_clusters[new])
     
@@ -80,12 +86,12 @@ def add_gene_to_old_clusters(old_clusters, cd_hit_2d_clusters, unmatched_cluster
     create_fasta_exclude(fasta_file=fasta_file, exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Filter fasta -- time taken {str(elapsed)}')
-    return blast_remain_fasta
+    logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')
+    return blast_remain_fasta, old_clusters
 
 
 
-def reinflate_clusters(old_clusters, unmatched_clusters, mcl_file):
+def add_new_clusters(old_clusters, unmatched_clusters, mcl_file):
     starttime = datetime.now()
 
     with open(mcl_file, 'r') as fh:
@@ -99,5 +105,5 @@ def reinflate_clusters(old_clusters, unmatched_clusters, mcl_file):
             old_clusters.append(inflated_genes)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
+    logging.info(f'Add new clusters -- time taken {str(elapsed)}')
     return old_clusters

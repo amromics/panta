@@ -91,6 +91,11 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
 
 
 def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
+    # print out the number of sequences
+    database_result = subprocess.run(f'grep ">" {database_fasta} | wc -l', shell=True, capture_output=True, text=True)
+    query_result = subprocess.run(f'grep ">" {query_fasta} | wc -l', shell=True, capture_output=True, text=True)
+    logging.info(f'Comparing {query_result.stdout.rstrip()} sequences with {database_result.stdout.rstrip()} sequences')
+
     if diamond == False:
         blast_result = run_blast(
             database_fasta = database_fasta,

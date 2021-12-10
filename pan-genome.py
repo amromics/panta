@@ -1,5 +1,6 @@
 import argparse
 import os
+import subprocess
 import shutil
 import logging
 import json
@@ -65,6 +66,12 @@ def add_samples(temp_dir, new_samples, old_represent_faa, old_clusters, gene_ann
         out_dir = temp_dir,
         threads=threads)
 
+    gene_to_cluster, old_clusters = add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters)
+
+    num_seq = subprocess.run(f'grep ">" {unmatched_faa} | wc -l', shell=True, capture_output=True, text=True)
+    if int(num_seq.stdout.rstrip()) == 0:
+        return old_clusters, new_combined_faa
+
     unmatched_represent_faa, unmatched_clusters = main_pipeline.run_cd_hit(
         faa_file=unmatched_faa,
         out_dir=temp_dir,
@@ -78,9 +85,9 @@ def add_samples(temp_dir, new_samples, old_represent_faa, old_clusters, gene_ann
         evalue = args.evalue,
         threads=threads)
 
-    remain_fasta = add_sample_pipeline.add_gene_to_old_clusters(
+    remain_fasta, old_clusters = add_sample_pipeline.add_gene_blast(
         old_clusters=old_clusters,
-        cd_hit_2d_clusters=cd_hit_2d_clusters,
+        gene_to_cluster=gene_to_cluster,
         unmatched_clusters = unmatched_clusters,
         blast_result=blast_1_result, 
         fasta_file=unmatched_represent_faa, 
@@ -88,6 +95,10 @@ def add_samples(temp_dir, new_samples, old_represent_faa, old_clusters, gene_ann
         gene_annotation=gene_annotation, 
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
+    num_seq = subprocess.run(f'grep ">" {remain_fasta} | wc -l', shell=True, capture_output=True, text=True)
+    if int(num_seq.stdout.rstrip()) == 0:
+        return old_clusters, new_combined_faa
+    
     blast_2_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = remain_fasta,
@@ -106,13 +117,13 @@ def add_samples(temp_dir, new_samples, old_represent_faa, old_clusters, gene_ann
         out_dir = temp_dir,
         blast_result = filtered_blast_result)
 
-    inflated_clusters = add_sample_pipeline.reinflate_clusters(
+    new_clusters = add_sample_pipeline.add_new_clusters(
         old_clusters = old_clusters,
         unmatched_clusters = unmatched_clusters,
         mcl_file=mcl_file
         )
 
-    return inflated_clusters, new_combined_faa
+    return new_clusters, new_combined_faa
 
 
 

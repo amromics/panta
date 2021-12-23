@@ -71,7 +71,7 @@ def chunk_fasta_file(fasta_file, out_dir):
 def create_fasta_exclude(fasta_file, exclude_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+)", line)
+            result = re.match(r"^>(\S+)", line)
             if result != None:
                 skip = False
                 seq_id = result.group(1)
@@ -89,7 +89,7 @@ def create_fasta_exclude(fasta_file, exclude_list, output_file):
 def create_fasta_include(fasta_file, include_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+)", line)
+            result = re.match(r"^>(\S+)", line)
             if result != None:
                 skip = False
                 seq_id = result.group(1)

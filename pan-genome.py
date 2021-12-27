@@ -49,7 +49,7 @@ def collect_sample(sample_id_list, args):
                 sample_id_list.append(sample_id)
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
     else:
-        raise Exception(f'Please specify -t or -g')
+        raise Exception(f'Please specify -f or -g')
     
     samples.sort(key= lambda x:x['id'])
     return samples
@@ -213,7 +213,7 @@ def run_main_pipeline(args):
         subset_representative_fasta = output.create_representative_fasta(
             clusters=subset_inflated_clusters, 
             gene_annotation=gene_annotation, 
-            faa_fasta=subset_combined_faa, 
+            faa_fasta=cd_hit_represent_fasta, 
             out_dir=subset_dir)
         
         inflated_clusters, remain_combined_faa = add_samples(

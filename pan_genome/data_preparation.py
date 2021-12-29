@@ -4,6 +4,8 @@ import logging
 import multiprocessing
 from functools import partial
 from datetime import datetime
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
@@ -79,7 +81,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, assembly_file, gene_annotation, gene_position
     
 
-def process_single_sample(sample, out_dir, table):
+def process_single_sample_1(sample, out_dir, table):
     # starttime = datetime.now()
     
     sample_id = sample['id']
@@ -115,14 +117,61 @@ def process_single_sample(sample, out_dir, table):
     return gene_annotation, gene_position
 
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):
+def process_single_sample_2(sample, out_dir, table):
+
+    sample_id = sample['id']
+    sample_dir = os.path.join(out_dir, 'samples', sample_id)
+    if not os.path.exists(sample_dir):
+        os.makedirs(sample_dir)
+
+    # gene prediction
+    assembly_file = sample['assembly']
+    gene_coordinate_file = os.path.join(sample_dir, sample_id + '.gff')
+    faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
+    cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -g {table} -c -m -q'
+    ret = os.system(cmd)
+    if ret != 0:
+        raise Exception('Error running prodigal')
+
+    # change gene id and extract coordinates
+    gene_annotation = {}
+    gene_position = {}
+    rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    count = 1
+    with open(faa_file, 'r') as in_fh, open(rewrite_faa_file, 'w') as out_fh:
+        for record in SeqIO.parse(in_fh, "fasta"):
+            contig = record.id.rsplit('_', 1)[0] 
+            cells = record.description.split(' # ')
+            start = int(cells[1])
+            end = int(cells[2])
+            length = end - start + 1
+            gene_id = sample_id + '_{:05d}'.format(count)
+            count += 1
+            
+            new_record = SeqRecord(record.seq, id = gene_id, description = '')
+            SeqIO.write(new_record, out_fh, 'fasta')
+
+            # add to gene_annotation           
+            gene_annotation[gene_id] = (sample_id, contig, length)
+            # add to gene_position
+            gene_position.setdefault(contig, []).append(gene_id)
+
+    # os.remove(gene_coordinate_file)
+    # os.remove(faa_file)
+    return gene_annotation, gene_position
+
+
+def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, annotate, threads):
     starttime = datetime.now()
     
     if threads == 0:
         threads = multiprocessing.cpu_count()
 
     with multiprocessing.Pool(processes=threads) as pool:
-        results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
+        if annotate == False:
+            results = pool.map(partial(process_single_sample_1, out_dir=out_dir, table=table), samples)
+        elif annotate == True:
+            results = pool.map(partial(process_single_sample_2, out_dir=out_dir, table=table), samples)
     
     for sample, result in zip(samples, results):
         # gene_annotation.update(result[0])

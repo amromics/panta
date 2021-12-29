@@ -156,7 +156,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters, dontsplit):
     return split_clusters
 
 
-def annotate_cluster(unlabeled_clusters, gene_annotation):
+def annotate_cluster_1(unlabeled_clusters, gene_annotation):
     starttime = datetime.now()
 
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
@@ -201,6 +201,19 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
 
+
+def annotate_cluster_2(unlabeled_clusters):
+    starttime = datetime.now()
+    annotated_clusters = {}
+    suffix = 1
+    for cluster in unlabeled_clusters:
+        cluster_name = 'groups_{:05d}'.format(suffix)
+        annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':'unknown'}
+        suffix += 1
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
 
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
     starttime = datetime.now()

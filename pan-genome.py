@@ -48,8 +48,19 @@ def collect_sample(sample_id_list, args):
             else:
                 sample_id_list.append(sample_id)
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
+    elif args.fasta != None:
+            fasta_list = args.fasta
+            for fasta in fasta_list:
+                base_name = os.path.basename(fasta)
+                sample_id = base_name.rsplit('.', 1)[0]
+                if sample_id in sample_id_list:
+                    logging.info(f'{sample_id} already exists -- skip')
+                    continue
+                else:
+                    sample_id_list.append(sample_id)
+                samples.append({'id':sample_id, 'gff_file':None, 'assembly':fasta})    
     else:
-        raise Exception(f'Please specify -f or -g')
+        raise Exception(f'There is no input file')
     
     samples.sort(key= lambda x:x['id'])
     return samples
@@ -132,6 +143,10 @@ def run_main_pipeline(args):
 
     collection_dir = args.outdir
     threads = args.threads
+    if args.fasta != None:
+        annotate = True
+    else:
+        annotate = False
     
     temp_dir = os.path.join(collection_dir, 'temp')
     if not os.path.exists(collection_dir):
@@ -154,6 +169,7 @@ def run_main_pipeline(args):
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         table=args.table,
+        annotate=annotate,
         threads=threads)
 
     number = args.number
@@ -234,9 +250,14 @@ def run_main_pipeline(args):
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
         )
-    annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
-        gene_annotation=gene_annotation)
+
+    if annotate == False:
+        annotated_clusters = post_analysis.annotate_cluster_1(
+            unlabeled_clusters=split_clusters, 
+            gene_annotation=gene_annotation)
+    else:
+        annotated_clusters = post_analysis.annotate_cluster_2(
+            unlabeled_clusters=split_clusters)
     
     output.create_outputs(gene_annotation,annotated_clusters,samples,collection_dir)
 
@@ -271,7 +292,10 @@ def run_add_sample_pipeline(args):
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
-
+    if args.fasta != None:
+        annotate = True
+    else:
+        annotate = False
 
     temp_dir = os.path.join(collection_dir, 'temp')
     if os.path.exists(temp_dir):
@@ -307,6 +331,7 @@ def run_add_sample_pipeline(args):
         gene_annotation = gene_annotation,
         gene_position = gene_position,
         table=args.table,
+        annotate=annotate,
         threads=threads
         )
 
@@ -373,6 +398,7 @@ def main():
     )
     main_cmd.set_defaults(func=run_main_pipeline)
     main_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
+    main_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
     main_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
@@ -394,6 +420,7 @@ def main():
     )
     add_cmd.set_defaults(func=run_add_sample_pipeline)
     add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
+    add_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')

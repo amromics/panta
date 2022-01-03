@@ -1,9 +1,8 @@
 import os
-import shutil
 import logging
 import subprocess
 from datetime import datetime
-from pan_genome.utils import *
+import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     ret = os.system(cmd)
     if ret != 0:
         raise Exception('Error running cd-hit')
-    cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
+    cd_hit_clusters = utils.parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
@@ -39,7 +38,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     
     # chunk fasta file
     chunk_dir = os.path.join(out_dir, 'chunk_files')
-    chunked_file_list = chunk_fasta_file(query_fasta, chunk_dir)
+    chunked_file_list = utils.chunk_fasta_file(query_fasta, chunk_dir)
 
     # run parallel all-against-all blast
     blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")
@@ -156,8 +155,6 @@ def cluster_with_mcl(blast_result, out_dir):
 
 def reinflate_clusters(cd_hit_clusters, mcl_file):
     starttime = datetime.now()
-    clusters = {}
-    clusters.update(cd_hit_clusters)
 
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
@@ -182,4 +179,4 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
-    return inflated_clusters, clusters
+    return inflated_clusters

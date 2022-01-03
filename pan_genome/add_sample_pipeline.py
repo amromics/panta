@@ -1,9 +1,8 @@
 import os
 import logging
-import copy
 from datetime import datetime
 import pandas as pd
-from pan_genome.utils import *
+import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4):
     if ret != 0:
         raise Exception('Error running cd-hit-2d')
 
-    clusters = parse_cluster_file(cd_hit_cluster_file)
+    clusters = utils.parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT-2D with 98% identity -- time taken {str(elapsed)}')
@@ -83,7 +82,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
     
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    create_fasta_exclude(fasta_file=fasta_file, exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
+    utils.create_fasta_exclude(fasta_file=fasta_file, exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')

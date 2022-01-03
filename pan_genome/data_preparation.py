@@ -6,7 +6,7 @@ from functools import partial
 from datetime import datetime
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from pan_genome.utils import *
+import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def process_single_sample_1(sample, out_dir, table):
     
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
-    translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
+    utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
     
     if sample['assembly'] == None:
         os.remove(assembly_file)

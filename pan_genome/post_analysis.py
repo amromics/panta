@@ -104,8 +104,8 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
     
     return new_clusters
 
-def split_paralogs(gene_annotation, gene_position, unsplit_clusters, dontsplit):
-    if dontsplit == True:
+def split_paralogs(gene_annotation, gene_position, unsplit_clusters, split):
+    if split == False:
         return unsplit_clusters
 
     starttime = datetime.now()

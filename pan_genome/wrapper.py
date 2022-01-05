@@ -4,12 +4,11 @@ import shutil
 import logging
 import json
 from pan_genome import *
-from pan_genome.output import create_spreadsheet, create_rtab, create_summary
 import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, gene_annotation, temp_dir, collection_dir, threads, args):
+def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collection_dir, threads, args):
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
         out_dir=temp_dir,
@@ -47,7 +46,6 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_annotation, te
         blast_result=blast_1_result, 
         fasta_file=unmatched_represent_faa, 
         out_dir=temp_dir,
-        gene_annotation=gene_annotation, 
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
     num_seq = subprocess.run(f'grep ">" {remain_fasta} | wc -l', shell=True, capture_output=True, text=True)
@@ -63,8 +61,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_annotation, te
         threads=threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_2_result, 
-        gene_annotation=gene_annotation, 
+        blast_result=blast_2_result,
         out_dir = temp_dir, 
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
@@ -85,6 +82,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
 
     data_preparation.extract_proteins(samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
 
+    # split collection
     number = args.number
     if number == 0:
         subset = samples[0:]
@@ -117,8 +115,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         threads=threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_result, 
-        gene_annotation=gene_annotation, 
+        blast_result=blast_result,
         out_dir = subset_dir, 
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
@@ -148,8 +145,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         inflated_clusters, remain_combined_faa = add_sample(
             new_samples=remain, 
             old_represent_faa=subset_representative_fasta,
-            old_clusters=subset_inflated_clusters, 
-            gene_annotation=gene_annotation, 
+            old_clusters=subset_inflated_clusters,
             temp_dir=remain_dir, 
             collection_dir=collection_dir, 
             threads=threads, 
@@ -160,7 +156,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         gene_annotation=gene_annotation,
         gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
-        dontsplit=args.dont_split
+        split=args.split
         )
 
     if annotate == False:
@@ -197,7 +193,7 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
 
     data_preparation.extract_proteins(new_samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
 
-    inflated_clusters, new_combined_faa = add_sample(new_samples, old_represent_faa,old_clusters, gene_annotation, temp_dir, collection_dir, threads, args)
+    inflated_clusters, new_combined_faa = add_sample(new_samples, old_represent_faa,old_clusters, temp_dir, collection_dir, threads, args)
 
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
@@ -206,7 +202,7 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
         gene_annotation=gene_annotation,
         gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
-        dontsplit=args.dont_split
+        split=args.split
         )
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters, 
@@ -228,19 +224,19 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
     return annotated_clusters
 
 def create_outputs(gene_annotation,annotated_clusters,samples,out_dir):
-    spreadsheet_file = create_spreadsheet(
+    output.create_spreadsheet(
         annotated_clusters=annotated_clusters, 
         gene_annotation=gene_annotation,
         samples=samples,
         out_dir=out_dir
     )
-    rtab_file = create_rtab(
+    rtab_file = output.create_rtab(
         annotated_clusters=annotated_clusters, 
         gene_annotation=gene_annotation,
         samples=samples,
         out_dir=out_dir
     )
-    summary_file = create_summary(
+    output.create_summary(
         rtab_file=rtab_file, 
         out_dir=out_dir
     )

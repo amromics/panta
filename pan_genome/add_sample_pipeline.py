@@ -39,19 +39,19 @@ def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
     return gene_to_cluster, old_clusters
 
 
-def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, gene_annotation, identity, LD, AL, AS):
+def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
     starttime = datetime.now()
     
     blast_dataframe = pd.read_csv(blast_result, sep='\t', header = None)
     match_dict = {}
     min_evalue = 1000
     previous = None
-    for i, row in blast_dataframe.iterrows():
+    for _, row in blast_dataframe.iterrows():
         new = row[0]
         old = row[1]
         
-        qlen = gene_annotation[new][2]
-        slen = gene_annotation[old][2]
+        qlen = int(row[12])
+        slen = int(row[13])
         
         pident = float(row[2]) / 100
         
@@ -59,7 +59,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
         long_seq = max(qlen, slen)
         len_diff = short_seq / long_seq
         
-        alignment_length = int(row[3]) * 3
+        alignment_length = int(row[3])
         align_short = alignment_length / short_seq
         align_long = alignment_length / long_seq
             

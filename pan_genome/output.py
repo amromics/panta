@@ -137,7 +137,7 @@ def create_summary(rtab_file, out_dir):
     return summary_file
 
 
-def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
+def create_representative_fasta(clusters, gene_annotation, fasta_list, out_dir):
     starttime = datetime.now()
     representative_fasta = os.path.join(out_dir, 'representative.fasta')
     representative_list = set()
@@ -151,7 +151,7 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
                 length_max = length
         representative_list.add(representative)
     utils.create_fasta_include(
-        fasta_file=faa_fasta, 
+        fasta_file_list=fasta_list, 
         include_list=representative_list, 
         output_file=representative_fasta
         )

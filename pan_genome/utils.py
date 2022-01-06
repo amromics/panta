@@ -68,40 +68,48 @@ def chunk_fasta_file(fasta_file, out_dir):
     # logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
     return chunked_file_list
 
-def create_fasta_exclude(fasta_file, exclude_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id in exclude_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+def create_fasta_exclude(fasta_file_list, exclude_list, output_file):
+    with open(output_file,'w') as fh_out:
+        for fasta_file in fasta_file_list:
+            if fasta_file == None:
+                continue
+            with open(fasta_file, 'r') as fh_in:
+                for line in fh_in:
+                    result = re.match(r"^>(\S+)", line)
+                    if result != None:
+                        skip = False
+                        seq_id = result.group(1)
+                        if seq_id in exclude_list:
+                            skip = True
+                            continue
+                        fh_out.write(line)
+                    else:
+                        if skip == True:
+                            continue
+                        else:
+                            fh_out.write(line)
 
 
-def create_fasta_include(fasta_file, include_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id not in include_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+def create_fasta_include(fasta_file_list, include_list, output_file):
+    with open(output_file,'w') as fh_out:
+        for fasta_file in fasta_file_list:
+            if fasta_file == None:
+                continue
+            with open(fasta_file, 'r') as fh_in:
+                for line in fh_in:
+                    result = re.match(r"^>(\S+)", line)
+                    if result != None:
+                        skip = False
+                        seq_id = result.group(1)
+                        if seq_id not in include_list:
+                            skip = True
+                            continue
+                        fh_out.write(line)
+                    else:
+                        if skip == True:
+                            continue
+                        else:
+                            fh_out.write(line)
 
 
 def translate_protein(nu_fasta, pro_fasta, table):

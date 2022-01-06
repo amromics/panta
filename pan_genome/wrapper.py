@@ -130,7 +130,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
     # run the remain of collection
     if len(remain) == 0:
         inflated_clusters = subset_inflated_clusters
-        remain_combined_faa = ""
+        remain_combined_faa = None
     else:
         remain_dir = os.path.join(temp_dir, 'remain')
         if not os.path.exists(remain_dir):
@@ -139,7 +139,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         subset_representative_fasta = output.create_representative_fasta(
             clusters=subset_inflated_clusters, 
             gene_annotation=gene_annotation, 
-            faa_fasta=cd_hit_represent_fasta, 
+            fasta_list=[cd_hit_represent_fasta], 
             out_dir=subset_dir)
         
         inflated_clusters, remain_combined_faa = add_sample(
@@ -173,12 +173,10 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
             species=args.species,
             )
 
-    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
-    os.system(f'cat {subset_combined_faa} {remain_combined_faa} > {rep_temp_file}')
     output.create_representative_fasta(
         clusters=split_clusters, 
         gene_annotation=gene_annotation, 
-        faa_fasta=rep_temp_file, 
+        fasta_list=[subset_combined_faa, remain_combined_faa], 
         out_dir=collection_dir)
     
     output.export_gene_annotation(gene_annotation, collection_dir)
@@ -213,12 +211,10 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     
-    rep_temp_file = os.path.join(temp_dir, 'representative_temp')
-    os.system(f'cat {old_represent_faa} {new_combined_faa} > {rep_temp_file}')
     output.create_representative_fasta(
         clusters=split_clusters, 
         gene_annotation=gene_annotation, 
-        faa_fasta=rep_temp_file, 
+        fasta_list=[old_represent_faa, new_combined_faa], 
         out_dir=collection_dir)   
 
     return annotated_clusters

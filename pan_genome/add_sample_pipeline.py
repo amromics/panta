@@ -82,7 +82,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
     
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    utils.create_fasta_exclude(fasta_file=fasta_file, exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
+    utils.create_fasta_exclude(fasta_file=[fasta_file], exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')

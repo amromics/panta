@@ -4,5 +4,6 @@ __all__ = [
     'add_sample_pipeline', 
     'post_analysis', 
     'output',
-    'utils'
+    'utils',
+    'annotate'
     ]

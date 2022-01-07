@@ -159,13 +159,20 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         split=args.split
         )
 
+    rep_fasta = output.create_representative_fasta(
+        clusters=split_clusters, 
+        gene_annotation=gene_annotation, 
+        fasta_list=[subset_combined_faa, remain_combined_faa], 
+        out_dir=collection_dir)
+
     if annotate == False:
-        annotated_clusters = post_analysis.annotate_cluster_1(
+        annotated_clusters = post_analysis.annotate_cluster(
             unlabeled_clusters=split_clusters, 
             gene_annotation=gene_annotation)
     else:
-        annotated_clusters = post_analysis.annotate_cluster_2(
+        annotated_clusters = annotate.annotate_cluster(
             unlabeled_clusters=split_clusters,
+            rep_fasta = rep_fasta,
             collection_dir=collection_dir,
             samples=samples,
             gene_annotation=gene_annotation,
@@ -173,11 +180,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
             species=args.species,
             )
 
-    output.create_representative_fasta(
-        clusters=split_clusters, 
-        gene_annotation=gene_annotation, 
-        fasta_list=[subset_combined_faa, remain_combined_faa], 
-        out_dir=collection_dir)
+
     
     output.export_gene_annotation(gene_annotation, collection_dir)
     json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
@@ -202,6 +205,13 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
         unsplit_clusters= inflated_clusters,
         split=args.split
         )
+
+    rep_fasta = output.create_representative_fasta(
+        clusters=split_clusters, 
+        gene_annotation=gene_annotation, 
+        fasta_list=[old_represent_faa, new_combined_faa], 
+        out_dir=collection_dir)   
+
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters, 
         gene_annotation=gene_annotation)
@@ -211,11 +221,7 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     
-    output.create_representative_fasta(
-        clusters=split_clusters, 
-        gene_annotation=gene_annotation, 
-        fasta_list=[old_represent_faa, new_combined_faa], 
-        out_dir=collection_dir)   
+
 
     return annotated_clusters
 

@@ -157,7 +157,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters, split):
     return split_clusters
 
 
-def annotate_cluster_1(unlabeled_clusters, gene_annotation):
+def annotate_cluster(unlabeled_clusters, gene_annotation):
     starttime = datetime.now()
 
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
@@ -202,67 +202,6 @@ def annotate_cluster_1(unlabeled_clusters, gene_annotation):
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
 
-
-def annotate_cluster_2(unlabeled_clusters, collection_dir, samples, gene_annotation, threads, genus=None, species=None):
-    starttime = datetime.now()
-    temp_dir = os.path.join(collection_dir, 'temp')
-    # create nucleotide representative fasta
-    representative_list = set()
-    for cluster in unlabeled_clusters:
-        length_max = 0
-        representative = None
-        for gene_id in cluster:
-            length = gene_annotation[gene_id][2]
-            if length > length_max:
-                representative = gene_id
-                length_max = length
-        representative_list.add(representative)
-    
-    rep_fna = os.path.join(temp_dir, 'rep.fna')
-    with open(rep_fna, 'w') as out_fh:
-        for sample in samples:
-            sample_id = sample['id']
-            fna_file = os.path.join(collection_dir, 'samples', sample_id, sample_id + '.fna')
-            with open(fna_file, 'r') as in_fh:
-                for line in in_fh:
-                    result = re.match(r"^>(\S+)", line)
-                    if result != None:
-                        skip = False
-                        seq_id = result.group(1)
-                        if seq_id not in representative_list:
-                            skip = True
-                            continue
-                        out_fh.write(line)
-                    else:
-                        if skip == True:
-                            continue
-                        else:
-                            out_fh.write(line)
-
-    # prokka
-    cmd = f"prokka --force --cpus {threads} --prefix prokka --outdir {temp_dir} --quiet --norrna --notrna --usegenus"
-    if genus != None:
-        cmd += ' --genus ' + genus
-    if species  != None:
-        cmd += ' --species ' + species
-    cmd += ' ' + rep_fna
-    ret = os.system(cmd)
-    if ret != 0:
-        raise Exception('Error running prokka')
-
-    # transfer annotation
-
-    
-    annotated_clusters = {}
-    suffix = 1
-    for cluster in unlabeled_clusters:
-        cluster_name = 'groups_{:05d}'.format(suffix)
-        annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':'unknown'}
-        suffix += 1
-
-    elapsed = datetime.now() - starttime
-    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    return annotated_clusters
 
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
     starttime = datetime.now()

@@ -14,7 +14,6 @@ logging.basicConfig(
     datefmt='%I:%M:%S')
 logger = logging.getLogger(__name__)
 
-
 def collect_sample(sample_id_list, args):
     samples = []
     if args.tsv != None:
@@ -80,6 +79,10 @@ def main_function(args):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)    
 
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    db_dir = os.path.join(dir_path, 'db')
+
+
     # collect samples
     sample_id_list = []
     samples = collect_sample(sample_id_list, args)
@@ -90,7 +93,7 @@ def main_function(args):
     gene_position = {}
     
     # pipeline
-    annotated_clusters = wrapper.run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, args, annotate, threads)
+    annotated_clusters = wrapper.run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, annotate, threads)
     wrapper.create_outputs(gene_annotation,annotated_clusters,samples,collection_dir)
     wrapper.run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, args.alignment, threads)
 
@@ -119,7 +122,10 @@ def add_function(args):
         os.makedirs(temp_dir)
     else:
         os.makedirs(temp_dir)
-    
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    db_dir = os.path.join(dir_path, 'db')
+
     # Check required files
     if args.alignment != None:
         samples_dir = os.path.join(collection_dir, 'samples')
@@ -146,7 +152,7 @@ def add_function(args):
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-    annotated_clusters = wrapper.run_add_pipeline(old_samples, new_samples, old_represent_faa, old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, annotate, threads, args)
+    annotated_clusters = wrapper.run_add_pipeline(old_samples, new_samples, old_represent_faa, old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, annotate, threads, args)
     wrapper.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
     wrapper.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
 
@@ -210,4 +216,20 @@ def main():
     args.func(args)
 
 if __name__ == "__main__":
-    main()
+    # main()
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s : %(message)s',
+        datefmt='%I:%M:%S')
+    logger = logging.getLogger(__name__)
+
+
+    # setup_db(db_dir="/home/ted/amromics/amromics/pan-genome/db", force=True)
+
+    annotate.annotate_cluster(
+        rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
+        temp_dir='/home/ted/test_prodigal/out/1/temp', 
+        threads=4, 
+        genus="Staphylococcus"
+    )

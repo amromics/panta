@@ -7,6 +7,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from datetime import datetime
 from glob import glob
+import multiprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def setup_db(db_dir, force=False):
         os.system(cmd)
         logging.info(f'Making BLASTP database {fasta}')
 
-    genus_db = {}
+    genus_db = []
     for genus in os.listdir(os.path.join(db_dir,'genus')):
         if re.search(r'\.', genus) != None:
             continue
@@ -51,7 +52,7 @@ def setup_db(db_dir, force=False):
 
     hmm_db =glob(os.path.join(db_dir, 'hmm', '*.hmm'))
     for hmm in hmm_db:
-        database_file = hmm + '.h3f'
+        database_file = hmm + '.h3i'
         if os.path.isfile(database_file) and force==False:
             # logging.info(f'Pressing HMM database {hmm} - skipping')
             continue
@@ -64,19 +65,46 @@ def setup_db(db_dir, force=False):
     return bacteria_db, genus_db, hmm_db[0]
 
 
-def annotate_cluster(unlabeled_clusters, rep_fasta, collection_dir, samples, gene_annotation, threads, genus=None, species=None):
+def run_parallel(faa_file, threads, database, out_dir):
+    name = database['name']
+    out_file = os.path.join(out_dir, name + '.out')
+    faa_bytes = os.path.getsize(faa_file)
+    if threads > 0:
+        bsize = int(faa_bytes / threads / 2)
+    else:
+        ncpu = multiprocessing.cpu_count()
+        bsize = int(faa_bytes / ncpu / 2)
+    
+    if database['tool'] == 'blastp':
+        db_dir = database['dir']
+        evalue = database['EVALUE']
+        mincov = database['MINCOV']
+        cmd = f'blastp -query - -db {db_dir} -evalue {evalue} -qcov_hsp_perc {mincov} -num_threads 1 -num_descriptions 1 -num_alignments 1 -seg no '
+    elif database['tool'] == 'hmmer3':
+        db_dir = database['dir']
+        evalue = database['EVALUE']
+        cmd = f'hmmscan --noali --notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin '
+
+    parallel_cmd = f"cat {faa_file} | parallel --gnu --plain -j {threads} --block {bsize} --recstart '>' --pipe " 
+    parallel_cmd += cmd
+    parallel_cmd += f"> {out_file} " # 2> /dev/null"
+
+    logging.info(f"Running: {parallel_cmd}")
+    os.system(parallel_cmd)
+
+    return out_file
+
+def annotate_cluster(rep_fasta, temp_dir, db_dir, threads, genus=None):
     starttime = datetime.now()
     
-    temp_dir = os.path.join(collection_dir, 'temp')
+    out_dir = os.path.join(temp_dir, 'annotate')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
     evalue = 1E-9
     mincov = 80
 
     # setup database
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    db_dir = os.path.join(dir_path, 'db')
     bacteria_db, genus_db, hmm = setup_db(db_dir)
-    
-    # set parameters for sprot and hmm database
     bacteria_db[2]['MINCOV'] = mincov
     bacteria_db[2]['EVALUE'] = evalue
     hmm_db = {'name':"hmm",'dir':hmm,'tool': 'hmmer3','EVALUE': evalue}
@@ -94,19 +122,32 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, collection_dir, samples, gen
     ordered_database.extend(bacteria_db)
     ordered_database.append(hmm_db)
 
-    # 
+    # search iteratively
+    faa_file = rep_fasta
+    for database in ordered_database:
+        out_file = run_parallel(faa_file, threads, database, out_dir)
+        
+
+
+
+
+
+
+
+
+
 
     
-    annotated_clusters = {}
-    suffix = 1
-    for cluster in unlabeled_clusters:
-        cluster_name = 'groups_{:05d}'.format(suffix)
-        annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':'unknown'}
-        suffix += 1
+    # annotated_clusters = {}
+    # suffix = 1
+    # for cluster in unlabeled_clusters:
+    #     cluster_name = 'groups_{:05d}'.format(suffix)
+    #     annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':'unknown'}
+    #     suffix += 1
 
-    elapsed = datetime.now() - starttime
-    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    return annotated_clusters
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    # return annotated_clusters
 
 
 
@@ -156,13 +197,21 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, collection_dir, samples, gen
 
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-    # logging.basicConfig(
-    #     level=logging.DEBUG,
-    #     format='%(asctime)s %(levelname)s : %(message)s',
-    #     datefmt='%I:%M:%S')
-    # logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s : %(message)s',
+        datefmt='%I:%M:%S')
+    logger = logging.getLogger(__name__)
 
 
     # setup_db(db_dir="/home/ted/amromics/amromics/pan-genome/db", force=True)
+
+    annotate_cluster(
+        rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
+        temp_dir='/home/ted/test_prodigal/out/1/temp', 
+        db_dir = "/home/ted/amromics/amromics/pan-genome/db",
+        threads=4, 
+        genus="Staphylococcus"
+    )

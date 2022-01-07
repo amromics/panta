@@ -78,7 +78,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collectio
     return new_clusters, new_combined_faa
 
 
-def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, args, annotate, threads):
+def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, annotate, threads):
 
     data_preparation.extract_proteins(samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
 
@@ -173,7 +173,8 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         annotated_clusters = annotate.annotate_cluster(
             unlabeled_clusters=split_clusters,
             rep_fasta = rep_fasta,
-            collection_dir=collection_dir,
+            temp_dir=temp_dir,
+            db_dir = db_dir,
             samples=samples,
             gene_annotation=gene_annotation,
             genus=args.genus,
@@ -190,7 +191,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
     return annotated_clusters
 
 
-def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, annotate, threads, args):
+def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, annotate, threads, args):
 
     data_preparation.extract_proteins(new_samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
 

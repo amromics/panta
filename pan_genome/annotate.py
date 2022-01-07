@@ -119,11 +119,7 @@ def parse_search_result(result_file, tool, dictionary):
             dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-
-
-
-
-def annotate_cluster(rep_fasta, temp_dir, db_dir, threads, genus=None):
+def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, genus=None):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -161,93 +157,57 @@ def annotate_cluster(rep_fasta, temp_dir, db_dir, threads, genus=None):
         utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)
         faa_file = filter_faa
 
-    return search_result, faa_file
-
-
-
     
-    # annotated_clusters = {}
-    # suffix = 1
-    # for cluster in unlabeled_clusters:
-    #     cluster_name = 'groups_{:05d}'.format(suffix)
-    #     annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':'unknown'}
-    #     suffix += 1
+    annotated_clusters = {}
+    suffix = 1
+    for cluster in unlabeled_clusters:
+        cluster_name = 'groups_{:05d}'.format(suffix)
+        product = 'hypothetical protein'
+        for gene in cluster:
+            if gene in search_result:
+                if search_result[gene]['gene'] != None:
+                    cluster_name = search_result[gene]['gene']
+                elif search_result[gene]['id'] != None:
+                    cluster_name = search_result[gene]['id']
 
-    # elapsed = datetime.now() - starttime
-    # logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    # return annotated_clusters
+                if search_result[gene]['product'] != None:
+                    product = search_result[gene]['product']
 
+        annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':product}
+        suffix += 1
 
-
-# def create_nucleotide_representative_fasta():
-#     representative_list = set()
-#     for cluster in unlabeled_clusters:
-#         length_max = 0
-#         representative = None
-#         for gene_id in cluster:
-#             length = gene_annotation[gene_id][2]
-#             if length > length_max:
-#                 representative = gene_id
-#                 length_max = length
-#         representative_list.add(representative)
-    
-#     rep_fna = os.path.join(temp_dir, 'rep.fna')
-#     with open(rep_fna, 'w') as out_fh:
-#         for sample in samples:
-#             sample_id = sample['id']
-#             fna_file = os.path.join(collection_dir, 'samples', sample_id, sample_id + '.fna')
-#             with open(fna_file, 'r') as in_fh:
-#                 for line in in_fh:
-#                     result = re.match(r"^>(\S+)", line)
-#                     if result != None:
-#                         skip = False
-#                         seq_id = result.group(1)
-#                         if seq_id not in representative_list:
-#                             skip = True
-#                             continue
-#                         out_fh.write(line)
-#                     else:
-#                         if skip == True:
-#                             continue
-#                         else:
-#                             out_fh.write(line)
-
-#     # prokka
-#     cmd = f"prokka --force --cpus {threads} --prefix prokka --outdir {temp_dir} --quiet --norrna --notrna --usegenus"
-#     if genus != None:
-#         cmd += ' --genus ' + genus
-#     if species  != None:
-#         cmd += ' --species ' + species
-#     cmd += ' ' + rep_fna
-#     ret = os.system(cmd)
-#     if ret != 0:
-#         raise Exception('Error running prokka')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
 
 
 
-if __name__ == "__main__":
 
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s %(levelname)s : %(message)s',
-        datefmt='%I:%M:%S')
-    logger = logging.getLogger(__name__)
+# if __name__ == "__main__":
+
+#     logging.basicConfig(
+#         level=logging.DEBUG,
+#         format='%(asctime)s %(levelname)s : %(message)s',
+#         datefmt='%I:%M:%S')
+#     logger = logging.getLogger(__name__)
 
 
     # setup_db(db_dir="/home/ted/amromics/amromics/pan-genome/db", force=True)
 
-    dictionary, faa_file=annotate_cluster(
-        rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
-        temp_dir='/home/ted/test_prodigal/out/1/temp', 
-        db_dir = "/home/ted/amromics/amromics/pan-genome/db",
-        threads=4, 
-        genus="Staphylococcus"
-    )
+    # old_clusters = json.load(open('/home/ted/test_prodigal/out/1/clusters.json', 'r'))
 
-    # dictionary = parse_search_result(
-    #     '/home/ted/test_prodigal/out/1/temp/annotate/sprot.out',
-    #     'blastp'
+    # annotated_clusters=annotate_cluster(
+    #     unlabeled_clusters= old_clusters,
+    #     rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
+    #     temp_dir='/home/ted/test_prodigal/out/1/temp', 
+    #     db_dir = "/home/ted/amromics/amromics/pan-genome/db",
+    #     threads=4, 
+    #     genus="Staphylococcus"
     # )
 
-    json.dump(dictionary, open('/home/ted/test_prodigal/out/1/temp/annotate/dictionary.json', 'w'), indent=4, sort_keys=True)
-    print(faa_file)
+    # # dictionary = parse_search_result(
+    # #     '/home/ted/test_prodigal/out/1/temp/annotate/sprot.out',
+    # #     'blastp'
+    # # )
+
+    # json.dump(annotated_clusters, open('/home/ted/test_prodigal/out/1/temp/annotate/annotated_clusters.json', 'w'), indent=4, sort_keys=True)

@@ -78,9 +78,9 @@ def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collectio
     return new_clusters, new_combined_faa
 
 
-def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, annotate, threads):
+def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads):
 
-    data_preparation.extract_proteins(samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
+    data_preparation.extract_proteins(samples,collection_dir,gene_annotation,gene_position,args.table,anno,threads)
 
     # split collection
     number = args.number
@@ -165,7 +165,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         fasta_list=[subset_combined_faa, remain_combined_faa], 
         out_dir=collection_dir)
 
-    if annotate == False:
+    if anno == False:
         annotated_clusters = post_analysis.annotate_cluster(
             unlabeled_clusters=split_clusters, 
             gene_annotation=gene_annotation)
@@ -175,10 +175,8 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
             rep_fasta = rep_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            samples=samples,
-            gene_annotation=gene_annotation,
-            genus=args.genus,
-            species=args.species,
+            threads = threads,
+            genus=args.genus
             )
 
 
@@ -191,9 +189,9 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
     return annotated_clusters
 
 
-def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, annotate, threads, args):
+def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args):
 
-    data_preparation.extract_proteins(new_samples,collection_dir,gene_annotation,gene_position,args.table,annotate,threads)
+    data_preparation.extract_proteins(new_samples,collection_dir,gene_annotation,gene_position,args.table,anno,threads)
 
     inflated_clusters, new_combined_faa = add_sample(new_samples, old_represent_faa,old_clusters, temp_dir, collection_dir, threads, args)
 

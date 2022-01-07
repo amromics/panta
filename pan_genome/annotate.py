@@ -1,16 +1,11 @@
 import os
 import re
 import logging
-import gzip
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
 from Bio import SearchIO
 from datetime import datetime
 from glob import glob
 import multiprocessing
-import json
-import utils as utils
+import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 

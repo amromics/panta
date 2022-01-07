@@ -5,9 +5,12 @@ import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
+from Bio import SearchIO
 from datetime import datetime
 from glob import glob
 import multiprocessing
+import json
+import utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +90,38 @@ def run_parallel(faa_file, threads, database, out_dir):
 
     parallel_cmd = f"cat {faa_file} | parallel --gnu --plain -j {threads} --block {bsize} --recstart '>' --pipe " 
     parallel_cmd += cmd
-    parallel_cmd += f"> {out_file} " # 2> /dev/null"
+    parallel_cmd += f"> {out_file} 2> /dev/null"
 
     logging.info(f"Running: {parallel_cmd}")
     os.system(parallel_cmd)
 
     return out_file
+
+def parse_search_result(result_file, tool, dictionary):
+    if tool == 'blastp':
+        fmt = 'blast-text'
+    elif tool == 'hmmer3':
+        fmt = 'hmmer3-text'
+    
+    for qresult in SearchIO.parse(result_file, fmt):
+        qseqid = qresult.id
+        for hit in qresult:
+            sseqid = hit.id
+            desc = hit.description.split('~~~')
+            if desc[1] != '':
+                gene_name = desc[1]
+            else:
+                gene_name = None
+            if desc[2] != '':
+                product = desc[2]
+            else:
+                product = None
+            dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
+
+    
+
+
+
 
 def annotate_cluster(rep_fasta, temp_dir, db_dir, threads, genus=None):
     starttime = datetime.now()
@@ -124,16 +153,15 @@ def annotate_cluster(rep_fasta, temp_dir, db_dir, threads, genus=None):
 
     # search iteratively
     faa_file = rep_fasta
+    search_result = {}
     for database in ordered_database:
         out_file = run_parallel(faa_file, threads, database, out_dir)
-        
+        parse_search_result(out_file, database['tool'], search_result)
+        filter_faa = os.path.join(out_dir, database['name'] + 'filter.faa')
+        utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)
+        faa_file = filter_faa
 
-
-
-
-
-
-
+    return search_result, faa_file
 
 
 
@@ -208,10 +236,18 @@ if __name__ == "__main__":
 
     # setup_db(db_dir="/home/ted/amromics/amromics/pan-genome/db", force=True)
 
-    annotate_cluster(
+    dictionary, faa_file=annotate_cluster(
         rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
         temp_dir='/home/ted/test_prodigal/out/1/temp', 
         db_dir = "/home/ted/amromics/amromics/pan-genome/db",
         threads=4, 
         genus="Staphylococcus"
     )
+
+    # dictionary = parse_search_result(
+    #     '/home/ted/test_prodigal/out/1/temp/annotate/sprot.out',
+    #     'blastp'
+    # )
+
+    json.dump(dictionary, open('/home/ted/test_prodigal/out/1/temp/annotate/dictionary.json', 'w'), indent=4, sort_keys=True)
+    print(faa_file)

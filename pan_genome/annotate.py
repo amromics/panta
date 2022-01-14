@@ -28,7 +28,7 @@ def setup_db(db_dir, force=False):
         if not os.path.isfile(fasta):
             raise Exception(f'Database {fasta} does not exist')
         cmd = f'makeblastdb -hash_index -dbtype prot -in {fasta} -logfile /dev/null'
-        os.system(cmd)
+        utils.run_command(cmd)
         logging.info(f'Making BLASTP database {fasta}')
 
     genus_db = []
@@ -44,7 +44,7 @@ def setup_db(db_dir, force=False):
         if not os.path.isfile(fasta):
             raise Exception(f'Database {fasta} does not exist')
         cmd = f'makeblastdb -hash_index -dbtype prot -in {fasta} -logfile /dev/null'
-        os.system(cmd)
+        utils.run_command(cmd)
         logging.info(f'Making BLASTP database {fasta}')
 
 
@@ -57,7 +57,7 @@ def setup_db(db_dir, force=False):
         if not os.path.isfile(hmm):
             raise Exception(f'Database {hmm} does not exist')
         cmd = f'hmmpress {hmm} > /dev/null'
-        os.system(cmd)
+        utils.run_command(cmd)
         logging.info(f'Pressing HMM database {hmm}')
 
     return bacteria_db, genus_db, hmm_db[0]
@@ -88,7 +88,7 @@ def run_parallel(faa_file, threads, database, out_dir):
     parallel_cmd += f"> {out_file} 2> /dev/null"
 
     logging.info(f"Running: {parallel_cmd}")
-    os.system(parallel_cmd)
+    utils.run_command(parallel_cmd)
 
     return out_file
 
@@ -145,12 +145,14 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, g
     # search iteratively
     faa_file = rep_fasta
     search_result = {}
+    logging.info(f'Total number of genes: {len(unlabeled_clusters)}')
     for database in ordered_database:
         out_file = run_parallel(faa_file, threads, database, out_dir)
         parse_search_result(out_file, database['tool'], search_result)
         filter_faa = os.path.join(out_dir, database['name'] + 'filter.faa')
         utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)
         faa_file = filter_faa
+        logging.info(f'Number of genes found: {len(search_result)}')
 
     
     annotated_clusters = {}

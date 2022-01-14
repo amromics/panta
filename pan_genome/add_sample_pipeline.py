@@ -13,7 +13,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4):
     cd_hit_cluster_file = not_match_fasta + '.clstr'
     
     cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running cd-hit-2d')
 
@@ -82,7 +82,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
     
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    utils.create_fasta_exclude(fasta_file=[fasta_file], exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
+    utils.create_fasta_exclude(fasta_file_list=[fasta_file], exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')

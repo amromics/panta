@@ -13,7 +13,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running cd-hit')
     cd_hit_clusters = utils.parse_cluster_file(cd_hit_cluster_file)
@@ -32,7 +32,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     # make blast database
     blast_db = os.path.join(out_dir, 'output_contigs')
     cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running makeblastdb')
     
@@ -52,7 +52,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
             cmd += f' 2> /dev/null 1> {blast_output_file}'
             fh.write(cmd + '\n')
     cmd = f"parallel -j {threads} -a {blast_cmds_file}"
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running parallel all-against-all blast')
 
@@ -61,7 +61,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     if os.path.isfile(blast_result):
         os.remove(blast_result)
     for blast_output_file in blast_output_file_list:
-        os.system(f'cat {blast_output_file} >> {blast_result}')
+        utils.run_command(f'cat {blast_output_file} >> {blast_result}')
 
     elapsed = datetime.now() - starttime
     logging.info(f'All-against-all BLASTP -- time taken {str(elapsed)}')
@@ -77,7 +77,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond makedb')
     
@@ -147,7 +147,7 @@ def cluster_with_mcl(blast_result, out_dir):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast --m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running mcl')
     elapsed = datetime.now() - starttime

@@ -100,7 +100,7 @@ def process_single_sample_1(sample, out_dir, table):
     
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
+    utils.run_command(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
     
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
@@ -130,7 +130,7 @@ def process_single_sample_2(sample, out_dir, table):
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
     fna_file = os.path.join(sample_dir, sample_id +'.original.fna')
     cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running prodigal')
 
@@ -139,19 +139,43 @@ def process_single_sample_2(sample, out_dir, table):
     gene_position = {}
     rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
     count = 1
+    passed_genes = set()
     with open(faa_file, 'r') as in_fh, open(rewrite_faa_file, 'w') as out_fh:
         for record in SeqIO.parse(in_fh, "fasta"):
             contig = record.id.rsplit('_', 1)[0] 
             cells = record.description.split(' # ')
+            pro = str(record.seq)
+            
+            # filter short genes
             start = int(cells[1])
             end = int(cells[2])
             length = end - start + 1
+            if length < 120:
+                # logger.info('Short gene')
+                continue
+
+            # filter seq with premature codon
+            results = re.findall(r'\*', pro)
+            if len(results) > 1:
+                logger.info('Have premature codon')
+                continue
+
+            # filter seq lacking start and stop codon
+            if pro[0] != 'M' and pro[-1] != '*':
+                logger.info('Lack both start and stop codon')
+                continue
+            
+            # filter seq which has more than 5% of unknown
+            results = re.findall(r'X', pro)
+            if len(results) / len (pro) > 0.05:
+                logger.info('Too many unknowns')
+                continue
+            
             gene_id = sample_id + '_{:05d}'.format(count)
             count += 1
-            
             new_record = SeqRecord(record.seq, id = gene_id, description = '')
             SeqIO.write(new_record, out_fh, 'fasta')
-
+            passed_genes.add(gene_id)
             # add to gene_annotation           
             gene_annotation[gene_id] = (sample_id, contig, length)
             # add to gene_position
@@ -163,6 +187,8 @@ def process_single_sample_2(sample, out_dir, table):
         for record in SeqIO.parse(in_fh, "fasta"):
             gene_id = sample_id + '_{:05d}'.format(count)
             count += 1
+            if gene_id not in passed_genes:
+                continue
             new_record = SeqRecord(record.seq, id = gene_id, description = '')
             SeqIO.write(new_record, out_fh, 'fasta')
 
@@ -212,7 +238,7 @@ def combine_proteins(collection_dir, out_dir, samples):
                 raise Exception(f'{faa_file} does not exist')
 
     cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
-    os.system(cmd)
+    utils.run_command(cmd)
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Combine protein -- time taken {str(elapsed)}')

@@ -6,6 +6,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from datetime import datetime
+import pan_genome.utils as utils
 
 
 logger = logging.getLogger(__name__)
@@ -285,7 +286,7 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads):
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running mafft')
 
@@ -312,7 +313,7 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = os.system(cmd)
+    ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running mafft')
 

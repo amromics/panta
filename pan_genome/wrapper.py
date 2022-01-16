@@ -8,7 +8,7 @@ import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collection_dir, threads, args):
+def add_sample(new_samples, old_represent_faa, old_clusters, gene_dictionary, temp_dir, collection_dir, threads, args):
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
         out_dir=temp_dir,
@@ -69,13 +69,22 @@ def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collectio
         out_dir = temp_dir,
         blast_result = filtered_blast_result)
 
-    new_clusters = add_sample_pipeline.add_new_clusters(
-        old_clusters = old_clusters,
+    new_clusters, new_represent_list = add_sample_pipeline.add_new_clusters(
         unmatched_clusters = unmatched_clusters,
-        mcl_file=mcl_file
+        mcl_file=mcl_file,
+        gene_dictionary = gene_dictionary
         )
 
-    return new_clusters, new_combined_faa
+    # create representative
+    new_represent_fasta = os.path.join(temp_dir, 'representative.fasta')
+    utils.create_fasta_include(
+        fasta_file_list=[unmatched_represent_faa], 
+        include_list=new_represent_list, 
+        output_file=new_represent_fasta
+        ) 
+
+
+    return new_clusters, new_represent_fasta
 
 
 def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads):
@@ -123,124 +132,80 @@ def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, t
         out_dir = subset_dir,
         blast_result = filtered_blast_result)
 
-    subset_inflated_clusters = main_pipeline.reinflate_clusters(
+    subset_inflated_clusters, subset_represent_list = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
-        mcl_file=subset_mcl_file)
+        mcl_file=subset_mcl_file,
+        gene_dictionary=gene_dictionary)
+
+    # create representative
+    subset_represent_fasta = os.path.join(subset_dir, 'representative.fasta')
+    utils.create_fasta_include(
+        fasta_file_list=[cd_hit_represent_fasta], 
+        include_list=subset_represent_list, 
+        output_file=subset_represent_fasta
+        )
+
 
     # run the remain of collection
     if len(remain) == 0:
-        inflated_clusters = subset_inflated_clusters
-        remain_combined_faa = None
+        final_clusters = subset_inflated_clusters
+        final_represent_fasta = subset_represent_fasta
     else:
         remain_dir = os.path.join(temp_dir, 'remain')
         if not os.path.exists(remain_dir):
             os.makedirs(remain_dir)
-        
-        subset_representative_fasta = output.create_representative_fasta(
-            clusters=subset_inflated_clusters, 
-            gene_dictionary=gene_dictionary, 
-            fasta_list=[cd_hit_represent_fasta], 
-            out_dir=subset_dir)
-        
-        inflated_clusters, remain_combined_faa = add_sample(
+
+        remain_clusters, remain_represent_fasta = add_sample(
             new_samples=remain, 
-            old_represent_faa=subset_representative_fasta,
+            old_represent_faa=subset_represent_fasta,
             old_clusters=subset_inflated_clusters,
+            gene_dictionary=gene_dictionary,
             temp_dir=remain_dir, 
             collection_dir=collection_dir, 
             threads=threads, 
             args=args)
+
+        subset_inflated_clusters.extend(remain_clusters)
+        final_clusters = subset_inflated_clusters
+        final_represent_fasta = os.path.join(collection_dir, 'representative.fasta')
+        os.system(f'cat {subset_represent_fasta} {remain_represent_fasta} > {final_represent_fasta}')
+
+
+    # split_clusters = post_analysis.split_paralogs(
+    #     gene_dictionary=gene_dictionary,
+    #     gene_position=gene_position,
+    #     unsplit_clusters= inflated_clusters,
+    #     split=args.split
+    #     )
     
-
-    split_clusters = post_analysis.split_paralogs(
-        gene_dictionary=gene_dictionary,
-        gene_position=gene_position,
-        unsplit_clusters= inflated_clusters,
-        split=args.split
-        )
-
-    rep_fasta = output.create_representative_fasta(
-        clusters=split_clusters, 
-        gene_dictionary=gene_dictionary, 
-        fasta_list=[subset_combined_faa, remain_combined_faa], 
-        out_dir=collection_dir)
-
+ 
     if anno == False:
-        annotated_clusters = post_analysis.annotate_cluster(
-            unlabeled_clusters=split_clusters, 
+        clusters_annotation = post_analysis.annotate_cluster(
+            unlabeled_clusters=final_clusters, 
             gene_dictionary=gene_dictionary)
     else:
-        annotated_clusters = annotate.annotate_cluster(
-            unlabeled_clusters=split_clusters,
-            rep_fasta = rep_fasta,
+        clusters_annotation = annotate.annotate_cluster(
+            unlabeled_clusters=final_clusters,
+            rep_fasta = final_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
             threads = threads,
             genus=args.genus
             )
 
+    output.create_spreadsheet(final_clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
+    rtab_file = output.create_rtab(final_clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
+    output.create_summary(rtab_file, collection_dir)
 
-    
-    output.export_gene_dictionary(gene_dictionary, collection_dir)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    output.write_gene_dictionary(gene_dictionary, collection_dir, 'w')
+    output.write_gene_position(gene_position, collection_dir, 'w')
     json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
 
-    return annotated_clusters
+    json.dump(final_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(clusters_annotation, open(os.path.join(collection_dir, 'clusters_annotation.json'), 'w'), indent=4, sort_keys=True)
 
+    return final_clusters
 
-def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_dictionary, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args):
-
-    data_preparation.extract_proteins(new_samples,collection_dir,gene_dictionary,gene_position,args.table,anno,threads)
-
-    inflated_clusters, new_combined_faa = add_sample(new_samples, old_represent_faa,old_clusters, temp_dir, collection_dir, threads, args)
-
-    new_samples.extend(old_samples)
-    new_samples.sort(key= lambda x:x['id'])
-    
-    split_clusters = post_analysis.split_paralogs(
-        gene_dictionary=gene_dictionary,
-        gene_position=gene_position,
-        unsplit_clusters= inflated_clusters,
-        split=args.split
-        )
-
-    rep_fasta = output.create_representative_fasta(
-        clusters=split_clusters, 
-        gene_dictionary=gene_dictionary, 
-        fasta_list=[old_represent_faa, new_combined_faa], 
-        out_dir=collection_dir)   
-
-    annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
-        gene_dictionary=gene_dictionary)
-
-    output.export_gene_dictionary(gene_dictionary, collection_dir)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    
-
-
-    return annotated_clusters
-
-def create_outputs(gene_dictionary,annotated_clusters,samples,out_dir):
-    output.create_spreadsheet(
-        annotated_clusters=annotated_clusters, 
-        gene_dictionary=gene_dictionary,
-        samples=samples,
-        out_dir=out_dir
-    )
-    rtab_file = output.create_rtab(
-        annotated_clusters=annotated_clusters, 
-        gene_dictionary=gene_dictionary,
-        samples=samples,
-        out_dir=out_dir
-    )
-    output.create_summary(
-        rtab_file=rtab_file, 
-        out_dir=out_dir
-    )
 
 def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads):
     

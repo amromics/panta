@@ -163,7 +163,8 @@ def annotate_cluster(unlabeled_clusters, gene_dictionary):
 
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
 
-    annotated_clusters = {}
+    clusters_annotation = []
+    clusters_name_count = {}
     suffix = 1
     for cluster_name in clusters:
         cluster_new_name = cluster_name
@@ -193,15 +194,19 @@ def annotate_cluster(unlabeled_clusters, gene_dictionary):
                 cluster_product = ', '.join(cluster_product)
             else:
                 cluster_product = 'unknown'
+        
         # check if cluster_new_name already exists
-        if cluster_new_name in annotated_clusters:
-            cluster_new_name += '_{:05d}'.format(suffix)
-            suffix += 1
-        annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
+        if cluster_new_name in clusters_name_count:
+            clusters_name_count[cluster_new_name] += 1
+            cluster_name += '_{}'.format(str(clusters_name_count[cluster_new_name]))
+        else:
+            clusters_name_count[cluster_new_name] = 0
+        
+        clusters_annotation.append([cluster_new_name, cluster_product])
     
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    return annotated_clusters
+    return clusters_annotation
 
 
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):

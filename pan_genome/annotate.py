@@ -149,16 +149,18 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, g
     for database in ordered_database:
         out_file = run_parallel(faa_file, threads, database, out_dir)
         parse_search_result(out_file, database['tool'], search_result)
-        filter_faa = os.path.join(out_dir, database['name'] + 'filter.faa')
+        filter_faa = os.path.join(out_dir, database['name'] + '.filter.faa')
         utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)
         faa_file = filter_faa
         logging.info(f'Number of genes found: {len(search_result)}')
 
     
-    annotated_clusters = {}
+    clusters_annotation = []
+    clusters_name_count = {}
     suffix = 1
     for cluster in unlabeled_clusters:
-        cluster_name = 'groups_{:05d}'.format(suffix)
+        cluster_name = 'groups_' + str(suffix)
+        suffix += 1
         product = 'hypothetical protein'
         for gene in cluster:
             if gene in search_result:
@@ -170,12 +172,19 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, g
                 if search_result[gene]['product'] != None:
                     product = search_result[gene]['product']
 
-        annotated_clusters[cluster_name] = {'gene_id':cluster, 'product':product}
-        suffix += 1
+        # check if cluster_name already exists
+        if cluster_name in clusters_name_count:
+            clusters_name_count[cluster_name] += 1
+            cluster_name += '_{}'.format(str(clusters_name_count[cluster_name]))
+        else:
+            clusters_name_count[cluster_name] = 0
+        
+        clusters_annotation.append([cluster_name, product])
+        
 
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    return annotated_clusters
+    return clusters_annotation
 
 
 

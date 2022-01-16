@@ -93,9 +93,8 @@ def main_function(args):
     gene_position = {}
     
     # pipeline
-    annotated_clusters = wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
-    wrapper.create_outputs(gene_dictionary,annotated_clusters,samples,collection_dir)
-    wrapper.run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
+    clusters = wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
+    # wrapper.run_gene_alignment(clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
 
     # shutil.rmtree(temp_dir)
         
@@ -132,14 +131,12 @@ def add_function(args):
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
     
-    gene_dictionary_file = os.path.join(collection_dir, 'gene_dictionary.tsv')
-    if not os.path.isfile(gene_dictionary_file):
-        raise Exception(f'{gene_dictionary_file} does not exist')
-    gene_dictionary = output.import_gene_dictionary(gene_dictionary_file)
-
-    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    # gene_dictionary = output.read_gene_dictionary(os.path.join(collection_dir, 'gene_dictionary.tsv'))
+    # gene_position = output.read_gene_position(os.path.join(collection_dir, 'gene_position.json'))
+    
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
+    old_clusters_annotation = json.load(open(os.path.join(collection_dir, 'clusters_annotation.json'), 'r'))
 
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
@@ -152,9 +149,49 @@ def add_function(args):
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-    annotated_clusters = wrapper.run_add_pipeline(old_samples, new_samples, old_represent_faa, old_clusters, gene_dictionary, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args)
-    wrapper.create_outputs(gene_dictionary,annotated_clusters,new_samples,collection_dir)
-    wrapper.run_gene_alignment(annotated_clusters, gene_dictionary, new_samples, collection_dir, args.alignment, threads)
+    gene_dictionary = {}
+    gene_position = {}
+    
+    data_preparation.extract_proteins(new_samples,collection_dir,gene_dictionary,gene_position,args.table,anno,threads)
+
+    new_clusters, new_represent_fasta = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_dictionary, temp_dir, collection_dir, threads, args)
+    
+    # split_clusters = post_analysis.split_paralogs(
+    #     gene_dictionary=gene_dictionary,
+    #     gene_position=gene_position,
+    #     unsplit_clusters= inflated_clusters,
+    #     split=args.split
+    #     )
+
+    if anno == False:
+        new_clusters_annotation = post_analysis.annotate_cluster(
+            unlabeled_clusters=new_clusters, 
+            gene_dictionary=gene_dictionary)
+    else:
+        new_clusters_annotation = annotate.annotate_cluster(
+            unlabeled_clusters=new_clusters,
+            rep_fasta = new_represent_fasta,
+            temp_dir=temp_dir,
+            db_dir = db_dir,
+            threads = threads,
+            genus=args.genus
+            )
+
+    old_samples.extend(new_samples)
+    all_samples = old_samples
+    output.update_spreadsheet(old_file, old_cluster, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
+
+
+
+    output.write_gene_dictionary(gene_dictionary, collection_dir, 'a')
+    output.write_gene_position(gene_position, collection_dir, 'a')
+    json.dump(all_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    old_clusters.extend(new_clusters)
+    json.dump(old_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    old_clusters_annotation.extend(new_clusters_annotation)
+    json.dump(old_clusters_annotation, open(os.path.join(collection_dir, 'clusters_annotation.json'), 'w'), indent=4, sort_keys=True)
+    
+    # wrapper.run_gene_alignment(cluster, gene_dictionary, all_samples, collection_dir, args.alignment, threads)
 
     # shutil.rmtree(temp_dir)
 

@@ -159,18 +159,26 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, gene_dictionary):
     starttime = datetime.now()
 
     inflated_clusters = []
+    represent_list = []
     # Inflate genes from cdhit which were sent to mcl
     with open(mcl_file, 'r') as fh:
         for line in fh:
             inflated_genes = []
             line = line.rstrip('\n')
             genes = line.split('\t')
+            length_max = 0
+            representative = None
             for gene in genes:
+                length = gene_dictionary[gene][2]
+                if length > length_max:
+                    representative = gene
+                    length_max = length
                 inflated_genes.append(gene)
                 if gene in cd_hit_clusters:
                     inflated_genes.extend(cd_hit_clusters[gene])
                     del cd_hit_clusters[gene]
             inflated_clusters.append(inflated_genes)
+            represent_list.append(representative)
 
     # Inflate any clusters that were in the clusters file but not sent to mcl
     for gene in cd_hit_clusters:
@@ -178,7 +186,8 @@ def reinflate_clusters(cd_hit_clusters, mcl_file, gene_dictionary):
         inflated_genes.append(gene)
         inflated_genes.extend(cd_hit_clusters[gene])
         inflated_clusters.append(inflated_genes)
+        represent_list.append(gene)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
-    return inflated_clusters
+    return inflated_clusters, represent_list

@@ -12,10 +12,10 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def find_paralogs(cluster, gene_annotation):
+def find_paralogs(cluster, gene_dictionary):
     samples = {}
     for gene_id in cluster:
-        sample_id = gene_annotation[gene_id][0]
+        sample_id = gene_dictionary[gene_id][0]
         samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
@@ -31,11 +31,11 @@ def find_paralogs(cluster, gene_annotation):
     return paralog_genes
 
 
-def get_neighbour_genes(gene_annotation, gene_position):
+def get_neighbour_genes(gene_dictionary, gene_position):
     gene_neighbour_dict = {}
-    for gene_id in gene_annotation:
-        contig = gene_annotation[gene_id][1]
-        sample_id = gene_annotation[gene_id][0]
+    for gene_id in gene_dictionary:
+        contig = gene_dictionary[gene_id][1]
+        sample_id = gene_dictionary[gene_id][0]
         genes_of_contig = gene_position[sample_id][contig]
         index = genes_of_contig.index(gene_id)
         pre_index = index - 5
@@ -105,13 +105,13 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
     
     return new_clusters
 
-def split_paralogs(gene_annotation, gene_position, unsplit_clusters, split):
+def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
     if split == False:
         return unsplit_clusters
 
     starttime = datetime.now()
     
-    gene_neighbour_dict = get_neighbour_genes(gene_annotation, gene_position)
+    gene_neighbour_dict = get_neighbour_genes(gene_dictionary, gene_position)
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -134,7 +134,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters, split):
                 continue
 
             # check paralogs
-            paralog_genes = find_paralogs(cluster, gene_annotation)
+            paralog_genes = find_paralogs(cluster, gene_dictionary)
 
             if paralog_genes == None:
                 clusters_not_paralogs.add(first_gene)
@@ -158,7 +158,7 @@ def split_paralogs(gene_annotation, gene_position, unsplit_clusters, split):
     return split_clusters
 
 
-def annotate_cluster(unlabeled_clusters, gene_annotation):
+def annotate_cluster(unlabeled_clusters, gene_dictionary):
     starttime = datetime.now()
 
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
@@ -172,7 +172,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         max_number = 0
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
-            this_gene = gene_annotation[gene_id]
+            this_gene = gene_dictionary[gene_id]
             if this_gene[3] != '':
                 gene_name = this_gene[3]
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
@@ -184,7 +184,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
-                this_gene = gene_annotation[gene_id]
+                this_gene = gene_dictionary[gene_id]
                 if this_gene[4] != '':
                     gene_product = this_gene[4]
                     if gene_product not in cluster_product:
@@ -366,7 +366,7 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
 
-def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir):
+def create_core_gene_alignment(annotated_clusters, gene_dictionary, samples, out_dir):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -381,7 +381,7 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
         sample_list = set()
         skip = False
         for gene in annotated_clusters[cluster_name]['gene_id']:
-            sample_id = gene_annotation[gene][0]
+            sample_id = gene_dictionary[gene][0]
             if sample_id not in sample_list:
                 sample_list.add(sample_id)
             else:
@@ -400,7 +400,7 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
         cluster_dict = {}
         with gzip.open(nucleotide_aln_file, 'rt') as fh:
             for seq_record in SeqIO.parse(fh, 'fasta'):
-                sample_name = gene_annotation[seq_record.id][0]
+                sample_name = gene_dictionary[seq_record.id][0]
                 cluster_dict[sample_name] = str(seq_record.seq)
         
         for sample_name in cluster_dict:

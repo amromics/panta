@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def parse_gff_file(ggf_file, sample_dir, sample_id):
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
-    gene_annotation = {}
+    gene_dictionary = {}
     gene_position = {}
     found_fasta = False
     suffix = 1
@@ -64,7 +64,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             
             # if re.match(sample_id, gene_id) == None:
             #     gene_id = sample_id + '_' + gene_id
-            if gene_id in gene_annotation:
+            if gene_id in gene_dictionary:
                 # raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
                 logging.info(f'{gene_id} already exists -- add suffix')
                 gene_id += '_{:05d}'.format(suffix)
@@ -73,12 +73,12 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
-            # add to gene_annotation           
-            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
+            # add to gene_dictionary           
+            gene_dictionary[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 
-    return bed_file, assembly_file, gene_annotation, gene_position
+    return bed_file, assembly_file, gene_dictionary, gene_position
     
 
 def process_single_sample_1(sample, out_dir, table):
@@ -90,7 +90,7 @@ def process_single_sample_1(sample, out_dir, table):
         os.makedirs(sample_dir)
     
     # parse gff file
-    bed_file, assembly_file, gene_annotation, gene_position = parse_gff_file(
+    bed_file, assembly_file, gene_dictionary, gene_position = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
         sample_id = sample_id
@@ -114,7 +114,7 @@ def process_single_sample_1(sample, out_dir, table):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_annotation, gene_position
+    return gene_dictionary, gene_position
 
 
 def process_single_sample_2(sample, out_dir, table):
@@ -135,7 +135,7 @@ def process_single_sample_2(sample, out_dir, table):
         raise Exception('Error running prodigal')
 
     # change gene id and extract coordinates
-    gene_annotation = {}
+    gene_dictionary = {}
     gene_position = {}
     rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
     count = 1
@@ -176,8 +176,8 @@ def process_single_sample_2(sample, out_dir, table):
             new_record = SeqRecord(record.seq, id = gene_id, description = '')
             SeqIO.write(new_record, out_fh, 'fasta')
             passed_genes.add(gene_id)
-            # add to gene_annotation           
-            gene_annotation[gene_id] = (sample_id, contig, length)
+            # add to gene_dictionary           
+            gene_dictionary[gene_id] = (sample_id, contig, length)
             # add to gene_position
             gene_position.setdefault(contig, []).append(gene_id)
 
@@ -195,10 +195,10 @@ def process_single_sample_2(sample, out_dir, table):
     # os.remove(gene_coordinate_file)
     # os.remove(faa_file)
     # os.remove(fna_file)
-    return gene_annotation, gene_position
+    return gene_dictionary, gene_position
 
 
-def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, annotate, threads):
+def extract_proteins(samples, out_dir, gene_dictionary, gene_position, table, annotate, threads):
     starttime = datetime.now()
     
     if threads == 0:
@@ -211,12 +211,12 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, an
             results = pool.map(partial(process_single_sample_2, out_dir=out_dir, table=table), samples)
     
     for sample, result in zip(samples, results):
-        # gene_annotation.update(result[0])
+        # gene_dictionary.update(result[0])
         for k, v in result[0].items():
-            if k in gene_annotation:
+            if k in gene_dictionary:
                 logging.info(f'{k} already exists -- add prefix')
                 k = sample['id'] + '_' + k
-            gene_annotation[k] = v
+            gene_dictionary[k] = v
         gene_position[sample['id']] = result[1]
         
     elapsed = datetime.now() - starttime

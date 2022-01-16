@@ -78,9 +78,9 @@ def add_sample(new_samples, old_represent_faa, old_clusters, temp_dir, collectio
     return new_clusters, new_combined_faa
 
 
-def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads):
+def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads):
 
-    data_preparation.extract_proteins(samples,collection_dir,gene_annotation,gene_position,args.table,anno,threads)
+    data_preparation.extract_proteins(samples,collection_dir,gene_dictionary,gene_position,args.table,anno,threads)
 
     # split collection
     number = args.number
@@ -138,7 +138,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
         
         subset_representative_fasta = output.create_representative_fasta(
             clusters=subset_inflated_clusters, 
-            gene_annotation=gene_annotation, 
+            gene_dictionary=gene_dictionary, 
             fasta_list=[cd_hit_represent_fasta], 
             out_dir=subset_dir)
         
@@ -153,7 +153,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
     
 
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
+        gene_dictionary=gene_dictionary,
         gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
         split=args.split
@@ -161,14 +161,14 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
 
     rep_fasta = output.create_representative_fasta(
         clusters=split_clusters, 
-        gene_annotation=gene_annotation, 
+        gene_dictionary=gene_dictionary, 
         fasta_list=[subset_combined_faa, remain_combined_faa], 
         out_dir=collection_dir)
 
     if anno == False:
         annotated_clusters = post_analysis.annotate_cluster(
             unlabeled_clusters=split_clusters, 
-            gene_annotation=gene_annotation)
+            gene_dictionary=gene_dictionary)
     else:
         annotated_clusters = annotate.annotate_cluster(
             unlabeled_clusters=split_clusters,
@@ -181,7 +181,7 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
 
 
     
-    output.export_gene_annotation(gene_annotation, collection_dir)
+    output.export_gene_dictionary(gene_dictionary, collection_dir)
     json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -189,9 +189,9 @@ def run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, t
     return annotated_clusters
 
 
-def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args):
+def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, gene_dictionary, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args):
 
-    data_preparation.extract_proteins(new_samples,collection_dir,gene_annotation,gene_position,args.table,anno,threads)
+    data_preparation.extract_proteins(new_samples,collection_dir,gene_dictionary,gene_position,args.table,anno,threads)
 
     inflated_clusters, new_combined_faa = add_sample(new_samples, old_represent_faa,old_clusters, temp_dir, collection_dir, threads, args)
 
@@ -199,7 +199,7 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
     new_samples.sort(key= lambda x:x['id'])
     
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
+        gene_dictionary=gene_dictionary,
         gene_position=gene_position,
         unsplit_clusters= inflated_clusters,
         split=args.split
@@ -207,15 +207,15 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
 
     rep_fasta = output.create_representative_fasta(
         clusters=split_clusters, 
-        gene_annotation=gene_annotation, 
+        gene_dictionary=gene_dictionary, 
         fasta_list=[old_represent_faa, new_combined_faa], 
         out_dir=collection_dir)   
 
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters, 
-        gene_annotation=gene_annotation)
+        gene_dictionary=gene_dictionary)
 
-    output.export_gene_annotation(gene_annotation, collection_dir)
+    output.export_gene_dictionary(gene_dictionary, collection_dir)
     json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     json.dump(split_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -224,16 +224,16 @@ def run_add_pipeline(old_samples, new_samples, old_represent_faa,old_clusters, g
 
     return annotated_clusters
 
-def create_outputs(gene_annotation,annotated_clusters,samples,out_dir):
+def create_outputs(gene_dictionary,annotated_clusters,samples,out_dir):
     output.create_spreadsheet(
         annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
+        gene_dictionary=gene_dictionary,
         samples=samples,
         out_dir=out_dir
     )
     rtab_file = output.create_rtab(
         annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
+        gene_dictionary=gene_dictionary,
         samples=samples,
         out_dir=out_dir
     )
@@ -242,7 +242,7 @@ def create_outputs(gene_annotation,annotated_clusters,samples,out_dir):
         out_dir=out_dir
     )
 
-def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, alignment, threads):
+def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads):
     
     if alignment == None:
         return
@@ -265,7 +265,7 @@ def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_
         representative = None
         for gene in annotated_clusters[cluster_name]['gene_id']:
             gene_to_cluster_name[gene] = cluster_name
-            length = gene_annotation[gene][2]
+            length = gene_dictionary[gene][2]
             if length > length_max:
                 representative = gene
                 length_max = length
@@ -280,4 +280,4 @@ def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_
         pa.create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         pa.run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads)
     
-    pa.create_core_gene_alignment(annotated_clusters, gene_annotation,samples,collection_dir)
+    pa.create_core_gene_alignment(annotated_clusters, gene_dictionary,samples,collection_dir)

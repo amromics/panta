@@ -155,7 +155,7 @@ def cluster_with_mcl(blast_result, out_dir):
     return mcl_file
 
 
-def reinflate_clusters(cd_hit_clusters, mcl_file):
+def reinflate_clusters(cd_hit_clusters, mcl_file, gene_dictionary):
     starttime = datetime.now()
 
     inflated_clusters = []

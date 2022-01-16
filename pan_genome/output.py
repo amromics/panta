@@ -8,7 +8,7 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
+def create_spreadsheet(annotated_clusters, gene_dictionary, samples, out_dir):
     starttime = datetime.now()
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
@@ -27,9 +27,9 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             length_list = []
             this_cluster = annotated_clusters[cluster]
             for gene in this_cluster['gene_id']:
-                sample_id = gene_annotation[gene][0]
+                sample_id = gene_dictionary[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
-                length = gene_annotation[gene][2]
+                length = gene_dictionary[gene][2]
                 length_list.append(length)
             
             # Gene
@@ -65,7 +65,7 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
     return spreadsheet_file
 
 
-def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
+def create_rtab(annotated_clusters, gene_dictionary, samples, out_dir):
     starttime = datetime.now()
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
     with open(rtab_file, 'w') as fh:
@@ -85,7 +85,7 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
             # Samples
             sample_dict = {}
             for gene in annotated_clusters[cluster]['gene_id']:
-                sample_id = gene_annotation[gene][0]
+                sample_id = gene_dictionary[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
             for sample in samples:
                 sample_id = sample['id']
@@ -137,7 +137,7 @@ def create_summary(rtab_file, out_dir):
     return summary_file
 
 
-def create_representative_fasta(clusters, gene_annotation, fasta_list, out_dir):
+def create_representative_fasta(clusters, gene_dictionary, fasta_list, out_dir):
     starttime = datetime.now()
     representative_fasta = os.path.join(out_dir, 'representative.fasta')
     representative_list = set()
@@ -145,7 +145,7 @@ def create_representative_fasta(clusters, gene_annotation, fasta_list, out_dir):
         length_max = 0
         representative = None
         for gene_id in cluster:
-            length = gene_annotation[gene_id][2]
+            length = gene_dictionary[gene_id][2]
             if length > length_max:
                 representative = gene_id
                 length_max = length
@@ -161,30 +161,30 @@ def create_representative_fasta(clusters, gene_annotation, fasta_list, out_dir):
     return representative_fasta
 
 
-def export_gene_annotation(gene_annotation, out_dir):
+def export_gene_dictionary(gene_dictionary, out_dir):
     # starttime = datetime.now()
     
-    with open(os.path.join(out_dir, 'gene_annotation.tsv'),'w') as fh:
+    with open(os.path.join(out_dir, 'gene_dictionary.tsv'),'w') as fh:
         writer = csv.writer(fh, delimiter='\t')
-        for gene in gene_annotation:
+        for gene in gene_dictionary:
             row = []
             row.append(gene)
-            row.extend(gene_annotation[gene])
+            row.extend(gene_dictionary[gene])
             writer.writerow(row)
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')
 
-def import_gene_annotation(annotation_file):
+def import_gene_dictionary(annotation_file):
     # starttime = datetime.now()
     
-    gene_annotation = {}
+    gene_dictionary = {}
     with open(annotation_file,'r') as fh:
         csv_reader = csv.reader(fh, delimiter='\t')
         for row in csv_reader:
             row[3] = int(row[3])
-            gene_annotation[row[0]] = tuple(row[1:])
+            gene_dictionary[row[0]] = tuple(row[1:])
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
-    return gene_annotation
+    return gene_dictionary

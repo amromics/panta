@@ -89,13 +89,13 @@ def main_function(args):
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
     
-    gene_annotation = {}
+    gene_dictionary = {}
     gene_position = {}
     
     # pipeline
-    annotated_clusters = wrapper.run_main_pipeline(samples, gene_annotation, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
-    wrapper.create_outputs(gene_annotation,annotated_clusters,samples,collection_dir)
-    wrapper.run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, args.alignment, threads)
+    annotated_clusters = wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
+    wrapper.create_outputs(gene_dictionary,annotated_clusters,samples,collection_dir)
+    wrapper.run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
 
     # shutil.rmtree(temp_dir)
         
@@ -132,10 +132,10 @@ def add_function(args):
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
     
-    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
-    if not os.path.isfile(gene_annotation_file):
-        raise Exception(f'{gene_annotation_file} does not exist')
-    gene_annotation = output.import_gene_annotation(gene_annotation_file)
+    gene_dictionary_file = os.path.join(collection_dir, 'gene_dictionary.tsv')
+    if not os.path.isfile(gene_dictionary_file):
+        raise Exception(f'{gene_dictionary_file} does not exist')
+    gene_dictionary = output.import_gene_dictionary(gene_dictionary_file)
 
     gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
@@ -152,9 +152,9 @@ def add_function(args):
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-    annotated_clusters = wrapper.run_add_pipeline(old_samples, new_samples, old_represent_faa, old_clusters, gene_annotation, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args)
-    wrapper.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
-    wrapper.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
+    annotated_clusters = wrapper.run_add_pipeline(old_samples, new_samples, old_represent_faa, old_clusters, gene_dictionary, gene_position, temp_dir, collection_dir, db_dir, anno, threads, args)
+    wrapper.create_outputs(gene_dictionary,annotated_clusters,new_samples,collection_dir)
+    wrapper.run_gene_alignment(annotated_clusters, gene_dictionary, new_samples, collection_dir, args.alignment, threads)
 
     # shutil.rmtree(temp_dir)
 

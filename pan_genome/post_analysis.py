@@ -158,10 +158,10 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
     return split_clusters
 
 
-def annotate_cluster(unlabeled_clusters, gene_dictionary):
+def annotate_cluster(unlabeled_clusters, gene_dictionary,start=1):
     starttime = datetime.now()
 
-    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters,start)}
 
     clusters_annotation = []
     clusters_name_count = {}

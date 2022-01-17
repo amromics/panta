@@ -69,7 +69,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_dictionary, te
         out_dir = temp_dir,
         blast_result = filtered_blast_result)
 
-    new_clusters, new_represent_list = add_sample_pipeline.add_new_clusters(
+    new_clusters, new_represent_list = add_sample_pipeline.create_new_clusters(
         unmatched_clusters = unmatched_clusters,
         mcl_file=mcl_file,
         gene_dictionary = gene_dictionary
@@ -149,7 +149,8 @@ def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, t
     # run the remain of collection
     if len(remain) == 0:
         final_clusters = subset_inflated_clusters
-        final_represent_fasta = subset_represent_fasta
+        final_represent_fasta = os.path.join(collection_dir, 'representative.fasta')
+        shutil.move(subset_represent_fasta,final_represent_fasta)
     else:
         remain_dir = os.path.join(temp_dir, 'remain')
         if not os.path.exists(remain_dir):
@@ -182,14 +183,16 @@ def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, t
     if anno == False:
         clusters_annotation = post_analysis.annotate_cluster(
             unlabeled_clusters=final_clusters, 
-            gene_dictionary=gene_dictionary)
+            gene_dictionary=gene_dictionary,
+            start = 1)
     else:
         clusters_annotation = annotate.annotate_cluster(
             unlabeled_clusters=final_clusters,
             rep_fasta = final_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            threads = threads
+            threads = threads,
+            start = 1
             )
 
     output.create_spreadsheet(final_clusters, clusters_annotation, gene_dictionary, samples, collection_dir)

@@ -98,7 +98,7 @@ def parse_search_result(result_file, tool, dictionary):
             dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads):
+def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, start=1):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -133,7 +133,7 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads):
     
     clusters_annotation = []
     clusters_name_count = {}
-    suffix = 1
+    suffix = start
     for cluster in unlabeled_clusters:
         cluster_name = 'groups_' + str(suffix)
         suffix += 1

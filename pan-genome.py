@@ -176,14 +176,16 @@ def add_function(args):
     if anno == False:
         new_clusters_annotation = post_analysis.annotate_cluster(
             unlabeled_clusters=new_clusters, 
-            gene_dictionary=gene_dictionary)
+            gene_dictionary=gene_dictionary,
+            start=len(old_clusters) + 1)
     else:
         new_clusters_annotation = annotate.annotate_cluster(
             unlabeled_clusters=new_clusters,
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            threads = threads
+            threads = threads,
+            start=len(old_clusters) + 1
             )
 
     old_samples.extend(new_samples)
@@ -192,6 +194,8 @@ def add_function(args):
     output.update_spreadsheet(old_spreadsheet_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
     rtab_file = output.update_rtab(old_rtab_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
     output.create_summary(rtab_file, collection_dir)
+
+    os.system(f'cat {new_represent_fasta} >> {old_represent_faa}')
 
     output.write_gene_dictionary(gene_dictionary, collection_dir, 'a')
     output.write_gene_position(gene_position, collection_dir, 'a')

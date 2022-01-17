@@ -70,17 +70,15 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
     new_file = os.path.join(temp_dir, 'gene_presence_absence.csv')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
         writer = csv.writer(out_fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-        reader = csv.reader(in_fh, delimiter='\t')
-        header = True
+        reader = csv.reader(in_fh, delimiter=',')
+        
+        # update header
+        header = next(reader)
+        for sample in new_samples:
+            header.append(sample['id'])
+        writer.writerow(header)
+        
         for row, cluster in zip(reader, old_clusters):
-            # update header
-            if header == True:
-                row.extend(new_samples)
-                writer.writerow(row)
-                header = False
-                continue
-            
-            # update row
             num_seq = int(row[3])
             num_iso = int(row[2])
             min_len = int(row[5])
@@ -184,10 +182,10 @@ def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir
         writer.writerow(header)
 
         # write row
-        for cluster in clusters:
+        for cluster, cluster_annotation in zip(clusters, clusters_annotation):
             row = []
             # Gene
-            row.append(clusters_annotation[0])
+            row.append(cluster_annotation[0])
             # Samples
             sample_dict = {}
             for gene in cluster:
@@ -208,16 +206,14 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
         writer = csv.writer(out_fh, delimiter='\t')
         reader = csv.reader(in_fh, delimiter='\t')
-        header = True
+        
+        # update header
+        header = next(reader)
+        for sample in new_samples:
+            header.append(sample['id'])
+        writer.writerow(header)
+  
         for row, cluster in zip(reader, old_clusters):
-            # update header
-            if header == True:
-                row.extend(new_samples)
-                writer.writerow(row)
-                header = False
-                continue
-            
-            # update row
             num_seq = 0
             for cell in row[1:]:
                 num_seq += int(cell)
@@ -236,10 +232,10 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
             writer.writerow(row)
 
         # write row
-        for cluster in new_clusters:
+        for cluster, new_cluster_annotation in zip(new_clusters,new_clusters_annotation):
             row = []
             # Gene
-            row.append(new_clusters_annotation[0])
+            row.append(new_cluster_annotation[0])
             # Samples
             sample_dict = {}
             for gene in cluster:
@@ -340,11 +336,13 @@ def write_gene_position(gene_position, out_dir, mode='w'):
     
     with open(os.path.join(out_dir, 'gene_position.tsv'),mode) as fh:
         writer = csv.writer(fh, delimiter='\t')
-        for seq in gene_position:
-            row = []
-            row.append(seq)
-            row.append(';'.join(gene_position[seq]))
-            writer.writerow(row)
+        for sample in gene_position:
+            for seq in gene_position[sample]:
+                row = []
+                row.append(sample)
+                row.append(seq)
+                row.append(';'.join(gene_position[sample][seq]))
+                writer.writerow(row)
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')

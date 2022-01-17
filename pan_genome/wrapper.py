@@ -189,8 +189,7 @@ def run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, t
             rep_fasta = final_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            threads = threads,
-            genus=args.genus
+            threads = threads
             )
 
     output.create_spreadsheet(final_clusters, clusters_annotation, gene_dictionary, samples, collection_dir)

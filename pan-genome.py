@@ -183,8 +183,7 @@ def add_function(args):
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            threads = threads,
-            genus=args.genus
+            threads = threads
             )
 
     old_samples.extend(new_samples)
@@ -234,8 +233,6 @@ def main():
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
     main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
     main_cmd.add_argument('-n', '--number', help='number of samples which are analysed first', default=0, type=int)
-    main_cmd.add_argument('--genus', help='Genus',default=None, type=str)
-    main_cmd.add_argument('--species', help='Species',default=None, type=str)
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -257,8 +254,6 @@ def main():
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
     add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
-    add_cmd.add_argument('--genus', help='Genus',default=None, type=str)
-    add_cmd.add_argument('--species', help='Species',default=None, type=str)
 
     args = parser.parse_args()
     args.func(args)

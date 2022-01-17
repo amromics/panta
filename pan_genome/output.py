@@ -1,6 +1,7 @@
 import os
 import csv
 import logging
+import shutil
 from datetime import datetime
 import pandas as pd
 import pan_genome.utils as utils
@@ -64,14 +65,14 @@ def create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, 
     return spreadsheet_file
 
 
-def update_spreadsheet(old_file, old_cluster, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir):
+def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir):
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.csv')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
         writer = csv.writer(out_fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         reader = csv.reader(in_fh, delimiter='\t')
         header = True
-        for row in reader:
+        for row, cluster in zip(reader, old_clusters):
             # update header
             if header == True:
                 row.extend(new_samples)
@@ -80,21 +81,49 @@ def update_spreadsheet(old_file, old_cluster, new_clusters, new_clusters_annotat
                 continue
             
             # update row
+            num_seq = int(row[3])
+            num_iso = int(row[2])
+            min_len = int(row[5])
+            max_len = int(row[6])
+            new_sample_dict = {}
+            new_length_list = []
+            for i,gene in enumerate(cluster):
+                if i < num_seq:
+                    continue
+                sample_id = gene_dictionary[gene][0]
+                new_sample_dict.setdefault(sample_id, []).append(gene)
+                length = gene_dictionary[gene][2]
+                if length > max_len:
+                    max_len = length
+                if length < min_len:
+                    min_len = length
+                new_length_list.append(length)
+            
+            
             # No. isolates
-            row.append(len(sample_dict))
+            row[2] = num_iso + len(new_sample_dict)
             # No. sequences
-            row.append(len(cluster))
+            row[3] = len(cluster)
             # Avg sequences per isolate
-            avg_seq = len(cluster) / len(sample_dict)
-            row.append(round(avg_seq,2))
+            avg_seq = row[3] / row[2]
+            row[4] = round(avg_seq,2)
             # Min group size nuc
-            row.append(min(length_list))
+            row[5] =min_len
             # Max group size nuc
-            row.append(max(length_list))
+            row[6] = max_len
             # Avg group size nuc
-            nuc_size = sum(length_list) / len(length_list)
-            row.append(round(nuc_size,0))
+            nuc_size = (float(row[7]) * num_seq + len(new_length_list)) / len(cluster)
+            row[7] = round(nuc_size,0)
 
+            for sample in new_samples:
+                sample_id = sample['id']
+                if sample_id in new_sample_dict:
+                    gene_list = new_sample_dict[sample_id]
+                    row.append('\t'.join(gene_list))
+                else:
+                    row.append('')
+            
+            writer.writerow(row)
 
 
         # write new row
@@ -137,9 +166,9 @@ def update_spreadsheet(old_file, old_cluster, new_clusters, new_clusters_annotat
                     row.append('')
             writer.writerow(row)
     
+    shutil.move(new_file, old_file)
     elapsed = datetime.now() - starttime
     logging.info(f'Create spreadsheet -- time taken {str(elapsed)}')
-
 
 
 def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir):
@@ -173,37 +202,59 @@ def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir
     logging.info(f'Create Rtab -- time taken {str(elapsed)}')
     return rtab_file
 
-
-def update_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir):
+def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir):
     starttime = datetime.now()
-    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
-    with open(rtab_file, 'w') as fh:
-        writer = csv.writer(fh, delimiter='\t')
+    new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab')
+    with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
+        writer = csv.writer(out_fh, delimiter='\t')
+        reader = csv.reader(in_fh, delimiter='\t')
+        header = True
+        for row, cluster in zip(reader, old_clusters):
+            # update header
+            if header == True:
+                row.extend(new_samples)
+                writer.writerow(row)
+                header = False
+                continue
+            
+            # update row
+            num_seq = 0
+            for cell in row[1:]:
+                num_seq += int(cell)
+            new_sample_dict = {}
+            for i,gene in enumerate(cluster):
+                if i < num_seq:
+                    continue
+                sample_id = gene_dictionary[gene][0]
+                new_sample_dict.setdefault(sample_id, []).append(gene)
+    
+            for sample in new_samples:
+                sample_id = sample['id']
+                gene_list = new_sample_dict.get(sample_id, [])
+                row.append(len(gene_list))
 
-        # write header
-        header = ['Gene']
-        for sample in samples:
-            header.append(sample['id'])
-        writer.writerow(header)
+            writer.writerow(row)
 
         # write row
-        for cluster in clusters:
+        for cluster in new_clusters:
             row = []
             # Gene
-            row.append(clusters_annotation[0])
+            row.append(new_clusters_annotation[0])
             # Samples
             sample_dict = {}
             for gene in cluster:
                 sample_id = gene_dictionary[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
-            for sample in samples:
+            for sample in all_samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
                 row.append(len(gene_list))
             writer.writerow(row)
+
+    shutil.move(new_file, old_file)
     elapsed = datetime.now() - starttime
     logging.info(f'Create Rtab -- time taken {str(elapsed)}')
-    return rtab_file
+    return old_file
 
 
 def create_summary(rtab_file, out_dir):

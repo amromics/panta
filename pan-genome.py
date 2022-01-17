@@ -93,7 +93,7 @@ def main_function(args):
     gene_position = {}
     
     # pipeline
-    clusters = wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
+    wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
     # wrapper.run_gene_alignment(clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
 
     # shutil.rmtree(temp_dir)
@@ -142,6 +142,16 @@ def add_function(args):
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
 
+    old_spreadsheet_file = os.path.join(collection_dir, 'gene_presence_absence.csv')
+    if not os.path.isfile(old_spreadsheet_file):
+        raise Exception(f'{old_spreadsheet_file} does not exist')
+
+
+    old_rtab_file = os.path.join(collection_dir, 'gene_presence_absence.Rtab')
+    if not os.path.isfile(old_rtab_file):
+        raise Exception(f'{old_rtab_file} does not exist')
+
+
     # collect new samples
     sample_id_list = [sample['id'] for sample in old_samples]
     new_samples = collect_sample(sample_id_list, args)
@@ -179,9 +189,10 @@ def add_function(args):
 
     old_samples.extend(new_samples)
     all_samples = old_samples
-    output.update_spreadsheet(old_file, old_cluster, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
 
-
+    output.update_spreadsheet(old_spreadsheet_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
+    rtab_file = output.update_rtab(old_rtab_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
+    output.create_summary(rtab_file, collection_dir)
 
     output.write_gene_dictionary(gene_dictionary, collection_dir, 'a')
     output.write_gene_position(gene_position, collection_dir, 'a')

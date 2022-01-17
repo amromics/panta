@@ -161,24 +161,21 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
 def annotate_cluster(unlabeled_clusters, gene_dictionary,start=1):
     starttime = datetime.now()
 
-    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters,start)}
-
     clusters_annotation = []
-    clusters_name_count = {}
-    suffix = 1
-    for cluster_name in clusters:
-        cluster_new_name = cluster_name
+    clusters_name_count = []
+
+    for i, gene_id_list in enumerate(unlabeled_clusters,start):
+        cluster_name = 'groups_' + str(i)
         cluster_product = None
         gene_name_count = {}
         max_number = 0
-        gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
             this_gene = gene_dictionary[gene_id]
             if this_gene[3] != '':
                 gene_name = this_gene[3]
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
-                    cluster_new_name = gene_name
+                    cluster_name = gene_name
                     max_number = gene_name_count[gene_name]
                     if this_gene[4] != '':
                         cluster_product = this_gene[4]
@@ -193,16 +190,15 @@ def annotate_cluster(unlabeled_clusters, gene_dictionary,start=1):
             if len(cluster_product) > 0:
                 cluster_product = ', '.join(cluster_product)
             else:
-                cluster_product = 'unknown'
+                cluster_product = 'hypothetical protein'
         
-        # check if cluster_new_name already exists
-        if cluster_new_name in clusters_name_count:
-            clusters_name_count[cluster_new_name] += 1
-            cluster_name += '_{}'.format(str(clusters_name_count[cluster_new_name]))
+        # check if cluster_name already exists
+        if cluster_name in clusters_name_count:
+            cluster_name += '_{}'.format(str(i))
         else:
-            clusters_name_count[cluster_new_name] = 0
+            clusters_name_count.append(cluster_name)
         
-        clusters_annotation.append([cluster_new_name, cluster_product])
+        clusters_annotation.append([cluster_name, cluster_product])
     
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')

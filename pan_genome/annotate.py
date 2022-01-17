@@ -132,11 +132,10 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, s
 
     
     clusters_annotation = []
-    clusters_name_count = {}
-    suffix = start
-    for cluster in unlabeled_clusters:
-        cluster_name = 'groups_' + str(suffix)
-        suffix += 1
+    clusters_name_count = []
+
+    for i,cluster in enumerate(unlabeled_clusters, start):
+        cluster_name = 'groups_' + str(i)
         product = 'hypothetical protein'
         for gene in cluster:
             if gene in search_result:
@@ -150,10 +149,9 @@ def annotate_cluster(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, s
 
         # check if cluster_name already exists
         if cluster_name in clusters_name_count:
-            clusters_name_count[cluster_name] += 1
-            cluster_name += '_{}'.format(str(clusters_name_count[cluster_name]))
+            cluster_name += '_{}'.format(str(i))
         else:
-            clusters_name_count[cluster_name] = 0
+            clusters_name_count.append(cluster_name)
         
         clusters_annotation.append([cluster_name, product])
         

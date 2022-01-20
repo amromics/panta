@@ -130,9 +130,10 @@ def process_single_sample_2(sample, out_dir, table):
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
     fna_file = os.path.join(sample_dir, sample_id +'.original.fna')
     cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running prodigal')
+    if not os.path.isfile(faa_file):
+        ret = utils.run_command(cmd)
+        if ret != 0:
+            raise Exception('Error running prodigal')
 
     # change gene id and extract coordinates
     gene_dictionary = {}
@@ -157,18 +158,18 @@ def process_single_sample_2(sample, out_dir, table):
             # filter seq with premature codon
             results = re.findall(r'\*', pro)
             if len(results) > 1:
-                logger.info('Have premature codon')
+                # logger.info('Have premature codon')
                 continue
 
             # filter seq lacking start and stop codon
             if pro[0] != 'M' and pro[-1] != '*':
-                logger.info('Lack both start and stop codon')
+                # logger.info('Lack both start and stop codon')
                 continue
             
             # filter seq which has more than 5% of unknown
             results = re.findall(r'X', pro)
             if len(results) / len (pro) > 0.05:
-                logger.info('Too many unknowns')
+                # logger.info('Too many unknowns')
                 continue
             
             gene_id = sample_id + '_{:05d}'.format(count)

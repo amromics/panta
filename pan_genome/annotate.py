@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def setup_db(db_dir, force=False):
 
     bacteria_db = [
-        {'name':"IS",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-30},
         {'name':"AMR",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-300},
+        {'name':"IS",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-30},
         {'name':"sprot",'dir':None,'tool': 'blastp','MINCOV': None,'EVALUE': None}
     ]
     

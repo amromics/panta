@@ -166,7 +166,7 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
     
     shutil.move(new_file, old_file)
     elapsed = datetime.now() - starttime
-    logging.info(f'Create spreadsheet -- time taken {str(elapsed)}')
+    logging.info(f'Update spreadsheet -- time taken {str(elapsed)}')
 
 
 def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir):
@@ -249,7 +249,7 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
 
     shutil.move(new_file, old_file)
     elapsed = datetime.now() - starttime
-    logging.info(f'Create Rtab -- time taken {str(elapsed)}')
+    logging.info(f'Update Rtab -- time taken {str(elapsed)}')
     return old_file
 
 

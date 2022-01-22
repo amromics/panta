@@ -157,18 +157,13 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 if len(results) / len (pro) > 0.05:
                     unknown.append(seq_id)
                     continue
-
-                
-                # line = translate_dna(line, seq_id)
-                # if line == None:
-                #     continue
                 
                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')
-    if len(premature)!= 0:
-        logger.info('Have premature codon - exclude {}'.format(', '.join(premature)))
-    if len(startstop)!= 0:
-        logger.info('Lack both start and stop codon - exclude {}'.format(', '.join(startstop)))
-    if len(unknown)!= 0:
-        logger.info('Too many unknowns - exclude {}'.format(', '.join(unknown)))
+    # if len(premature)!= 0:
+    #     logger.info('Have premature codon - exclude {}'.format(', '.join(premature)))
+    # if len(startstop)!= 0:
+    #     logger.info('Lack both start and stop codon - exclude {}'.format(', '.join(startstop)))
+    # if len(unknown)!= 0:
+    #     logger.info('Too many unknowns - exclude {}'.format(', '.join(unknown)))

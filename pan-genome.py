@@ -96,7 +96,7 @@ def main_function(args):
     wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
     # wrapper.run_gene_alignment(clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
 
-    # shutil.rmtree(temp_dir)
+    shutil.rmtree(temp_dir)
         
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -207,7 +207,7 @@ def add_function(args):
     
     # wrapper.run_gene_alignment(cluster, gene_dictionary, all_samples, collection_dir, args.alignment, threads)
 
-    # shutil.rmtree(temp_dir)
+    shutil.rmtree(temp_dir)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')

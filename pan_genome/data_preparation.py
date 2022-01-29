@@ -126,10 +126,20 @@ def process_single_sample_2(sample, out_dir, table):
 
     # gene prediction
     assembly_file = sample['assembly']
-    gene_coordinate_file = os.path.join(sample_dir, sample_id + '.gff')
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
-    fna_file = os.path.join(sample_dir, sample_id +'.original.fna')
-    cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
+    
+    # gene_coordinate_file = os.path.join(sample_dir, sample_id + '.gff')
+    # fna_file = os.path.join(sample_dir, sample_id +'.original.fna')
+    # if assembly_file.endswith('.gz'):
+    #     cmd = f'zcat {assembly_file} | prodigal -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
+    # else:
+    #     cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
+    
+    if assembly_file.endswith('.gz'):
+        cmd = f'zcat {assembly_file} | prodigal -a {faa_file} -g {table} -c -m -q'
+    else:
+        cmd = f'prodigal -i {assembly_file} -a {faa_file} -g {table} -c -m -q'
+    
     if not os.path.isfile(faa_file):
         ret = utils.run_command(cmd)
         if ret != 0:
@@ -182,16 +192,16 @@ def process_single_sample_2(sample, out_dir, table):
             # add to gene_position
             gene_position.setdefault(contig, []).append(gene_id)
 
-    rewrite_fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    count = 1
-    with open(fna_file, 'r') as in_fh, open(rewrite_fna_file, 'w') as out_fh:
-        for record in SeqIO.parse(in_fh, "fasta"):
-            gene_id = sample_id + '_{:05d}'.format(count)
-            count += 1
-            if gene_id not in passed_genes:
-                continue
-            new_record = SeqRecord(record.seq, id = gene_id, description = '')
-            SeqIO.write(new_record, out_fh, 'fasta')
+    # rewrite_fna_file = os.path.join(sample_dir, sample_id +'.fna')
+    # count = 1
+    # with open(fna_file, 'r') as in_fh, open(rewrite_fna_file, 'w') as out_fh:
+    #     for record in SeqIO.parse(in_fh, "fasta"):
+    #         gene_id = sample_id + '_{:05d}'.format(count)
+    #         count += 1
+    #         if gene_id not in passed_genes:
+    #             continue
+    #         new_record = SeqRecord(record.seq, id = gene_id, description = '')
+    #         SeqIO.write(new_record, out_fh, 'fasta')
 
     # os.remove(gene_coordinate_file)
     # os.remove(faa_file)

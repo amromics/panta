@@ -50,7 +50,10 @@ def collect_sample(sample_id_list, args):
             fasta_list = args.fasta
             for fasta in fasta_list:
                 base_name = os.path.basename(fasta)
-                sample_id = base_name.rsplit('.', 1)[0]
+                if base_name.endswith('.gz'):
+                    sample_id = base_name.rsplit('.', 2)[0]
+                else:
+                    sample_id = base_name.rsplit('.', 1)[0]
                 if sample_id in sample_id_list:
                     logging.info(f'{sample_id} already exists -- skip')
                     continue

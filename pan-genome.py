@@ -21,8 +21,6 @@ def collect_sample(sample_id_list, args):
             csv_reader = csv.reader(fh, delimiter='\t')
             for row in csv_reader:
                 gff = row[1]
-                if not gff.endswith('gff'):
-                    raise Exception(f'{gff} should be a gff3 file')
                 sample_id = row[0]
                 if sample_id in sample_id_list:
                     logging.info(f'{sample_id} already exists -- skip')
@@ -36,10 +34,11 @@ def collect_sample(sample_id_list, args):
     elif args.gff != None:
         gff_list = args.gff
         for gff in gff_list:
-            if not gff.endswith('gff'):
-                raise Exception(f'{gff} should be a gff3 file')
             base_name = os.path.basename(gff)
-            sample_id = base_name.rsplit('.', 1)[0]
+            if base_name.endswith('.gz'):
+                sample_id = base_name.rsplit('.', 2)[0]
+            else:
+                sample_id = base_name.rsplit('.', 1)[0]
             if sample_id in sample_id_list:
                 logging.info(f'{sample_id} already exists -- skip')
                 continue

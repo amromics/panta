@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 from functools import partial
 from datetime import datetime
+import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 import pan_genome.utils as utils
@@ -16,7 +17,13 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     gene_dictionary = {}
     found_fasta = False
     suffix = 1
-    with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
+
+    if ggf_file.endswith('.gz'):
+        in_fh = gzip.open(ggf_file,'rt')
+    else:
+        in_fh = open(ggf_file,'r')
+    
+    with open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
                 fna_fh.write(line)
@@ -74,7 +81,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
-
+    
+    in_fh.close()
+    
     return bed_file, assembly_file, gene_dictionary
     
 
@@ -125,13 +134,6 @@ def process_single_sample_fasta(sample, out_dir, table):
     assembly_file = sample['assembly']
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
     
-    # gene_coordinate_file = os.path.join(sample_dir, sample_id + '.gff')
-    # fna_file = os.path.join(sample_dir, sample_id +'.original.fna')
-    # if assembly_file.endswith('.gz'):
-    #     cmd = f'zcat {assembly_file} | prodigal -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
-    # else:
-    #     cmd = f'prodigal -i {assembly_file} -o {gene_coordinate_file} -f gff -a {faa_file} -d {fna_file} -g {table} -c -m -q'
-    
     if assembly_file.endswith('.gz'):
         cmd = f'zcat {assembly_file} | prodigal -a {faa_file} -g {table} -c -m -q'
     else:
@@ -156,6 +158,7 @@ def process_single_sample_fasta(sample, out_dir, table):
             # filter short genes
             start = int(cells[1])
             end = int(cells[2])
+            trand = cells[3]
             length = end - start + 1
             if length < 120:
                 # logger.info('Short gene')
@@ -180,26 +183,13 @@ def process_single_sample_fasta(sample, out_dir, table):
             
             gene_id = sample_id + '_{:05d}'.format(count)
             count += 1
-            new_record = SeqRecord(record.seq, id = gene_id, description = '')
+            desc = '{}~~~{}~~~{}~~~{}'.format(contig, start, end, trand)
+            new_record = SeqRecord(record.seq, id = gene_id, description = desc)
             SeqIO.write(new_record, out_fh, 'fasta')
             passed_genes.add(gene_id)
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, contig, length)
 
-    # rewrite_fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    # count = 1
-    # with open(fna_file, 'r') as in_fh, open(rewrite_fna_file, 'w') as out_fh:
-    #     for record in SeqIO.parse(in_fh, "fasta"):
-    #         gene_id = sample_id + '_{:05d}'.format(count)
-    #         count += 1
-    #         if gene_id not in passed_genes:
-    #             continue
-    #         new_record = SeqRecord(record.seq, id = gene_id, description = '')
-    #         SeqIO.write(new_record, out_fh, 'fasta')
-
-    # os.remove(gene_coordinate_file)
-    # os.remove(faa_file)
-    # os.remove(fna_file)
     return gene_dictionary
 
 

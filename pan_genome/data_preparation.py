@@ -14,7 +14,6 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_dictionary = {}
-    gene_position = {}
     found_fasta = False
     suffix = 1
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
@@ -75,13 +74,11 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
-            # add to gene_position
-            gene_position.setdefault(seq_id, []).append(gene_id)
 
-    return bed_file, assembly_file, gene_dictionary, gene_position
+    return bed_file, assembly_file, gene_dictionary
     
 
-def process_single_sample_1(sample, out_dir, table):
+def process_single_sample_gff(sample, out_dir, table):
     # starttime = datetime.now()
     
     sample_id = sample['id']
@@ -90,7 +87,7 @@ def process_single_sample_1(sample, out_dir, table):
         os.makedirs(sample_dir)
     
     # parse gff file
-    bed_file, assembly_file, gene_dictionary, gene_position = parse_gff_file(
+    bed_file, assembly_file, gene_dictionary = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
         sample_id = sample_id
@@ -114,10 +111,10 @@ def process_single_sample_1(sample, out_dir, table):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
 
-    return gene_dictionary, gene_position
+    return gene_dictionary
 
 
-def process_single_sample_2(sample, out_dir, table):
+def process_single_sample_fasta(sample, out_dir, table):
 
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -147,7 +144,6 @@ def process_single_sample_2(sample, out_dir, table):
 
     # change gene id and extract coordinates
     gene_dictionary = {}
-    gene_position = {}
     rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
     count = 1
     passed_genes = set()
@@ -189,8 +185,6 @@ def process_single_sample_2(sample, out_dir, table):
             passed_genes.add(gene_id)
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, contig, length)
-            # add to gene_position
-            gene_position.setdefault(contig, []).append(gene_id)
 
     # rewrite_fna_file = os.path.join(sample_dir, sample_id +'.fna')
     # count = 1
@@ -206,32 +200,36 @@ def process_single_sample_2(sample, out_dir, table):
     # os.remove(gene_coordinate_file)
     # os.remove(faa_file)
     # os.remove(fna_file)
-    return gene_dictionary, gene_position
+    return gene_dictionary
 
 
-def extract_proteins(samples, out_dir, gene_dictionary, gene_position, table, annotate, threads):
+def extract_proteins(samples, out_dir, args):
     starttime = datetime.now()
     
-    if threads == 0:
+    if args.threads == 0:
         threads = multiprocessing.cpu_count()
+    else:
+        threads = args.threads
 
     with multiprocessing.Pool(processes=threads) as pool:
-        if annotate == False:
-            results = pool.map(partial(process_single_sample_1, out_dir=out_dir, table=table), samples)
-        elif annotate == True:
-            results = pool.map(partial(process_single_sample_2, out_dir=out_dir, table=table), samples)
+        if args.fasta == None:
+            results = pool.map(partial(process_single_sample_gff, out_dir=out_dir, table=args.table), samples)
+        else:
+            results = pool.map(partial(process_single_sample_fasta, out_dir=out_dir, table=args.table), samples)
     
+    gene_dictionary = {}
     for sample, result in zip(samples, results):
         # gene_dictionary.update(result[0])
-        for k, v in result[0].items():
+        for k, v in result.items():
             if k in gene_dictionary:
                 logging.info(f'{k} already exists -- add prefix')
                 k = sample['id'] + '_' + k
             gene_dictionary[k] = v
-        gene_position[sample['id']] = result[1]
         
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
+
+    return gene_dictionary
 
 
 def combine_proteins(collection_dir, out_dir, samples):

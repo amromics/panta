@@ -24,9 +24,8 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4):
     return not_match_fasta, clusters
 
 
-def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
+def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters, gene_to_cluster):
     starttime = datetime.now()
-    gene_to_cluster = {gene:index for index,genes in enumerate(old_clusters) for gene in genes}
 
     # add gene matched in CD-HIT-2D step
     for old in cd_hit_2d_clusters:
@@ -36,7 +35,7 @@ def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
     
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')
-    return gene_to_cluster, old_clusters
+    return old_clusters
 
 
 def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
@@ -79,6 +78,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
         cluster_index = gene_to_cluster[old]
         old_clusters[cluster_index].append(new)
         old_clusters[cluster_index].extend(unmatched_clusters[new])
+        del unmatched_clusters[new]
     
 
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
@@ -90,28 +90,28 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
 
 
 
-def create_new_clusters(unmatched_clusters, mcl_file, gene_dictionary):
-    starttime = datetime.now()
+# def create_new_clusters(unmatched_clusters, mcl_file, gene_dictionary):
+#     starttime = datetime.now()
 
-    new_clusters = []
-    new_represent_list = []
-    with open(mcl_file, 'r') as fh:
-        for line in fh:
-            inflated_genes = []
-            line = line.rstrip('\n')
-            genes = line.split('\t')
-            length_max = 0
-            representative = None
-            for gene in genes:
-                length = gene_dictionary[gene][2]
-                if length > length_max:
-                    representative = gene
-                    length_max = length
-                inflated_genes.append(gene)
-                inflated_genes.extend(unmatched_clusters[gene])
-            new_clusters.append(inflated_genes)
-            new_represent_list.append(representative)
+#     new_clusters = []
+#     new_represent_list = []
+#     with open(mcl_file, 'r') as fh:
+#         for line in fh:
+#             inflated_genes = []
+#             line = line.rstrip('\n')
+#             genes = line.split('\t')
+#             length_max = 0
+#             representative = None
+#             for gene in genes:
+#                 length = gene_dictionary[gene][2]
+#                 if length > length_max:
+#                     representative = gene
+#                     length_max = length
+#                 inflated_genes.append(gene)
+#                 inflated_genes.extend(unmatched_clusters[gene])
+#             new_clusters.append(inflated_genes)
+#             new_represent_list.append(representative)
 
-    elapsed = datetime.now() - starttime
-    logging.info(f'Add new clusters -- time taken {str(elapsed)}')
-    return new_clusters, new_represent_list
+#     elapsed = datetime.now() - starttime
+#     logging.info(f'Add new clusters -- time taken {str(elapsed)}')
+#     return new_clusters, new_represent_list

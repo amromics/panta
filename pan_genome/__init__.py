@@ -5,5 +5,6 @@ __all__ = [
     'post_analysis', 
     'output',
     'utils',
-    'annotate'
+    'annotate',
+    'new_pipeline'
     ]

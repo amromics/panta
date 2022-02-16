@@ -69,22 +69,17 @@ def collect_sample(sample_id_list, args):
 def main_function(args):
     starttime = datetime.now()
 
+    # parse arguments
     collection_dir = args.outdir
-    threads = args.threads
-    if args.fasta != None:
-        anno = True
-    else:
-        anno = False
-    
-    temp_dir = os.path.join(collection_dir, 'temp')
     if not os.path.exists(collection_dir):
         os.makedirs(collection_dir)
+    
+    temp_dir = os.path.join(collection_dir, 'temp')
     if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)    
-
+        os.makedirs(temp_dir)   
+    
     dir_path = os.path.dirname(os.path.realpath(__file__))
     db_dir = os.path.join(dir_path, 'db')
-
 
     # collect samples
     sample_id_list = []
@@ -92,14 +87,10 @@ def main_function(args):
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
     
-    gene_dictionary = {}
-    gene_position = {}
-    
     # pipeline
-    wrapper.run_main_pipeline(samples, gene_dictionary, gene_position, collection_dir, temp_dir, db_dir, args, anno, threads)
-    # wrapper.run_gene_alignment(clusters, gene_dictionary, samples, collection_dir, args.alignment, threads)
+    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args)
 
-    shutil.rmtree(temp_dir)
+    # shutil.rmtree(temp_dir)
         
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -109,108 +100,149 @@ def main_function(args):
 def add_function(args):
     starttime = datetime.now()
 
+    # parse arguments
     collection_dir = args.collection_dir
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
-    threads = args.threads
-    if args.fasta != None:
-        anno = True
-    else:
-        anno = False
-
+    
     temp_dir = os.path.join(collection_dir, 'temp')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
     else:
-        os.makedirs(temp_dir)
-
+        os.makedirs(temp_dir)    
+    
     dir_path = os.path.dirname(os.path.realpath(__file__))
     db_dir = os.path.join(dir_path, 'db')
 
     # Check required files
-    if args.alignment != None:
-        samples_dir = os.path.join(collection_dir, 'samples')
-        if not os.path.exists(samples_dir):
-            raise Exception(f'{samples_dir} does not exist')
-    
-    # gene_dictionary = output.read_gene_dictionary(os.path.join(collection_dir, 'gene_dictionary.tsv'))
-    # gene_position = output.read_gene_position(os.path.join(collection_dir, 'gene_position.json'))
-    
-    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
-    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
-    old_clusters_annotation = json.load(open(os.path.join(collection_dir, 'clusters_annotation.json'), 'r'))
-
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
+    old_clusters, old_clusters_annotation, gene_to_old_cluster = new_pipeline.read_database(old_represent_faa)
 
     old_spreadsheet_file = os.path.join(collection_dir, 'gene_presence_absence.csv')
     if not os.path.isfile(old_spreadsheet_file):
         raise Exception(f'{old_spreadsheet_file} does not exist')
-
-
+    with open(old_spreadsheet_file, 'r') as fh:
+        reader = csv.reader(fh, delimiter='\t')
+        header = next(reader)
+        sample_id_list = header[8:]
+    
     old_rtab_file = os.path.join(collection_dir, 'gene_presence_absence.Rtab')
     if not os.path.isfile(old_rtab_file):
         raise Exception(f'{old_rtab_file} does not exist')
 
 
     # collect new samples
-    sample_id_list = [sample['id'] for sample in old_samples]
     new_samples = collect_sample(sample_id_list, args)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-    gene_dictionary = {}
-    gene_position = {}
-    
-    data_preparation.extract_proteins(new_samples,collection_dir,gene_dictionary,gene_position,args.table,anno,threads)
 
-    new_clusters, new_represent_fasta = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_dictionary, temp_dir, collection_dir, threads, args)
-    
-    # split_clusters = post_analysis.split_paralogs(
-    #     gene_dictionary=gene_dictionary,
-    #     gene_position=gene_position,
-    #     unsplit_clusters= inflated_clusters,
-    #     split=args.split
-    #     )
+    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args)
 
-    if anno == False:
-        new_clusters_annotation = post_analysis.annotate_cluster(
+    if args.fasta == None:
+        new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary,
-            start=len(old_clusters) + 1)
+            start = 1)
     else:
-        new_clusters_annotation = annotate.annotate_cluster(
+        # create representative
+        new_represent_fasta = os.path.join(temp_dir, 'representative.fasta')
+        utils.create_fasta_include(
+            fasta_file_list=[unmatched_represent_faa], 
+            include_list=gene_to_new_cluster, 
+            output_file=new_represent_fasta
+            )
+        
+        new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
-            threads = threads,
+            threads = args.threads,
+            start = 1
+            )
+
+    output.create_representative_fasta(
+        gene_to_cluster=gene_to_new_cluster, 
+        clusters_annotation=new_clusters_annotation, 
+        source_fasta=unmatched_represent_faa, 
+        out_fasta=os.path.join(collection_dir, 'representative.fasta'), 
+        mode='a')
+
+    output.update_spreadsheet(old_spreadsheet_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir)
+    rtab_file = output.update_rtab(old_rtab_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir)
+    output.create_summary(rtab_file, collection_dir)
+
+    # shutil.rmtree(temp_dir)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
+
+def new_function(args):
+    starttime = datetime.now()
+
+    # parse arguments
+    collection_dir = args.outdir
+    if not os.path.exists(collection_dir):
+        os.makedirs(collection_dir)
+    
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    db_dir = os.path.join(dir_path, 'db')
+
+    # collect new samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+
+    # pipeline
+    species_db = args.db
+    if not os.path.isfile(species_db):
+        raise Exception(f'{species_db} does not exist')
+    old_clusters, old_clusters_annotation, gene_to_cluster = new_pipeline.read_database(species_db)
+
+    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(samples, species_db, old_clusters, gene_to_cluster, collection_dir, temp_dir, args)
+
+    if args.fasta == None:
+        clusters = new_pipeline.combine_clusters(old_clusters, new_clusters)
+        clusters_annotation = annotate.annotate_cluster_gff(
+            unlabeled_clusters=clusters, 
+            gene_dictionary=gene_dictionary)
+    else:
+        # create new representative
+        new_represent_fasta = os.path.join(temp_dir, 'representative.fasta')
+        utils.create_fasta_include(
+            fasta_file_list=[unmatched_represent_faa], 
+            include_list=gene_to_new_cluster, 
+            output_file=new_represent_fasta
+            )  
+        
+        new_clusters_annotation = annotate.annotate_cluster_fasta(
+            unlabeled_clusters=new_clusters,
+            rep_fasta = new_represent_fasta,
+            temp_dir=temp_dir,
+            db_dir = db_dir,
+            threads = args.threads,
             start=len(old_clusters) + 1
             )
 
-    old_samples.extend(new_samples)
-    all_samples = old_samples
+        clusters, clusters_annotation=new_pipeline.combine_result(
+            old_clusters, old_clusters_annotation, new_clusters, new_clusters_annotation)
 
-    output.update_spreadsheet(old_spreadsheet_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
-    rtab_file = output.update_rtab(old_rtab_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir)
+    # output
+    output.create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
+    rtab_file = output.create_rtab(clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
     output.create_summary(rtab_file, collection_dir)
 
-    os.system(f'cat {new_represent_fasta} >> {old_represent_faa}')
-
-    output.write_gene_dictionary(gene_dictionary, collection_dir, 'a')
-    output.write_gene_position(gene_position, collection_dir, 'a')
-    json.dump(all_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    old_clusters.extend(new_clusters)
-    json.dump(old_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    old_clusters_annotation.extend(new_clusters_annotation)
-    json.dump(old_clusters_annotation, open(os.path.join(collection_dir, 'clusters_annotation.json'), 'w'), indent=4, sort_keys=True)
-    
-    # wrapper.run_gene_alignment(cluster, gene_dictionary, all_samples, collection_dir, args.alignment, threads)
-
-    shutil.rmtree(temp_dir)
+    # shutil.rmtree(temp_dir)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -229,7 +261,6 @@ def main():
     main_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
     main_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
-    main_cmd.add_argument('-s', '--split', help='split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
@@ -238,8 +269,6 @@ def main():
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
-    main_cmd.add_argument('-n', '--number', help='number of samples which are analysed first', default=0, type=int)
 
     add_cmd = subparsers.add_parser(
         'add',
@@ -250,8 +279,7 @@ def main():
     add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
     add_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
-    add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
-    add_cmd.add_argument('-s', '--split', help='split paralog clusters', default=False, action='store_true')
+    add_cmd.add_argument('-o', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
@@ -260,7 +288,26 @@ def main():
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
+
+    new_cmd = subparsers.add_parser(
+        'new',
+        description='new pipeline: run pan-genome analysis using species database',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    new_cmd.set_defaults(func=new_function)
+    new_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
+    new_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
+    new_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
+    new_cmd.add_argument('--db', help='database directory', required=True, type=str)
+    new_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
+    new_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
+    new_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    new_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
+    new_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
+    new_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
+    new_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
+    new_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
+    new_cmd.add_argument('--table', help='codon table', default=11, type=int)
 
     args = parser.parse_args()
     args.func(args)

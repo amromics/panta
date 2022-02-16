@@ -158,53 +158,6 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
     return split_clusters
 
 
-def annotate_cluster(unlabeled_clusters, gene_dictionary,start=1):
-    starttime = datetime.now()
-
-    clusters_annotation = []
-    clusters_name_count = []
-
-    for i, gene_id_list in enumerate(unlabeled_clusters,start):
-        cluster_name = 'groups_' + str(i)
-        cluster_product = None
-        gene_name_count = {}
-        max_number = 0
-        for gene_id in gene_id_list:
-            this_gene = gene_dictionary[gene_id]
-            if this_gene[3] != '':
-                gene_name = this_gene[3]
-                gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
-                if gene_name_count[gene_name] > max_number:
-                    cluster_name = gene_name
-                    max_number = gene_name_count[gene_name]
-                    if this_gene[4] != '':
-                        cluster_product = this_gene[4]
-        if cluster_product == None:
-            cluster_product =[]
-            for gene_id in gene_id_list:
-                this_gene = gene_dictionary[gene_id]
-                if this_gene[4] != '':
-                    gene_product = this_gene[4]
-                    if gene_product not in cluster_product:
-                        cluster_product.append(gene_product)
-            if len(cluster_product) > 0:
-                cluster_product = ', '.join(cluster_product)
-            else:
-                cluster_product = 'hypothetical protein'
-        
-        # check if cluster_name already exists
-        if cluster_name in clusters_name_count:
-            cluster_name += '_{}'.format(str(i))
-        else:
-            clusters_name_count.append(cluster_name)
-        
-        clusters_annotation.append([cluster_name, cluster_product])
-    
-    elapsed = datetime.now() - starttime
-    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
-    return clusters_annotation
-
-
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
     starttime = datetime.now()
 

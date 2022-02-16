@@ -5,6 +5,8 @@ import shutil
 from datetime import datetime
 import pandas as pd
 import pan_genome.utils as utils
+from Bio import SeqIO
+from Bio.Seq import Seq
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ def create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, 
     return spreadsheet_file
 
 
-def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir):
+def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir):
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.csv')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
@@ -74,6 +76,7 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
         
         # update header
         header = next(reader)
+        num_old_samples = len(header[8:])
         for sample in new_samples:
             header.append(sample['id'])
         writer.writerow(header)
@@ -85,12 +88,10 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
             max_len = int(row[6])
             new_sample_dict = {}
             new_length_list = []
-            for i,gene in enumerate(cluster):
-                if i < num_seq:
-                    continue
-                sample_id = gene_dictionary[gene][0]
-                new_sample_dict.setdefault(sample_id, []).append(gene)
-                length = gene_dictionary[gene][2]
+            for new_gene in cluster:
+                sample_id = gene_dictionary[new_gene][0]
+                new_sample_dict.setdefault(sample_id, []).append(new_gene)
+                length = gene_dictionary[new_gene][2]
                 if length > max_len:
                     max_len = length
                 if length < min_len:
@@ -101,7 +102,7 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
             # No. isolates
             row[2] = num_iso + len(new_sample_dict)
             # No. sequences
-            row[3] = len(cluster)
+            row[3] = num_seq + len(cluster)
             # Avg sequences per isolate
             avg_seq = row[3] / row[2]
             row[4] = round(avg_seq,2)
@@ -110,7 +111,7 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
             # Max group size nuc
             row[6] = max_len
             # Avg group size nuc
-            nuc_size = (float(row[7]) * num_seq + len(new_length_list)) / len(cluster)
+            nuc_size = (float(row[7]) * num_seq + len(new_length_list)) / row[3]
             row[7] = round(nuc_size,0)
 
             for sample in new_samples:
@@ -155,7 +156,9 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
             row.append(round(nuc_size,0))
 
             # sample columns
-            for sample in all_samples:
+            for i in range(0, num_old_samples):
+                row.append('')
+            for sample in new_samples:
                 sample_id = sample['id']
                 if sample_id in sample_dict:
                     gene_list = sample_dict[sample_id]
@@ -200,7 +203,7 @@ def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir
     logging.info(f'Create Rtab -- time taken {str(elapsed)}')
     return rtab_file
 
-def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, all_samples, temp_dir):
+def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir):
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
@@ -209,18 +212,14 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
         
         # update header
         header = next(reader)
+        num_old_samples = len(header[1:])
         for sample in new_samples:
             header.append(sample['id'])
         writer.writerow(header)
   
         for row, cluster in zip(reader, old_clusters):
-            num_seq = 0
-            for cell in row[1:]:
-                num_seq += int(cell)
             new_sample_dict = {}
-            for i,gene in enumerate(cluster):
-                if i < num_seq:
-                    continue
+            for gene in cluster:
                 sample_id = gene_dictionary[gene][0]
                 new_sample_dict.setdefault(sample_id, []).append(gene)
     
@@ -241,7 +240,9 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
             for gene in cluster:
                 sample_id = gene_dictionary[gene][0]
                 sample_dict.setdefault(sample_id, []).append(gene)
-            for sample in all_samples:
+            for i in range(0, num_old_samples):
+                row.append(0)
+            for sample in new_samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
                 row.append(len(gene_list))
@@ -293,6 +294,20 @@ def create_summary(rtab_file, out_dir):
     return summary_file
 
 
+def create_representative_fasta(gene_to_cluster, clusters_annotation, source_fasta, out_fasta, mode='w'):
+    for seq_record in SeqIO.parse(open(source_fasta), "fasta"):
+        gene_id = seq_record.id
+        if gene_id in gene_to_cluster:
+            index = gene_to_cluster[gene_id]
+            annotation = clusters_annotation[index]
+            seq_record.description = "~~~".join(annotation)
+            clusters_annotation[index].append(seq_record)
+
+    with open(out_fasta, mode) as out_fh:
+        for cluster in clusters_annotation:
+            seq_record=cluster[2]
+            SeqIO.write(seq_record, out_fh, 'fasta')
+
 # def create_representative_fasta(clusters, gene_dictionary, fasta_list, out_dir):
 #     starttime = datetime.now()
 #     representative_fasta = os.path.join(out_dir, 'representative.fasta')
@@ -331,6 +346,20 @@ def write_gene_dictionary(gene_dictionary, out_dir, mode='w'):
     # elapsed = datetime.now() - starttime
     # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')
 
+def read_gene_dictionary(annotation_file):
+    # starttime = datetime.now()
+    
+    gene_dictionary = {}
+    with open(annotation_file,'r') as fh:
+        csv_reader = csv.reader(fh, delimiter='\t')
+        for row in csv_reader:
+            row[3] = int(row[3])
+            gene_dictionary[row[0]] = tuple(row[1:])
+    
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
+    return gene_dictionary
+
 def write_gene_position(gene_position, out_dir, mode='w'):
     # starttime = datetime.now()
     
@@ -346,20 +375,6 @@ def write_gene_position(gene_position, out_dir, mode='w'):
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')
-
-def read_gene_dictionary(annotation_file):
-    # starttime = datetime.now()
-    
-    gene_dictionary = {}
-    with open(annotation_file,'r') as fh:
-        csv_reader = csv.reader(fh, delimiter='\t')
-        for row in csv_reader:
-            row[3] = int(row[3])
-            gene_dictionary[row[0]] = tuple(row[1:])
-    
-    # elapsed = datetime.now() - starttime
-    # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
-    return gene_dictionary
 
 def read_gene_position(position_file):
     # starttime = datetime.now()

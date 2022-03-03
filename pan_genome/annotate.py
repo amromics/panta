@@ -61,18 +61,16 @@ def run_parallel(faa_file, threads, database, out_dir):
         db_dir = database['dir']
         evalue = database['EVALUE']
         mincov = database['MINCOV']
-        cmd = f'blastp -query - -db {db_dir} -evalue {evalue} -qcov_hsp_perc {mincov} -num_threads 1 -num_descriptions 1 -num_alignments 1 -seg no '
+        cmd = f'blastp -query {faa_file} -db {db_dir} -num_threads {threads} -mt_mode 1 -evalue {evalue} -qcov_hsp_perc {mincov} -num_descriptions 1 -num_alignments 1 -seg no > {out_file} 2> /dev/null'
     elif database['tool'] == 'hmmer3':
         db_dir = database['dir']
         evalue = database['EVALUE']
-        cmd = f'hmmscan --noali --notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin '
+        cmd = f"cat {faa_file} | parallel --gnu --plain -j {threads} --block {bsize} --recstart '>' --pipe " 
+        cmd += f'hmmscan --noali --notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin '
+        cmd += f"> {out_file} 2> /dev/null"
 
-    parallel_cmd = f"cat {faa_file} | parallel --gnu --plain -j {threads} --block {bsize} --recstart '>' --pipe " 
-    parallel_cmd += cmd
-    parallel_cmd += f"> {out_file} 2> /dev/null"
-
-    logging.info(f"Running: {parallel_cmd}")
-    utils.run_command(parallel_cmd)
+    logging.info(f"Running: {cmd}")
+    utils.run_command(cmd)
 
     return out_file
 

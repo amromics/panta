@@ -3,10 +3,8 @@ import csv
 import logging
 import shutil
 from datetime import datetime
-import pandas as pd
 import pan_genome.utils as utils
 from Bio import SeqIO
-from Bio.Seq import Seq
 
 logger = logging.getLogger(__name__)
 

@@ -40,6 +40,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         query_fasta = unmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
         evalue = args.evalue,
+        max_target_seqs=1,
         threads=args.threads)
 
     remain_fasta, old_clusters = add_sample_pipeline.add_gene_blast(
@@ -61,6 +62,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         query_fasta = remain_fasta,
         out_dir = os.path.join(temp_dir, 'blast2'),
         evalue = args.evalue,
+        max_target_seqs=2000,
         threads=args.threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
@@ -101,6 +103,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args):
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
+        max_target_seqs=2000,
         threads=args.threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(

@@ -23,52 +23,31 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
+def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
     # make blast database
-    blast_db = os.path.join(out_dir, 'output_contigs')
+    blast_db = os.path.join(out_dir, 'blast_db')
     cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
     ret = utils.run_command(cmd)
     if ret != 0:
         raise Exception('Error running makeblastdb')
     
-    # chunk fasta file
-    chunk_dir = os.path.join(out_dir, 'chunk_files')
-    chunked_file_list = utils.chunk_fasta_file(query_fasta, chunk_dir)
-
-    # run parallel all-against-all blast
-    blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")
-    blast_output_file_list = []
-    with open(blast_cmds_file,'w') as fh:
-        for chunked_file in chunked_file_list:
-            blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
-            blast_output_file_list.append(blast_output_file)
-            cmd = f'blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -max_target_seqs 2000'
-            cmd +=  ' -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"'
-            cmd += f' 2> /dev/null 1> {blast_output_file}'
-            fh.write(cmd + '\n')
-    cmd = f"parallel -j {threads} -a {blast_cmds_file}"
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running parallel all-against-all blast')
-
-    # combining blast results
+    # run blast
     blast_result = os.path.join(out_dir, 'blast_results')
-    if os.path.isfile(blast_result):
-        os.remove(blast_result)
-    for blast_output_file in blast_output_file_list:
-        utils.run_command(f'cat {blast_output_file} >> {blast_result}')
+    cmd = f'blastp -query {query_fasta} -db {blast_db} -evalue {evalue} -num_threads {threads} -mt_mode 1 -max_target_seqs {max_target_seqs} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" 2> /dev/null 1> {blast_result}'
+
+    subprocess.call(cmd, shell=True)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'All-against-all BLASTP -- time taken {str(elapsed)}')
+    logging.info(f'Run BLASTP -- time taken {str(elapsed)}')
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
+def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -82,18 +61,18 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
         raise Exception('Error running diamond makedb')
     
     # run diamond blastp
-    diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --max-target-seqs 2000"
+    diamond_result = os.path.join(out_dir, 'diamond_results')
+    cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --max-target-seqs {max_target_seqs}"
     cmd +=  ' --outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"'
     cmd += f" 2> /dev/null 1> {diamond_result}"
     subprocess.call(cmd, shell=True)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Protein alignment with Diamond -- time taken {str(elapsed)}')
+    logging.info(f'Run Diamond -- time taken {str(elapsed)}')
     return diamond_result
 
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
     # print out the number of sequences
     database_result = subprocess.run(f'grep ">" {database_fasta} | wc -l', shell=True, capture_output=True, text=True)
     query_result = subprocess.run(f'grep ">" {query_fasta} | wc -l', shell=True, capture_output=True, text=True)
@@ -105,6 +84,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-
             query_fasta = query_fasta,
             out_dir = out_dir,
             evalue = evalue,
+            max_target_seqs= max_target_seqs,
             threads=threads
             )
     else:
@@ -113,6 +93,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-
             query_fasta = query_fasta,
             out_dir = out_dir,
             evalue = evalue,
+            max_target_seqs= max_target_seqs,
             threads=threads
             )
     return blast_result

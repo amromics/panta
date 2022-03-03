@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime
-import pandas as pd
+import csv
 import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
@@ -41,11 +41,9 @@ def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters, gene_to_cluster):
 def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
     starttime = datetime.now()
     
-    blast_dataframe = pd.read_csv(blast_result, sep='\t', header = None)
-    match_dict = {}
-    min_evalue = 1000
-    previous = None
-    for _, row in blast_dataframe.iterrows():
+    csv_reader = csv.reader(open(blast_result, 'r'), delimiter='\t')
+    exclude_list = []
+    for row in csv_reader:
         new = row[0]
         old = row[1]
         
@@ -65,24 +63,14 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
         if pident <= identity or len_diff <= LD or align_short <= AS or align_long <= AL:
             continue
         
-        evalue = row[10]
-        if new != previous:
-            min_evalue = 1000
-            previous = new
-        if evalue < min_evalue:
-            match_dict[new] = old
-            min_evalue = evalue
-    
-    for new in match_dict:
-        old = match_dict[new]
+        exclude_list.append(new)
         cluster_index = gene_to_cluster[old]
         old_clusters[cluster_index].append(new)
         old_clusters[cluster_index].extend(unmatched_clusters[new])
         del unmatched_clusters[new]
     
-
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    utils.create_fasta_exclude(fasta_file_list=[fasta_file], exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
+    utils.create_fasta_exclude(fasta_file_list=[fasta_file], exclude_list=exclude_list, output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')

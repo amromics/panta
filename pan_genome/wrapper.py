@@ -40,7 +40,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         query_fasta = unmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
         evalue = args.evalue,
-        max_target_seqs=1,
+        max_target_seqs=2000,
         threads=args.threads)
 
     remain_fasta, old_clusters = add_sample_pipeline.add_gene_blast(

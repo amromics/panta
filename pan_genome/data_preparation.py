@@ -135,9 +135,9 @@ def process_single_sample_fasta(sample, out_dir, table):
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
     
     if assembly_file.endswith('.gz'):
-        cmd = f'zcat {assembly_file} | prodigal -a {faa_file} -g {table} -c -m -q'
+        cmd = f'zcat {assembly_file} | prodigal -a {faa_file} -g {table} -c -m -q -o /dev/null'
     else:
-        cmd = f'prodigal -i {assembly_file} -a {faa_file} -g {table} -c -m -q'
+        cmd = f'prodigal -i {assembly_file} -a {faa_file} -g {table} -c -m -q -o /dev/null'
     
     if not os.path.isfile(faa_file):
         ret = utils.run_command(cmd)

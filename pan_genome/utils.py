@@ -1,5 +1,6 @@
 import os
 import logging
+import subprocess
 import re
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -8,18 +9,16 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
-def run_command(cmd, timing_log='time.log'):
-    """
-    Run a command line, return the returning code of the command
-    :param cmd:
-    :param timing_log:
-    :return:
-    """
-    #logger.info('Run "' + cmd + '"')
-    if timing_log is not None:
-        cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
-    ret = os.system(cmd)
-    return ret
+def run_command(cmd, timing_log=None):
+    if timing_log == None:
+        ret = os.system(cmd)
+    else:
+        logger.info(f'Run: {cmd}')
+        cmd = f'/usr/bin/time --append -v -o {timing_log} {cmd}'
+        ret = os.system(cmd)
+
+    if ret != 0:
+        raise Exception(f'Error running {cmd}')
 
 def parse_cluster_file(cd_hit_cluster_file): 
     clusters = {}

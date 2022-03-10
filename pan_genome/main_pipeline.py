@@ -7,15 +7,14 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def run_cd_hit(faa_file, out_dir, threads=4):
+def run_cd_hit(faa_file, out_dir, threads, timing_log):
     starttime = datetime.now()
     
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running cd-hit')
+    utils.run_command(cmd, timing_log)
+            
     cd_hit_clusters = utils.parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
@@ -23,7 +22,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
+def run_blast(database_fasta, query_fasta, out_dir, timing_log, evalue=1E-6, max_target_seqs=2000, threads=4):
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -32,22 +31,22 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs
     # make blast database
     blast_db = os.path.join(out_dir, 'blast_db')
     cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running makeblastdb')
+    utils.run_command(cmd, timing_log)
+            
     
     # run blast
     blast_result = os.path.join(out_dir, 'blast_results')
     cmd = f'blastp -query {query_fasta} -db {blast_db} -evalue {evalue} -num_threads {threads} -mt_mode 1 -max_target_seqs {max_target_seqs} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" 2> /dev/null 1> {blast_result}'
 
-    subprocess.call(cmd, shell=True)
+    utils.run_command(cmd, timing_log)
+            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run BLASTP -- time taken {str(elapsed)}')
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
+def run_diamond(database_fasta, query_fasta, out_dir, timing_log, evalue=1E-6, max_target_seqs=2000, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -56,26 +55,26 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_se
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running diamond makedb')
+    utils.run_command(cmd, timing_log)
+            
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond_results')
     cmd = f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --max-target-seqs {max_target_seqs}"
     cmd +=  ' --outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"'
     cmd += f" 2> /dev/null 1> {diamond_result}"
-    subprocess.call(cmd, shell=True)
+    utils.run_command(cmd, timing_log)
+            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run Diamond -- time taken {str(elapsed)}')
     return diamond_result
 
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6, max_target_seqs=2000, threads=4):
+def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, timing_log, evalue=1E-6, max_target_seqs=2000, threads=4):
     # print out the number of sequences
-    database_result = subprocess.run(f'grep ">" {database_fasta} | wc -l', shell=True, capture_output=True, text=True)
-    query_result = subprocess.run(f'grep ">" {query_fasta} | wc -l', shell=True, capture_output=True, text=True)
+    database_result = subprocess.run(f'grep ">" {database_fasta} | wc -l', capture_output=True, text=True, shell=True)
+    query_result = subprocess.run(f'grep ">" {query_fasta} | wc -l', capture_output=True, text=True, shell=True)
     logging.info(f'Comparing {query_result.stdout.rstrip()} sequences with {database_result.stdout.rstrip()} sequences')
 
     if diamond == False:
@@ -83,6 +82,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
+            timing_log=timing_log,
             evalue = evalue,
             max_target_seqs= max_target_seqs,
             threads=threads
@@ -92,6 +92,7 @@ def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-
             database_fasta = database_fasta,
             query_fasta = query_fasta,
             out_dir = out_dir,
+            timing_log=timing_log,
             evalue = evalue,
             max_target_seqs= max_target_seqs,
             threads=threads
@@ -124,13 +125,12 @@ def filter_blast_result(blast_result, out_dir, identity, LD, AS, AL):
     return filtered_blast_result
 
             
-def cluster_with_mcl(blast_result, out_dir):
+def cluster_with_mcl(blast_result, out_dir, timing_log):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast --m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running mcl')
+    utils.run_command(cmd, timing_log)
+            
     elapsed = datetime.now() - starttime
     logging.info(f'Cluster with MCL -- time taken {str(elapsed)}')
     return mcl_file

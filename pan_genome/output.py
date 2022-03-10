@@ -1,5 +1,6 @@
 import os
 import csv
+import sys
 import logging
 import shutil
 from datetime import datetime
@@ -69,6 +70,7 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.csv')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
+        csv.field_size_limit(sys.maxsize)
         writer = csv.writer(out_fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         reader = csv.reader(in_fh, delimiter=',')
         
@@ -205,6 +207,7 @@ def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, g
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab')
     with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
+        csv.field_size_limit(sys.maxsize)
         writer = csv.writer(out_fh, delimiter='\t')
         reader = csv.reader(in_fh, delimiter='\t')
         

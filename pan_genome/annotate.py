@@ -9,7 +9,7 @@ import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
-def setup_db(db_dir, force=False):
+def setup_db(db_dir, timing_log, force=False):
 
     bacteria_db = [
         {'name':"AMR",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-300},
@@ -28,8 +28,8 @@ def setup_db(db_dir, force=False):
         if not os.path.isfile(fasta):
             raise Exception(f'Database {fasta} does not exist')
         cmd = f'makeblastdb -hash_index -dbtype prot -in {fasta} -logfile /dev/null'
-        utils.run_command(cmd)
-        logging.info(f'Making BLASTP database {fasta}')
+        utils.run_command(cmd, timing_log)
+                    
 
 
     hmm_db =glob(os.path.join(db_dir, 'hmm', '*.hmm'))
@@ -41,13 +41,13 @@ def setup_db(db_dir, force=False):
         if not os.path.isfile(hmm):
             raise Exception(f'Database {hmm} does not exist')
         cmd = f'hmmpress {hmm} > /dev/null'
-        utils.run_command(cmd)
-        logging.info(f'Pressing HMM database {hmm}')
+        utils.run_command(cmd, timing_log)
+                    
 
     return bacteria_db, hmm_db[0]
 
 
-def run_parallel(faa_file, threads, database, out_dir):
+def run_parallel(faa_file, threads, database, out_dir, timing_log):
     name = database['name']
     out_file = os.path.join(out_dir, name + '.out')
     faa_bytes = os.path.getsize(faa_file)
@@ -69,8 +69,8 @@ def run_parallel(faa_file, threads, database, out_dir):
         cmd += f'hmmscan --noali --notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin '
         cmd += f"> {out_file} 2> /dev/null"
 
-    logging.info(f"Running: {cmd}")
-    utils.run_command(cmd)
+    utils.run_command(cmd, timing_log)
+            
 
     return out_file
 
@@ -96,7 +96,7 @@ def parse_search_result(result_file, tool, dictionary):
             dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, threads, start=1):
+def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, timing_log, threads, start=1):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -106,7 +106,7 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, thre
     mincov = 80
 
     # setup database
-    bacteria_db, hmm = setup_db(db_dir)
+    bacteria_db, hmm = setup_db(db_dir, timing_log)
     bacteria_db[2]['MINCOV'] = mincov
     bacteria_db[2]['EVALUE'] = evalue
     hmm_db = {'name':"hmm",'dir':hmm,'tool': 'hmmer3','EVALUE': evalue}
@@ -121,7 +121,7 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, thre
     search_result = {}
     logging.info(f'Total number of genes: {len(unlabeled_clusters)}')
     for database in ordered_database:
-        out_file = run_parallel(faa_file, threads, database, out_dir)
+        out_file = run_parallel(faa_file, threads, database, out_dir, timing_log)
         parse_search_result(out_file, database['tool'], search_result)
         filter_faa = os.path.join(out_dir, database['name'] + '.filter.faa')
         utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)

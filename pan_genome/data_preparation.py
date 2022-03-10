@@ -87,7 +87,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, assembly_file, gene_dictionary
     
 
-def process_single_sample_gff(sample, out_dir, table):
+def process_single_sample_gff(sample, out_dir, table, timing_log):
     # starttime = datetime.now()
     
     sample_id = sample['id']
@@ -106,8 +106,9 @@ def process_single_sample_gff(sample, out_dir, table):
     
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    utils.run_command(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
-    
+    cmd = f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1"
+    utils.run_command(cmd)
+
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
@@ -123,7 +124,7 @@ def process_single_sample_gff(sample, out_dir, table):
     return gene_dictionary
 
 
-def process_single_sample_fasta(sample, out_dir, table):
+def process_single_sample_fasta(sample, out_dir, table, timing_log):
 
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -140,9 +141,8 @@ def process_single_sample_fasta(sample, out_dir, table):
         cmd = f'prodigal -i {assembly_file} -a {faa_file} -g {table} -c -m -q -o /dev/null'
     
     if not os.path.isfile(faa_file):
-        ret = utils.run_command(cmd)
-        if ret != 0:
-            raise Exception('Error running prodigal')
+        utils.run_command(cmd)
+                    
 
     # change gene id and extract coordinates
     gene_dictionary = {}
@@ -193,7 +193,7 @@ def process_single_sample_fasta(sample, out_dir, table):
     return gene_dictionary
 
 
-def extract_proteins(samples, out_dir, args):
+def extract_proteins(samples, out_dir, args, timing_log):
     starttime = datetime.now()
     
     if args.threads == 0:
@@ -203,9 +203,9 @@ def extract_proteins(samples, out_dir, args):
 
     with multiprocessing.Pool(processes=threads) as pool:
         if args.fasta == None:
-            results = pool.map(partial(process_single_sample_gff, out_dir=out_dir, table=args.table), samples)
+            results = pool.map(partial(process_single_sample_gff, out_dir=out_dir, table=args.table, timing_log=timing_log), samples)
         else:
-            results = pool.map(partial(process_single_sample_fasta, out_dir=out_dir, table=args.table), samples)
+            results = pool.map(partial(process_single_sample_fasta, out_dir=out_dir, table=args.table, timing_log=timing_log), samples)
     
     gene_dictionary = {}
     for sample, result in zip(samples, results):
@@ -222,7 +222,7 @@ def extract_proteins(samples, out_dir, args):
     return gene_dictionary
 
 
-def combine_proteins(collection_dir, out_dir, samples):
+def combine_proteins(collection_dir, out_dir, samples, timing_log):
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'combined.faa')
@@ -237,7 +237,8 @@ def combine_proteins(collection_dir, out_dir, samples):
                 raise Exception(f'{faa_file} does not exist')
 
     cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
-    utils.run_command(cmd)
+    utils.run_command(cmd, timing_log)
+            
     
     # elapsed = datetime.now() - starttime
     # logging.info(f'Combine protein -- time taken {str(elapsed)}')

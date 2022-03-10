@@ -8,37 +8,41 @@ import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args):
+def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args, timing_log):
     
-    gene_dictionary = data_preparation.extract_proteins(new_samples,collection_dir,args)
+    gene_dictionary = data_preparation.extract_proteins(new_samples,collection_dir,args, timing_log)
     
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
         out_dir=temp_dir,
-        samples=new_samples)
+        samples=new_samples,
+        timing_log=timing_log)
 
     unmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = old_represent_faa,
         database_2 = new_combined_faa,
         out_dir = temp_dir,
-        threads=args.threads)
+        threads=args.threads,
+        timing_log=timing_log)
 
     add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters, gene_to_old_cluster)
 
-    num_seq = subprocess.run(f'grep ">" {unmatched_faa} | wc -l', shell=True, capture_output=True, text=True)
+    num_seq = subprocess.run(f'grep ">" {unmatched_faa} | wc -l', capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
         return None, None
 
     unmatched_represent_faa, unmatched_clusters = main_pipeline.run_cd_hit(
         faa_file=unmatched_faa,
         out_dir=temp_dir,
-        threads=args.threads)
+        threads=args.threads,
+        timing_log=timing_log)
 
     blast_1_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = old_represent_faa,
         query_fasta = unmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
+        timing_log=timing_log,
         evalue = args.evalue,
         max_target_seqs=2000,
         threads=args.threads)
@@ -52,7 +56,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         out_dir=temp_dir,
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
-    num_seq = subprocess.run(f'grep ">" {remain_fasta} | wc -l', shell=True, capture_output=True, text=True)
+    num_seq = subprocess.run(f'grep ">" {remain_fasta} | wc -l', capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
         return None, None
     
@@ -61,6 +65,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         database_fasta = remain_fasta,
         query_fasta = remain_fasta,
         out_dir = os.path.join(temp_dir, 'blast2'),
+        timing_log=timing_log,
         evalue = args.evalue,
         max_target_seqs=2000,
         threads=args.threads)
@@ -72,7 +77,8 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        timing_log=timing_log)
 
     new_clusters, gene_to_new_cluster = main_pipeline.reinflate_clusters(
         cd_hit_clusters = unmatched_clusters,
@@ -83,25 +89,28 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
     return new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary
 
 
-def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args):
+def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_log):
     
-    gene_dictionary = data_preparation.extract_proteins(samples,collection_dir,args)
+    gene_dictionary = data_preparation.extract_proteins(samples,collection_dir,args, timing_log)
 
     combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
         out_dir=temp_dir,
-        samples=samples)
+        samples=samples,
+        timing_log=timing_log)
 
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
         faa_file=combined_faa,
         out_dir=temp_dir,
-        threads=args.threads)
+        threads=args.threads,
+        timing_log=timing_log)
 
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
+        timing_log=timing_log,
         evalue = args.evalue,
         max_target_seqs=2000,
         threads=args.threads)
@@ -113,7 +122,8 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        timing_log=timing_log)
 
     clusters, gene_to_cluster = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -139,6 +149,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args):
             rep_fasta = represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
+            timing_log=timing_log,
             threads = args.threads,
             start = 1
             )
@@ -155,7 +166,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args):
     output.create_summary(rtab_file, collection_dir)
 
 
-def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads):
+def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads, timing_log):
     
     if alignment == None:
         return
@@ -187,10 +198,10 @@ def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_
     if alignment == 'protein':
         pa.create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         pa.create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)
-        pa.run_mafft_protein_alignment(annotated_clusters, collection_dir, threads)
+        pa.run_mafft_protein_alignment(annotated_clusters, collection_dir, threads, timing_log)
         pa.create_nucleotide_alignment(annotated_clusters, collection_dir)
     if alignment == 'nucleotide':
         pa.create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        pa.run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads)
+        pa.run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads, timing_log)
     
     pa.create_core_gene_alignment(annotated_clusters, gene_dictionary,samples,collection_dir)

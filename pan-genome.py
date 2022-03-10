@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 import logging
+import sys
 import json
 import csv
 from datetime import datetime
@@ -73,6 +74,8 @@ def main_function(args):
     if not os.path.exists(collection_dir):
         os.makedirs(collection_dir)
     
+    timing_log = os.path.join(collection_dir, 'time.log')
+
     temp_dir = os.path.join(collection_dir, 'temp')
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)   
@@ -87,7 +90,7 @@ def main_function(args):
         raise Exception(f'There must be at least 2 samples')
     
     # pipeline
-    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args)
+    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_log)
 
     # shutil.rmtree(temp_dir)
         
@@ -103,6 +106,8 @@ def add_function(args):
     collection_dir = args.collection_dir
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
+    
+    timing_log = os.path.join(collection_dir, 'time.log')
     
     temp_dir = os.path.join(collection_dir, 'temp')
     if os.path.exists(temp_dir):
@@ -124,6 +129,7 @@ def add_function(args):
     if not os.path.isfile(old_spreadsheet_file):
         raise Exception(f'{old_spreadsheet_file} does not exist')
     with open(old_spreadsheet_file, 'r') as fh:
+        csv.field_size_limit(sys.maxsize)
         reader = csv.reader(fh, delimiter='\t')
         header = next(reader)
         sample_id_list = header[8:]
@@ -140,7 +146,7 @@ def add_function(args):
     
     # pipeline
 
-    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args)
+    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args, timing_log)
 
     if args.fasta == None:
         new_clusters_annotation = annotate.annotate_cluster_gff(
@@ -161,6 +167,7 @@ def add_function(args):
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
+            timing_log = timing_log,
             threads = args.threads,
             start = 1
             )
@@ -189,6 +196,8 @@ def new_function(args):
     if not os.path.exists(collection_dir):
         os.makedirs(collection_dir)
     
+    timing_log = os.path.join(collection_dir, 'time.log')
+
     temp_dir = os.path.join(collection_dir, 'temp')
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
@@ -208,7 +217,7 @@ def new_function(args):
         raise Exception(f'{species_db} does not exist')
     old_clusters, old_clusters_annotation, gene_to_cluster = new_pipeline.read_database(species_db)
 
-    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(samples, species_db, old_clusters, gene_to_cluster, collection_dir, temp_dir, args)
+    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(samples, species_db, old_clusters, gene_to_cluster, collection_dir, temp_dir, args, timing_log)
 
     if args.fasta == None:
         clusters = new_pipeline.combine_clusters(old_clusters, new_clusters)
@@ -229,6 +238,7 @@ def new_function(args):
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
             db_dir = db_dir,
+            timing_log=timing_log,
             threads = args.threads,
             start=len(old_clusters) + 1
             )

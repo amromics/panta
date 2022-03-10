@@ -222,7 +222,7 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
 
 
-def run_mafft_protein_alignment(annotated_clusters, out_dir, threads):
+def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -240,15 +240,14 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads):
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running mafft')
+    utils.run_command(cmd, timing_log)
+            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
 
-def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
+def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads, timing_log):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -267,9 +266,8 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = utils.run_command(cmd)
-    if ret != 0:
-        raise Exception('Error running mafft')
+    utils.run_command(cmd, timing_log)
+            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run nucleotide alignment -- time taken {str(elapsed)}')

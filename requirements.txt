@@ -1,6 +1,5 @@
  python==3.7.10
  biopython==1.79
- wget==3.2
  bedtools==2.30.0
  prodigal==2.6.3
  cd-hit==4.8.1

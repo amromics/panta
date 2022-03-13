@@ -1,10 +1,10 @@
 import os
 import csv
 import sys
+import gzip
 import logging
 import shutil
 from datetime import datetime
-import pan_genome.utils as utils
 from Bio import SeqIO
 
 logger = logging.getLogger(__name__)
@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 def create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, out_dir):
     starttime = datetime.now()
-    spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
-    with open(spreadsheet_file, 'w') as fh:
+    spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv.gz')
+    with gzip.open(spreadsheet_file, 'wt') as fh:
         writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 
         # write header
@@ -68,8 +68,8 @@ def create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, 
 
 def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir):
     starttime = datetime.now()
-    new_file = os.path.join(temp_dir, 'gene_presence_absence.csv')
-    with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
+    new_file = os.path.join(temp_dir, 'gene_presence_absence.csv.gz')
+    with gzip.open(new_file, 'wt') as out_fh, gzip.open(old_file, 'rt') as in_fh:
         csv.field_size_limit(sys.maxsize)
         writer = csv.writer(out_fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
         reader = csv.reader(in_fh, delimiter=',')
@@ -174,8 +174,8 @@ def update_spreadsheet(old_file, old_clusters, new_clusters, new_clusters_annota
 
 def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir):
     starttime = datetime.now()
-    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
-    with open(rtab_file, 'w') as fh:
+    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab.gz')
+    with gzip.open(rtab_file, 'wt') as fh:
         writer = csv.writer(fh, delimiter='\t')
 
         # write header
@@ -205,8 +205,8 @@ def create_rtab(clusters, clusters_annotation, gene_dictionary, samples, out_dir
 
 def update_rtab(old_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir):
     starttime = datetime.now()
-    new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab')
-    with open(new_file, 'w') as out_fh, open(old_file, 'r') as in_fh:
+    new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab.gz')
+    with gzip.open(new_file, 'wt') as out_fh, gzip.open(old_file, 'rt') as in_fh:
         csv.field_size_limit(sys.maxsize)
         writer = csv.writer(out_fh, delimiter='\t')
         reader = csv.reader(in_fh, delimiter='\t')
@@ -261,7 +261,7 @@ def create_summary(rtab_file, out_dir):
     num_soft_core = 0
     num_shell = 0
     num_cloud = 0
-    with open(rtab_file, 'r') as fh:
+    with gzip.open(rtab_file, 'rt') as fh:
         for line in fh:
             line = line.rstrip()
             cells = line.split('\t')

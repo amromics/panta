@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 import sys
-import json
+import gzip
 import csv
 from datetime import datetime
 from pan_genome import *
@@ -125,16 +125,16 @@ def add_function(args):
         raise Exception(f'{old_represent_faa} does not exist')
     old_clusters, old_clusters_annotation, gene_to_old_cluster = new_pipeline.read_database(old_represent_faa)
 
-    old_spreadsheet_file = os.path.join(collection_dir, 'gene_presence_absence.csv')
+    old_spreadsheet_file = os.path.join(collection_dir, 'gene_presence_absence.csv.gz')
     if not os.path.isfile(old_spreadsheet_file):
         raise Exception(f'{old_spreadsheet_file} does not exist')
-    with open(old_spreadsheet_file, 'r') as fh:
+    with gzip.open(old_spreadsheet_file, 'rt') as fh:
         csv.field_size_limit(sys.maxsize)
         reader = csv.reader(fh, delimiter='\t')
         header = next(reader)
         sample_id_list = header[8:]
     
-    old_rtab_file = os.path.join(collection_dir, 'gene_presence_absence.Rtab')
+    old_rtab_file = os.path.join(collection_dir, 'gene_presence_absence.Rtab.gz')
     if not os.path.isfile(old_rtab_file):
         raise Exception(f'{old_rtab_file} does not exist')
 

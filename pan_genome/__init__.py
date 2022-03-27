@@ -6,5 +6,6 @@ __all__ = [
     'output',
     'utils',
     'annotate',
-    'new_pipeline'
+    'new_pipeline',
+    'alignment'
     ]

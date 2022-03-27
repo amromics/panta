@@ -129,7 +129,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_lo
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file,
         gene_dictionary=gene_dictionary)
- 
+
     if args.fasta == None:
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
@@ -164,6 +164,8 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_lo
     output.create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
     rtab_file = output.create_rtab(clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
     output.create_summary(rtab_file, collection_dir)
+
+    alignment.create_msa(clusters, samples, collection_dir, args.threads)
 
 
 def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads, timing_log):

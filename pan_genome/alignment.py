@@ -50,7 +50,7 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster, collection_dir):
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
 
 
-def run_poa(cluster_id, collection_dir):
+def run_poa(cluster_id, collection_dir, baseDir):
     cluster_id = str(cluster_id)
     cluster_dir = os.path.join(collection_dir, 'clusters', cluster_id)
     seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
@@ -63,7 +63,7 @@ def run_poa(cluster_id, collection_dir):
             seqs.append(seq)
             id_list.append(seq_id)
 
-    a = pa.msa_aligner(is_aa=True)
+    a = pa.msa_aligner(aln_mode='g', is_aa=True,  score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx'))
     res=a.msa(seqs, out_cons=True, out_msa=True)
     msa = res.msa_seq[:-1] # the last one is consensus sequence
     cons_seq = res.msa_seq[-1]
@@ -75,11 +75,11 @@ def run_poa(cluster_id, collection_dir):
 
     return cons_seq
 
-def run_poa_in_parrallel(num_clusters, collection_dir, threads):
+def run_poa_in_parrallel(num_clusters, collection_dir, baseDir, threads):
     starttime = datetime.now()
 
     with multiprocessing.Pool(processes=threads) as pool:
-        results = pool.map(partial(run_poa,collection_dir=collection_dir), range(num_clusters))
+        results = pool.map(partial(run_poa,collection_dir=collection_dir, baseDir=baseDir), range(num_clusters))
 
     cons_file = os.path.join(collection_dir, 'consensus_sequences.fasta')
     with open(cons_file, 'w') as fh:
@@ -91,7 +91,7 @@ def run_poa_in_parrallel(num_clusters, collection_dir, threads):
     logging.info(f'Create multiple sequence alignment by abPOA -- time taken {str(elapsed)}')
 
 
-def create_msa(clusters, samples, collection_dir, threads):
+def create_msa(clusters, samples, collection_dir, baseDir, threads):
     clusters_dir = os.path.join(collection_dir, 'clusters')
     if not os.path.exists(clusters_dir):
         os.mkdir(clusters_dir)
@@ -100,6 +100,6 @@ def create_msa(clusters, samples, collection_dir, threads):
     num_clusters = len(clusters)
 
     create_pro_file_for_each_cluster(samples, gene_to_cluster_id, collection_dir)
-    run_poa_in_parrallel(num_clusters, collection_dir, threads)
+    run_poa_in_parrallel(num_clusters, collection_dir, baseDir, threads)
 
 

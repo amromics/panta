@@ -80,8 +80,7 @@ def main_function(args):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)   
     
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    db_dir = os.path.join(dir_path, 'db')
+    baseDir = os.path.dirname(os.path.realpath(__file__))
 
     # collect samples
     sample_id_list = []
@@ -90,7 +89,7 @@ def main_function(args):
         raise Exception(f'There must be at least 2 samples')
     
     # pipeline
-    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_log)
+    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log)
 
     # shutil.rmtree(temp_dir)
         
@@ -116,8 +115,7 @@ def add_function(args):
     else:
         os.makedirs(temp_dir)    
     
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    db_dir = os.path.join(dir_path, 'db')
+    baseDir = os.path.dirname(os.path.realpath(__file__))
 
     # Check required files
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
@@ -166,7 +164,7 @@ def add_function(args):
             unlabeled_clusters=new_clusters,
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
-            db_dir = db_dir,
+            baseDir = baseDir,
             timing_log = timing_log,
             threads = args.threads,
             start = 1
@@ -202,8 +200,7 @@ def new_function(args):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    db_dir = os.path.join(dir_path, 'db')
+    baseDir = os.path.dirname(os.path.realpath(__file__))
 
     # collect new samples
     sample_id_list = []
@@ -237,7 +234,7 @@ def new_function(args):
             unlabeled_clusters=new_clusters,
             rep_fasta = new_represent_fasta,
             temp_dir=temp_dir,
-            db_dir = db_dir,
+            baseDir = baseDir,
             timing_log=timing_log,
             threads = args.threads,
             start=len(old_clusters) + 1

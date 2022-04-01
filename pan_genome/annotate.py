@@ -9,8 +9,8 @@ import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
-def setup_db(db_dir, timing_log, force=False):
-
+def setup_db(baseDir, timing_log, force=False):
+    db_dir = os.path.join(baseDir, 'db')
     bacteria_db = [
         {'name':"AMR",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-300},
         {'name':"IS",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-30},
@@ -96,7 +96,7 @@ def parse_search_result(result_file, tool, dictionary):
             dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, timing_log, threads, start=1):
+def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, timing_log, threads, start=1):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -106,7 +106,7 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, db_dir, timi
     mincov = 80
 
     # setup database
-    bacteria_db, hmm = setup_db(db_dir, timing_log)
+    bacteria_db, hmm = setup_db(baseDir, timing_log)
     bacteria_db[2]['MINCOV'] = mincov
     bacteria_db[2]['EVALUE'] = evalue
     hmm_db = {'name':"hmm",'dir':hmm,'tool': 'hmmer3','EVALUE': evalue}
@@ -200,32 +200,3 @@ def annotate_cluster_gff(unlabeled_clusters, gene_dictionary,start=1):
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return clusters_annotation
-
-
-# if __name__ == "__main__":
-
-#     logging.basicConfig(
-#         level=logging.DEBUG,
-#         format='%(asctime)s %(levelname)s : %(message)s',
-#         datefmt='%I:%M:%S')
-#     logger = logging.getLogger(__name__)
-
-
-    # setup_db(db_dir="/home/ted/amromics/amromics/pan-genome/db", force=True)
-
-    # old_clusters = json.load(open('/home/ted/test_prodigal/out/1/clusters.json', 'r'))
-
-    # annotated_clusters=annotate_cluster(
-    #     unlabeled_clusters= old_clusters,
-    #     rep_fasta='/home/ted/test_prodigal/out/1/representative.fasta', 
-    #     temp_dir='/home/ted/test_prodigal/out/1/temp', 
-    #     db_dir = "/home/ted/amromics/amromics/pan-genome/db",
-    #     threads=4
-    # )
-
-    # # dictionary = parse_search_result(
-    # #     '/home/ted/test_prodigal/out/1/temp/annotate/sprot.out',
-    # #     'blastp'
-    # # )
-
-    # json.dump(annotated_clusters, open('/home/ted/test_prodigal/out/1/temp/annotate/annotated_clusters.json', 'w'), indent=4, sort_keys=True)

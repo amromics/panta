@@ -89,7 +89,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
     return new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary
 
 
-def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_log):
+def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log):
     
     gene_dictionary = data_preparation.extract_proteins(samples,collection_dir,args, timing_log)
 
@@ -148,7 +148,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_lo
             unlabeled_clusters=clusters,
             rep_fasta = represent_fasta,
             temp_dir=temp_dir,
-            db_dir = db_dir,
+            baseDir = baseDir,
             timing_log=timing_log,
             threads = args.threads,
             start = 1
@@ -165,7 +165,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, db_dir, args, timing_lo
     rtab_file = output.create_rtab(clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
     output.create_summary(rtab_file, collection_dir)
 
-    alignment.create_msa(clusters, samples, collection_dir, args.threads)
+    alignment.create_msa(clusters, samples, collection_dir, baseDir, args.threads)
 
 
 def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads, timing_log):

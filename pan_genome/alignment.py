@@ -63,7 +63,12 @@ def run_poa(cluster_id, collection_dir, baseDir):
             seqs.append(seq)
             id_list.append(seq_id)
 
-    a = pa.msa_aligner(aln_mode='g', is_aa=True,  score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx'))
+    seqs.sort(key= lambda x:len(x), reverse=True) # sort sequences by length to improve the quality of msa
+
+    a = pa.msa_aligner(
+        aln_mode='g', is_aa=True,  score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx'), 
+        gap_open1=8, gap_ext1=4, gap_open2=0, gap_ext2=0
+    )
     res=a.msa(seqs, out_cons=True, out_msa=True)
     msa = res.msa_seq[:-1] # the last one is consensus sequence
     cons_seq = res.msa_seq[-1]
@@ -75,21 +80,47 @@ def run_poa(cluster_id, collection_dir, baseDir):
 
     return cons_seq
 
-def run_poa_in_parrallel(num_clusters, collection_dir, baseDir, threads):
+def run_poa_in_parrallel(clusters_id, collection_dir, baseDir, threads):
     starttime = datetime.now()
 
     with multiprocessing.Pool(processes=threads) as pool:
-        results = pool.map(partial(run_poa,collection_dir=collection_dir, baseDir=baseDir), range(num_clusters))
+        results = pool.map(partial(run_poa,collection_dir=collection_dir, baseDir=baseDir), clusters_id)
 
     cons_file = os.path.join(collection_dir, 'consensus_sequences.fasta')
     with open(cons_file, 'w') as fh:
         for cluster_id, cons_seq in enumerate(results):
+            cons_seq = re.sub('-', '', cons_seq)
             new_record = SeqRecord(Seq(cons_seq), id = str(cluster_id), description = '')
             SeqIO.write(new_record, fh, 'fasta')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create multiple sequence alignment by abPOA -- time taken {str(elapsed)}')
 
+
+def run_mafft_in_parallel(clusters_id, collection_dir, threads):
+    starttime = datetime.now()
+
+    clusters_dir = os.path.join(collection_dir, 'clusters')
+
+    cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
+    with open(cmds_file,'w') as cmds:
+        for cluster_id in clusters_id:
+            cluster_id = str(cluster_id)
+            cluster_dir = os.path.join(clusters_dir, cluster_id)
+            msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
+            seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
+            if not os.path.isfile(seq_file):
+                logging.info('{} does not exist'.format(seq_file))
+                continue
+            cmd = f"mafft --auto --quiet --thread 1 {seq_file} > {msa_file}"
+            cmds.write(cmd + '\n')
+
+    cmd = f"parallel --progress -j {threads} -a {cmds_file}"
+    utils.run_command(cmd)
+            
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
 def create_msa(clusters, samples, collection_dir, baseDir, threads):
     clusters_dir = os.path.join(collection_dir, 'clusters')
@@ -100,6 +131,7 @@ def create_msa(clusters, samples, collection_dir, baseDir, threads):
     num_clusters = len(clusters)
 
     create_pro_file_for_each_cluster(samples, gene_to_cluster_id, collection_dir)
-    run_poa_in_parrallel(num_clusters, collection_dir, baseDir, threads)
+    run_poa_in_parrallel(range(num_clusters), collection_dir, baseDir, threads)
+    # run_mafft_in_parallel(range(num_clusters), collection_dir, threads)
 
 

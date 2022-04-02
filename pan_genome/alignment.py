@@ -54,20 +54,26 @@ def run_poa(cluster_id, collection_dir, baseDir):
     cluster_id = str(cluster_id)
     cluster_dir = os.path.join(collection_dir, 'clusters', cluster_id)
     seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
-    seqs = []
-    id_list = []
+    seq_list = []
     with open(seq_file, 'r') as fh:
         for record in SeqIO.parse(fh, "fasta"):
             seq_id = record.id
             seq = str(record.seq)
-            seqs.append(seq)
-            id_list.append(seq_id)
+            seq = re.sub(r'\*', '', seq)
+            seq_list.append((seq_id, seq))
 
-    seqs.sort(key= lambda x:len(x), reverse=True) # sort sequences by length to improve the quality of msa
+    seq_list.sort(key= lambda x:len(x[1]), reverse=True) # sort sequences by length to improve the quality of msa
+    
+    seqs = []
+    id_list = []
+    for seq_id, seq in seq_list:
+        id_list.append(seq_id)
+        seqs.append(seq)
 
     a = pa.msa_aligner(
-        aln_mode='g', is_aa=True,  score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx'), 
-        gap_open1=8, gap_ext1=4, gap_open2=0, gap_ext2=0
+        aln_mode='l', is_aa=True
+        # , score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx')
+        # , gap_open1=8, gap_ext1=4, gap_open2=0, gap_ext2=0
     )
     res=a.msa(seqs, out_cons=True, out_msa=True)
     msa = res.msa_seq[:-1] # the last one is consensus sequence
@@ -89,7 +95,7 @@ def run_poa_in_parrallel(clusters_id, collection_dir, baseDir, threads):
     cons_file = os.path.join(collection_dir, 'consensus_sequences.fasta')
     with open(cons_file, 'w') as fh:
         for cluster_id, cons_seq in enumerate(results):
-            cons_seq = re.sub('-', '', cons_seq)
+            cons_seq = re.sub('-', '', cons_seq) # remove dash character in consensus sequences
             new_record = SeqRecord(Seq(cons_seq), id = str(cluster_id), description = '')
             SeqIO.write(new_record, fh, 'fasta')
 

@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import shutil
 import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -59,7 +60,7 @@ def run_poa(cluster_id, collection_dir, baseDir):
         for record in SeqIO.parse(fh, "fasta"):
             seq_id = record.id
             seq = str(record.seq)
-            seq = re.sub(r'\*', '', seq)
+            # seq = re.sub(r'\*', '', seq)
             seq_list.append((seq_id, seq))
 
     seq_list.sort(key= lambda x:len(x[1]), reverse=True) # sort sequences by length to improve the quality of msa
@@ -71,9 +72,9 @@ def run_poa(cluster_id, collection_dir, baseDir):
         seqs.append(seq)
 
     a = pa.msa_aligner(
-        aln_mode='l', is_aa=True
-        # , score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx')
-        # , gap_open1=8, gap_ext1=4, gap_open2=0, gap_ext2=0
+        aln_mode='g', is_aa=True
+        , score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx')
+        , gap_open1=11, gap_ext1=1, gap_open2=0, gap_ext2=0
     )
     res=a.msa(seqs, out_cons=True, out_msa=True)
     msa = res.msa_seq[:-1] # the last one is consensus sequence
@@ -131,6 +132,9 @@ def run_mafft_in_parallel(clusters_id, collection_dir, threads):
 def create_msa(clusters, samples, collection_dir, baseDir, threads):
     clusters_dir = os.path.join(collection_dir, 'clusters')
     if not os.path.exists(clusters_dir):
+        os.mkdir(clusters_dir)
+    else:
+        shutil.rmtree(clusters_dir)
         os.mkdir(clusters_dir)
 
     gene_to_cluster_id = {gene:i for i, cluster in enumerate(clusters) for gene in cluster}

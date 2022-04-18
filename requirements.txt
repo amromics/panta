@@ -10,3 +10,4 @@
  mafft==7.490
  parallel==20220222
  sra-tools==2.11.0
+ abpoa==1.4.0

@@ -113,10 +113,11 @@ def process_single_sample_gff(sample, out_dir, table, timing_log):
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
     
-    if sample['assembly'] == None:
+    if sample['assembly'] == None: # do not remove input assembly
         os.remove(assembly_file)
     os.remove(bed_file)
     os.remove(assembly_file + '.fai')
+    os.remove(fna_file)
 
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')

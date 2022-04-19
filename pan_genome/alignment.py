@@ -25,7 +25,7 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster, collection_dir):
             seq_lines = []
             for line in in_fh:
                 line = line.rstrip()
-                result = re.match(r"^>(.+)", line)
+                result = re.match(r"^>(\S+)", line)
                 if result != None:
                     seq_id = result.group(1)
                     if last_seq_id != None:

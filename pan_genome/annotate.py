@@ -96,7 +96,7 @@ def parse_search_result(result_file, tool, dictionary):
             dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, timing_log, threads, start=1):
+def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, timing_log, threads):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -130,10 +130,8 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, tim
 
     
     clusters_annotation = []
-    clusters_name_count = []
-
-    for i,cluster in enumerate(unlabeled_clusters, start):
-        cluster_name = 'groups_' + str(i)
+    for cluster in unlabeled_clusters:
+        cluster_name = ''
         product = 'hypothetical protein'
         for gene in cluster:
             if gene in search_result:
@@ -144,13 +142,6 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, tim
 
                 if search_result[gene]['product'] != None:
                     product = search_result[gene]['product']
-
-        # check if cluster_name already exists
-        if cluster_name in clusters_name_count:
-            cluster_name += '_{}'.format(str(i))
-        else:
-            clusters_name_count.append(cluster_name)
-        
         clusters_annotation.append([cluster_name, product])
         
 
@@ -158,43 +149,28 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, tim
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return clusters_annotation
 
-def annotate_cluster_gff(unlabeled_clusters, gene_dictionary,start=1):
+def annotate_cluster_gff(unlabeled_clusters, gene_dictionary):
     starttime = datetime.now()
 
     clusters_annotation = []
-    clusters_name_count = []
-
-    for i, gene_id_list in enumerate(unlabeled_clusters,start):
-        cluster_name = 'groups_' + str(i)
-        cluster_product = None
+    for cluster in unlabeled_clusters:
         gene_name_count = {}
         max_number = 0
-        for gene_id in gene_id_list:
-            this_gene = gene_dictionary[gene_id]
-            if this_gene[3] != '':
-                gene_name = this_gene[3]
+        cluster_name = ''
+        cluster_product = set()
+        for gene_id in cluster:
+            this_gene_list = gene_dictionary[gene_id]
+            if this_gene_list[3] != '':
+                gene_name = this_gene_list[3]
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_name = gene_name
                     max_number = gene_name_count[gene_name]
-        cluster_product = []
-        for gene_id in gene_id_list:
-            this_gene = gene_dictionary[gene_id]
-            if this_gene[4] != '':
-                gene_product = this_gene[4]
-                if gene_product not in cluster_product:
-                    cluster_product.append(gene_product)
-        if len(cluster_product) > 0:
-            cluster_product = ', '.join(cluster_product)
-        else:
-            cluster_product = ''
+            if this_gene_list[4] != '':
+                gene_product = this_gene_list[4]
+                cluster_product.add(gene_product)
         
-        # # check if cluster_name already exists
-        # if cluster_name in clusters_name_count:
-        #     cluster_name += '_{}'.format(str(i))
-        # else:
-        #     clusters_name_count.append(cluster_name)
-        
+        cluster_product = ', '.join(cluster_product)
         clusters_annotation.append([cluster_name, cluster_product])
     
     elapsed = datetime.now() - starttime

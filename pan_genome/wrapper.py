@@ -8,7 +8,7 @@ import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args, timing_log):
+def add_sample(new_samples, old_represent_faa, old_clusters, collection_dir, temp_dir, args, timing_log):
     
     gene_dictionary = data_preparation.extract_proteins(new_samples,collection_dir,args, timing_log)
     
@@ -25,7 +25,7 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         threads=args.threads,
         timing_log=timing_log)
 
-    add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters, gene_to_old_cluster)
+    add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters)
 
     num_seq = subprocess.run(f'grep ">" {unmatched_faa} | wc -l', capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
@@ -49,7 +49,6 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
 
     remain_fasta, old_clusters = add_sample_pipeline.add_gene_blast(
         old_clusters=old_clusters,
-        gene_to_cluster=gene_to_old_cluster,
         unmatched_clusters = unmatched_clusters,
         blast_result=blast_1_result, 
         fasta_file=unmatched_represent_faa, 
@@ -80,13 +79,11 @@ def add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster
         blast_result = filtered_blast_result,
         timing_log=timing_log)
 
-    new_clusters, gene_to_new_cluster = main_pipeline.reinflate_clusters(
+    new_clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters = unmatched_clusters,
-        mcl_file=mcl_file,
-        gene_dictionary = gene_dictionary
-        )
+        mcl_file=mcl_file)
 
-    return new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary
+    return new_clusters, gene_dictionary
 
 
 def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log):
@@ -125,47 +122,30 @@ def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_l
         blast_result = filtered_blast_result,
         timing_log=timing_log)
 
-    clusters, gene_to_cluster = main_pipeline.reinflate_clusters(
+    clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
-        mcl_file=mcl_file,
-        gene_dictionary=gene_dictionary)
+        mcl_file=mcl_file)
 
+    representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+    
     if args.fasta == None:
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
-            gene_dictionary=gene_dictionary,
-            start = 1)
-    else:
-        # create representative
-        represent_fasta = os.path.join(temp_dir, 'representative.fasta')
-        utils.create_fasta_include(
-            fasta_file_list=[cd_hit_represent_fasta], 
-            include_list=gene_to_cluster, 
-            output_file=represent_fasta
-            )
-        
+            gene_dictionary=gene_dictionary)
+    else:        
         clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=clusters,
-            rep_fasta = represent_fasta,
+            rep_fasta = representative_fasta,
             temp_dir=temp_dir,
             baseDir = baseDir,
             timing_log=timing_log,
-            threads = args.threads,
-            start = 1
-            )
+            threads = args.threads)
+    
+    output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
 
-    output.create_representative_fasta(
-        gene_to_cluster=gene_to_cluster, 
-        clusters_annotation=clusters_annotation, 
-        source_fasta=cd_hit_represent_fasta, 
-        out_fasta=os.path.join(collection_dir, 'representative.fasta'), 
-        mode='w')
+    
 
-    output.create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
-    rtab_file = output.create_rtab(clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
-    output.create_summary(rtab_file, collection_dir)
-
-    alignment.create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+    
 
 
 def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads, timing_log):

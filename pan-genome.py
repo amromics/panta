@@ -4,6 +4,7 @@ import shutil
 import logging
 import sys
 import gzip
+import json
 import csv
 from datetime import datetime
 from pan_genome import *
@@ -118,68 +119,67 @@ def add_function(args):
     baseDir = os.path.dirname(os.path.realpath(__file__))
 
     # Check required files
-    old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
-    if not os.path.isfile(old_represent_faa):
-        raise Exception(f'{old_represent_faa} does not exist')
-    old_clusters, old_clusters_annotation, gene_to_old_cluster = new_pipeline.read_database(old_represent_faa)
-
-    old_spreadsheet_file = os.path.join(collection_dir, 'gene_presence_absence.csv.gz')
-    if not os.path.isfile(old_spreadsheet_file):
-        raise Exception(f'{old_spreadsheet_file} does not exist')
-    with gzip.open(old_spreadsheet_file, 'rt') as fh:
-        csv.field_size_limit(sys.maxsize)
-        reader = csv.reader(fh, delimiter='\t')
-        header = next(reader)
-        sample_id_list = header[8:]
+    old_representative_fasta = os.path.join(collection_dir, 'reference_pangenome.fasta')
+    if not os.path.isfile(old_representative_fasta):
+        raise Exception(f'{old_representative_fasta} does not exist')
     
-    old_rtab_file = os.path.join(collection_dir, 'gene_presence_absence.Rtab.gz')
-    if not os.path.isfile(old_rtab_file):
-        raise Exception(f'{old_rtab_file} does not exist')
+    clusters_dir = os.path.join(collection_dir, 'clusters')
+    if not os.path.exists(clusters_dir):
+        raise Exception(f'{clusters_dir} does not exist')
 
+    samples_dir = os.path.join(collection_dir, 'samples')
+    if not os.path.exists(samples_dir):
+        raise Exception(f'{samples_dir} does not exist')
 
+    old_presence_absence_file = os.path.join(collection_dir, 'gene_presence_absence.csv.gz')
+    if not os.path.isfile(old_presence_absence_file):
+        raise Exception(f'{old_presence_absence_file} does not exist')
+
+    old_cluster_info_file = os.path.join(collection_dir, 'cluster_info.csv')
+    if not os.path.isfile(old_cluster_info_file):
+        raise Exception(f'{old_cluster_info_file} does not exist')
+    
+    summary_file = os.path.join(collection_dir, 'summary_statistics.txt')
+    with open(summary_file, 'r') as fh:
+        for line in fh:
+            cells = line.rstrip().split('\t')
+            if cells[0] == "Total genes":
+                num_of_clusters = int(cells[2])
+                old_clusters = [] # create a list of empty lists inside, used to grab new seqs
+                for i in range(0, num_of_clusters):
+                    old_clusters.append([])
+    
+    with gzip.open(old_presence_absence_file, 'rt') as fh:
+        csv.field_size_limit(sys.maxsize)
+        reader = csv.reader(fh, delimiter=',')
+        header = next(reader)
+        sample_id_list = header[1:] # exclude ID column
+    
     # collect new samples
     new_samples = collect_sample(sample_id_list, args)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-
-    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(new_samples, old_represent_faa, old_clusters, gene_to_old_cluster, collection_dir, temp_dir, args, timing_log)
+    new_clusters, gene_dictionary = wrapper.add_sample(new_samples, old_representative_fasta, old_clusters, collection_dir, temp_dir, args, timing_log)
+    
+    new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
 
     if args.fasta == None:
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
-            gene_dictionary=gene_dictionary,
-            start = 1)
+            gene_dictionary=gene_dictionary)
     else:
-        # create representative
-        new_represent_fasta = os.path.join(temp_dir, 'representative.fasta')
-        utils.create_fasta_include(
-            fasta_file_list=[unmatched_represent_faa], 
-            include_list=gene_to_new_cluster, 
-            output_file=new_represent_fasta
-            )
         
         new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
-            rep_fasta = new_represent_fasta,
+            rep_fasta = new_representative_fasta,
             temp_dir=temp_dir,
             baseDir = baseDir,
             timing_log = timing_log,
-            threads = args.threads,
-            start = 1
-            )
+            threads = args.threads)
 
-    output.create_representative_fasta(
-        gene_to_cluster=gene_to_new_cluster, 
-        clusters_annotation=new_clusters_annotation, 
-        source_fasta=unmatched_represent_faa, 
-        out_fasta=os.path.join(collection_dir, 'representative.fasta'), 
-        mode='a')
-
-    output.update_spreadsheet(old_spreadsheet_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir)
-    rtab_file = output.update_rtab(old_rtab_file, old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir)
-    output.create_summary(rtab_file, collection_dir)
+    output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
 
     # shutil.rmtree(temp_dir)
 
@@ -214,7 +214,7 @@ def new_function(args):
         raise Exception(f'{species_db} does not exist')
     old_clusters, old_clusters_annotation, gene_to_cluster = new_pipeline.read_database(species_db)
 
-    new_clusters, gene_to_new_cluster, unmatched_represent_faa, gene_dictionary = wrapper.add_sample(samples, species_db, old_clusters, gene_to_cluster, collection_dir, temp_dir, args, timing_log)
+    new_clusters, gene_to_new_cluster, unmatched_representative_fasta, gene_dictionary = wrapper.add_sample(samples, species_db, old_clusters, gene_to_cluster, collection_dir, temp_dir, args, timing_log)
 
     if args.fasta == None:
         clusters = new_pipeline.combine_clusters(old_clusters, new_clusters)
@@ -225,7 +225,7 @@ def new_function(args):
         # create new representative
         new_represent_fasta = os.path.join(temp_dir, 'representative.fasta')
         utils.create_fasta_include(
-            fasta_file_list=[unmatched_represent_faa], 
+            fasta_file_list=[unmatched_representative_fasta], 
             include_list=gene_to_new_cluster, 
             output_file=new_represent_fasta
             )  
@@ -245,7 +245,7 @@ def new_function(args):
 
     # output
     output.create_spreadsheet(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
-    rtab_file = output.create_rtab(clusters, clusters_annotation, gene_dictionary,samples,collection_dir)
+    rtab_file = output.create_rtab(clusters, gene_dictionary, samples, collection_dir)
     output.create_summary(rtab_file, collection_dir)
 
     # shutil.rmtree(temp_dir)

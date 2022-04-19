@@ -22,21 +22,20 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
     return not_match_fasta, clusters
 
 
-def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters, gene_to_cluster):
+def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
     starttime = datetime.now()
 
-    # add gene matched in CD-HIT-2D step
-    for old in cd_hit_2d_clusters:
-        cluster_index = gene_to_cluster[old]
-        for gene in cd_hit_2d_clusters[old]:
-            old_clusters[cluster_index].append(gene)
-    
+    for cluster_index in cd_hit_2d_clusters:
+        new_seqs = cd_hit_2d_clusters[cluster_index]
+        cluster_index = int(cluster_index)
+        old_clusters[cluster_index].extend(new_seqs)
+
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')
     return old_clusters
 
 
-def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
+def add_gene_blast(old_clusters, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
     starttime = datetime.now()
     
     csv_reader = csv.reader(open(blast_result, 'r'), delimiter='\t')
@@ -45,7 +44,7 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
     previous = None
     for row in csv_reader:
         new = row[0]
-        old = row[1]
+        cluster_index = row[1]
         
         qlen = int(row[12])
         slen = int(row[13])
@@ -68,12 +67,12 @@ def add_gene_blast(old_clusters, gene_to_cluster, unmatched_clusters, blast_resu
             min_evalue = 1000
             previous = new
         if evalue < min_evalue:
-            match_dict[new] = old
+            match_dict[new] = cluster_index
             min_evalue = evalue
     
     for new in match_dict:
-        old = match_dict[new]
-        cluster_index = gene_to_cluster[old]
+        cluster_index = match_dict[new]
+        cluster_index = int(cluster_index)
         old_clusters[cluster_index].append(new)
         old_clusters[cluster_index].extend(unmatched_clusters[new])
         del unmatched_clusters[new]

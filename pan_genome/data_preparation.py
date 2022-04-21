@@ -60,6 +60,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 if gene != None:
                     gene_name = gene.group(1)
                     gene_name = re.sub(r'\W', '_', gene_name)
+                    gene_name = re.sub(r'_\d+$', '', gene_name)
                     continue
                 
                 product = re.match(r"^product=(.+)", tag)

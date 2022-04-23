@@ -201,6 +201,9 @@ def main_create_msa(clusters, samples, collection_dir, baseDir, threads):
     clusters_dir = os.path.join(collection_dir, 'clusters')
     if not os.path.exists(clusters_dir):
         os.mkdir(clusters_dir)
+    else:
+        shutil.rmtree(clusters_dir)
+        os.mkdir(clusters_dir)
 
     gene_to_cluster_id = {gene:i for i, cluster in enumerate(clusters) for gene in cluster}
     clusters_id_list = range(0, len(clusters))

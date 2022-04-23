@@ -12,7 +12,7 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
     not_match_fasta = os.path.join(out_dir, 'cd-hit-2d.fasta')
     cd_hit_cluster_file = not_match_fasta + '.clstr'
     
-    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s 0.98 -s2 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     utils.run_command(cmd, timing_log)
 
     clusters = utils.parse_cluster_file(cd_hit_cluster_file)

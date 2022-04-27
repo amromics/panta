@@ -137,7 +137,7 @@ def add_poa(cluster_id, collection_dir, baseDir):
     msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
     matrix_file = os.path.join(baseDir, 'BLOSUM62.mtx')
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
-    if not os.path.isfile(msa_file):
+    if os.path.isfile(seq_file):
         cmd = f'abpoa {seq_file} -i {msa_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c -m 1 2> /dev/null'
         utils.run_command(cmd)
 

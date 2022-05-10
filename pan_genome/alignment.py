@@ -96,9 +96,9 @@ def create_poa(cluster_id, collection_dir, baseDir):
 
     matrix_file = os.path.join(baseDir, 'BLOSUM62.mtx')
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
-    cmd = f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c -m 1 2> /dev/null'
+    cmd = f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
     utils.run_command(cmd)
-
+    cons_seq = None
     msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
     with open(result_file, 'r') as in_fh, open(msa_file, 'w') as out_fh:
         fasta_out = SeqIO.FastaIO.FastaWriter(out_fh, wrap=None)

@@ -1,5 +1,5 @@
  python==3.7.10
- biopython==1.79
+ biopython
  bedtools==2.30.0
  prodigal==2.6.3
  cd-hit==4.8.1

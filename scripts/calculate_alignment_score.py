@@ -56,7 +56,7 @@ def get_gene_list(gene_id_file):
 def compare_collection():
     clusters_id_file = '/home/noideatt/TA/evaluate_msa/clusters_id.txt'
     clusters_id_list = get_gene_list(clusters_id_file)
-    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Sp100'
+    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Pa100'
     for ID in clusters_id_list:
         msa_file = f"{clusters_dir}/{str(ID)}/{str(ID)}.poa"
         poa = multiple_alignment_score(msa_file)
@@ -70,22 +70,6 @@ def compare_collection():
         print(poa, mafft, new, sep = '\t')
 
 
-def calculate_balibase(msa_list):
-    for msa in msa_list:
-        basename = os.path.basename(msa)
-        score = multiple_alignment_score(msa)
-        print(basename, score, sep='\t')
-
-
-
-def compare_balibase():
-    ref_files = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/ref/BBS?????'
-    poa_files = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/poa/BBS?????'
-    mafft_files = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/mafft/BBS?????'
-    new_method_files = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/new_method/BBS?????'
-
-    msa_list = glob(ref_files)
-    calculate_balibase(msa_list)
 
 
 
@@ -100,4 +84,3 @@ if __name__ == "__main__":
     gep = -1
 
     compare_collection()
-    # compare_balibase()

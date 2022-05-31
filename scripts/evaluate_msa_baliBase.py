@@ -36,8 +36,46 @@ def create_mafft_in_parallel(seq_files):
     with multiprocessing.Pool(processes=threads) as pool:
         pool.map(create_mafft, seq_files)
 
+def split_by_length(seq_list, ratio):
+    first_seqs = []
+    second_seqs = []
+    
+    index_jump = int(1/ratio)
+
+    for i, seq_tuple in enumerate(seq_list,0):
+        if i % index_jump == 0:
+            first_seqs.append(seq_tuple)
+        else:
+            second_seqs.append(seq_tuple)
+    
+    return first_seqs, second_seqs
+
+
+def split_by_length_2(seq_list):
+    prev_len = 1
+    first_seqs = []
+    second_seqs = []
+    for seq_tuple in seq_list:
+        seq_len = len(seq_tuple[1])
+        if seq_len / prev_len > 1.1:
+            first_seqs.append(seq_tuple)
+            prev_len = seq_len
+        else:
+            second_seqs.append(seq_tuple)
+
+    return first_seqs, second_seqs
+
+
+def split_random(seq_list, ratio):
+    random.seed(62)
+    random.shuffle(seq_list)
+    total_num = len(seq_list)
+    first_seqs_len = int(total_num * ratio)
+    first_seqs = seq_list[:first_seqs_len]
+    second_seqs = seq_list[first_seqs_len:]
+    return first_seqs, second_seqs
+
 def split_seq_file(seq_file):
-    filename = os.path.basename(seq_file)
     seq_list = []
     with open(seq_file, 'r') as fh:
         for record in SeqIO.parse(fh, "fasta"):
@@ -47,40 +85,10 @@ def split_seq_file(seq_file):
 
     seq_list.sort(key= lambda x:len(x[1])) # sort sequences by length
     
+    # first_seqs, second_seqs = split_random(seq_list, 0.2)
+    first_seqs, second_seqs = split_by_length(seq_list, 0.2)
     
-    first_seqs = []
-    second_seqs = []
-    list_len = len(seq_list)
-    num_first_part  = round(list_len * 0.2,0)
-    if num_first_part == 0:
-        second_seqs = seq_list
-    else:
-        index_jump = round(list_len / num_first_part,0)
-
-        for i, seq_tuple in enumerate(seq_list,1):
-            if i % index_jump == 0:
-                first_seqs.append(seq_tuple)
-            else:
-                second_seqs.append(seq_tuple)
-
-    # random.seed(62)
-    # random.shuffle(seq_list)
-    # total_num = len(seq_list)
-    # len_first_seqs = round(total_num * 0.3,0)
-    # first_seqs = seq_list[:len_first_seqs]
-    # second_seqs = seq_list[len_first_seqs:]
-
-    # prev_len = 1
-    # first_seqs = []
-    # second_seqs = []
-    # for seq_tuple in seq_list:
-    #     seq_len = len(seq_tuple[1])
-    #     if seq_len / prev_len > 1.1:
-    #         first_seqs.append(seq_tuple)
-    #         prev_len = seq_len
-    #     else:
-    #         second_seqs.append(seq_tuple)
-
+    filename = os.path.basename(seq_file)
     mafft_seq = os.path.join(out_dir, filename + '.1.seq')
     with open(mafft_seq, 'w') as fh:
         for seq_id, seq in first_seqs: 
@@ -127,8 +135,6 @@ def run_qscore(seq_file):
         SPS = result.group(1)
         CS = result.group(2)
         return filename, SPS, CS
-
-
 
 def compare(seq_files):
     with multiprocessing.Pool(processes=threads) as pool:
@@ -197,7 +203,6 @@ if __name__ == "__main__":
     # create_mafft_in_parallel(seq_files)
     
     new_method_parallel(seq_files)
-    compare(seq_files)
 
     # precompute_dir = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/qscore'
     # precompute_files = glob(f'{precompute_dir}/*')

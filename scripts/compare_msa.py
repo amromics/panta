@@ -101,7 +101,44 @@ def call_snp_parallel(clusters_id_list):
     with multiprocessing.Pool(processes=threads) as pool:
         pool.map(call_snp, clusters_id_list)
 
+def split_by_length(seq_list, ratio):
+    first_seqs = []
+    second_seqs = []
+    
+    index_jump = int(1/ratio)
 
+    for i, seq_tuple in enumerate(seq_list,0):
+        if i % index_jump == 0:
+            first_seqs.append(seq_tuple)
+        else:
+            second_seqs.append(seq_tuple)
+    
+    return first_seqs, second_seqs
+
+
+def split_by_length_2(seq_list):
+    prev_len = 1
+    first_seqs = []
+    second_seqs = []
+    for seq_tuple in seq_list:
+        seq_len = len(seq_tuple[1])
+        if seq_len / prev_len > 1.1:
+            first_seqs.append(seq_tuple)
+            prev_len = seq_len
+        else:
+            second_seqs.append(seq_tuple)
+
+    return first_seqs, second_seqs
+
+
+def split_random(seq_list, ratio):
+    random.seed(62)
+    random.shuffle(seq_list)
+    total_num = len(seq_list)
+    first_seqs_len = int(total_num * ratio)
+    first_seqs = seq_list[:first_seqs_len]
+    second_seqs = seq_list[first_seqs_len:]
+    return first_seqs, second_seqs
 
 def split_seq_file(seq_file):
     seq_list = []
@@ -113,39 +150,8 @@ def split_seq_file(seq_file):
 
     seq_list.sort(key= lambda x:len(x[1])) # sort sequences by length
     
-    
-    # first_seqs = []
-    # second_seqs = []
-    # list_len = len(seq_list)
-    # num_first_part  = round(list_len * 0.2,0)
-    # if num_first_part == 0:
-    #     second_seqs = seq_list
-    # else:
-    #     index_jump = round(list_len / num_first_part,0)
-
-    #     for i, seq_tuple in enumerate(seq_list,1):
-    #         if i % index_jump == 0:
-    #             first_seqs.append(seq_tuple)
-    #         else:
-    #             second_seqs.append(seq_tuple)
-
-    random.seed(62)
-    random.shuffle(seq_list)
-    total_num = len(seq_list)
-    len_first_seqs = int(total_num * 0.2)
-    first_seqs = seq_list[:len_first_seqs]
-    second_seqs = seq_list[len_first_seqs:]
-
-    # prev_len = 1
-    # first_seqs = []
-    # second_seqs = []
-    # for seq_tuple in seq_list:
-    #     seq_len = len(seq_tuple[1])
-    #     if seq_len / prev_len > 1.1:
-    #         first_seqs.append(seq_tuple)
-    #         prev_len = seq_len
-    #     else:
-    #         second_seqs.append(seq_tuple)
+    # first_seqs, second_seqs = split_random(seq_list, 0.2)
+    first_seqs, second_seqs = split_by_length(seq_list, 0.2)
 
     mafft_seq = os.path.join(seq_file + '.1')
     with open(mafft_seq, 'w') as fh:
@@ -198,7 +204,7 @@ if __name__ == "__main__":
     matrix_file = '/home/noideatt/TA/pan-genome/BLOSUM62.mtx'
 
     global clusters_dir
-    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Sp100'
+    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Pa100'
 
     clusters_id_file = '/home/noideatt/TA/evaluate_msa/clusters_id.txt'
     clusters_id_list = get_gene_list(clusters_id_file)

@@ -142,9 +142,9 @@ if __name__ == "__main__":
 	global threads
 	threads = 8
 	
-	# source_dataset = f'{base_dir}/data/Sp616_gff/*.gff'
 	gff_dir = f'{base_dir}/{collection_name}/gff'
 	
+	# source_dataset = f'{base_dir}/data/Sp616_gff/*.gff'
 	# gff_list = get_gff(source_dataset)
 	# copy_file(gff_list[:100], gff_dir)
 	

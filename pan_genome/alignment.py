@@ -53,42 +53,6 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster, collection_dir):
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
 
 
-# def run_poa(cluster_id, collection_dir, baseDir):
-#     cluster_id = str(cluster_id)
-#     cluster_dir = os.path.join(collection_dir, 'clusters', cluster_id)
-#     seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
-#     seq_list = []
-#     with open(seq_file, 'r') as fh:
-#         for record in SeqIO.parse(fh, "fasta"):
-#             seq_id = record.id
-#             seq = str(record.seq)
-#             # seq = re.sub(r'\*', '', seq)
-#             seq_list.append((seq_id, seq))
-
-#     seq_list.sort(key= lambda x:len(x[1]), reverse=True) # sort sequences by length to improve the quality of msa
-    
-#     seqs = []
-#     id_list = []
-#     for seq_id, seq in seq_list:
-#         id_list.append(seq_id)
-#         seqs.append(seq)
-
-#     a = pa.msa_aligner(
-#         aln_mode='g', is_aa=True
-#         , score_matrix=os.path.join(baseDir, 'BLOSUM62.mtx')
-#         , gap_open1=11, gap_ext1=1, gap_open2=0, gap_ext2=0
-#     )
-#     res=a.msa(seqs, out_cons=True, out_msa=True)
-#     msa = res.msa_seq[:-1] # the last one is consensus sequence
-#     cons_seq = res.msa_seq[-1]
-#     msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
-#     with open(msa_file, 'w') as fh:
-#         for seq_id, seq in zip(id_list, msa): 
-#             new_record = SeqRecord(Seq(seq), id = seq_id, description = '')
-#             SeqIO.write(new_record, fh, 'fasta')
-
-#     return cons_seq
-
 def create_poa(cluster_id, collection_dir, baseDir):
     cluster_id = str(cluster_id)
     cluster_dir = os.path.join(collection_dir, 'clusters', cluster_id)
@@ -98,7 +62,7 @@ def create_poa(cluster_id, collection_dir, baseDir):
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
     cmd = f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
     utils.run_command(cmd)
-    cons_seq = None
+    cons_seq = ''
     msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
     with open(result_file, 'r') as in_fh, open(msa_file, 'w') as out_fh:
         fasta_out = SeqIO.FastaIO.FastaWriter(out_fh, wrap=None)
@@ -141,7 +105,7 @@ def add_poa(cluster_id, collection_dir, baseDir):
         cmd = f'abpoa {seq_file} -i {msa_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c -m 1 2> /dev/null'
         utils.run_command(cmd)
 
-    
+    cons_seq = ''
     with open(result_file, 'r') as in_fh, open(msa_file, 'w') as out_fh:
         fasta_out = SeqIO.FastaIO.FastaWriter(out_fh, wrap=None)
         for seq_record in SeqIO.parse(in_fh, 'fasta'):
@@ -170,32 +134,6 @@ def add_poa_in_parallel(clusters_id_list, collection_dir, baseDir, threads):
     logging.info(f'Add new sequences to previous multiple sequence alignment by abPOA -- time taken {str(elapsed)}')
 
     return representative_fasta
-
-
-# def run_mafft_in_parallel(clusters_id, collection_dir, threads):
-#     starttime = datetime.now()
-
-#     clusters_dir = os.path.join(collection_dir, 'clusters')
-
-#     cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
-#     with open(cmds_file,'w') as cmds:
-#         for cluster_id in clusters_id:
-#             cluster_id = str(cluster_id)
-#             cluster_dir = os.path.join(clusters_dir, cluster_id)
-#             msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
-#             seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
-#             if not os.path.isfile(seq_file):
-#                 logging.info('{} does not exist'.format(seq_file))
-#                 continue
-#             cmd = f"mafft --auto --quiet --thread 1 {seq_file} > {msa_file}"
-#             cmds.write(cmd + '\n')
-
-#     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-#     utils.run_command(cmd)
-            
-
-#     elapsed = datetime.now() - starttime
-#     logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
 def main_create_msa(clusters, samples, collection_dir, baseDir, threads):
     clusters_dir = os.path.join(collection_dir, 'clusters')

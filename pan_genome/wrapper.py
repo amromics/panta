@@ -126,24 +126,7 @@ def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_l
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
 
-    representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
-    
-    if args.fasta == None:
-        clusters_annotation = annotate.annotate_cluster_gff(
-            unlabeled_clusters=clusters, 
-            gene_dictionary=gene_dictionary)
-    else:        
-        clusters_annotation = annotate.annotate_cluster_fasta(
-            unlabeled_clusters=clusters,
-            rep_fasta = representative_fasta,
-            temp_dir=temp_dir,
-            baseDir = baseDir,
-            timing_log=timing_log,
-            threads = args.threads)
-    
-    output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
-
-    
+    return clusters, gene_dictionary
 
     
 

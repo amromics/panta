@@ -90,8 +90,25 @@ def main_function(args):
         raise Exception(f'There must be at least 2 samples')
     
     # pipeline
-    wrapper.run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log)
+    clusters, gene_dictionary = wrapper.run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log)
 
+    if args.fasta == None:
+        clusters_annotation = annotate.annotate_cluster_gff(
+            unlabeled_clusters=clusters, 
+            gene_dictionary=gene_dictionary)
+        output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
+        representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+    
+    else:        
+        representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+        clusters_annotation = annotate.annotate_cluster_fasta(
+            unlabeled_clusters=clusters,
+            rep_fasta = representative_fasta,
+            temp_dir=temp_dir,
+            baseDir = baseDir,
+            timing_log=timing_log,
+            threads = args.threads)
+        output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
     # shutil.rmtree(temp_dir)
         
     elapsed = datetime.now() - starttime
@@ -163,14 +180,14 @@ def add_function(args):
     # pipeline
     new_clusters, gene_dictionary = wrapper.add_sample(new_samples, old_representative_fasta, old_clusters, collection_dir, temp_dir, args, timing_log)
     
-    new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
-
     if args.fasta == None:
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary)
+        output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
+        new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
     else:
-        
+        new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
         new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
             rep_fasta = new_representative_fasta,
@@ -178,8 +195,7 @@ def add_function(args):
             baseDir = baseDir,
             timing_log = timing_log,
             threads = args.threads)
-
-    output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
+        output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
 
     # shutil.rmtree(temp_dir)
 
@@ -271,7 +287,7 @@ def main():
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
-    main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0.95, type=float)
+    main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
@@ -290,7 +306,7 @@ def main():
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
-    add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0.95, type=float)
+    add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
@@ -310,7 +326,7 @@ def main():
     new_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     new_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     new_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
-    new_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0.95, type=float)
+    new_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     new_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     new_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     new_cmd.add_argument('--table', help='codon table', default=11, type=int)

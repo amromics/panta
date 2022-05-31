@@ -3,6 +3,7 @@ import gzip
 import json
 import re
 import multiprocessing
+from glob import glob
 from sklearn.metrics.cluster import rand_score
 from sklearn.metrics.cluster import adjusted_rand_score
 from sklearn.metrics.cluster import adjusted_mutual_info_score
@@ -143,38 +144,27 @@ def compute_similarity_score(gene_to_cluster_id_1, gene_to_cluster_id_2):
     
     # rand_index = rand_score(cluster_id_ls_1, cluster_id_ls_2)
     adjusted_rand_index = adjusted_rand_score(cluster_id_ls_1, cluster_id_ls_2)
-    adjusted_mutual_info = adjusted_mutual_info_score(cluster_id_ls_1, cluster_id_ls_2)
+    # adjusted_mutual_info = adjusted_mutual_info_score(cluster_id_ls_1, cluster_id_ls_2)
     # normalized_mutual_info = normalized_mutual_info_score(cluster_id_ls_1, cluster_id_ls_2)
 
 
-    number_of_shared_gene = len(cluster_id_ls_1)
+    # number_of_shared_gene = len(cluster_id_ls_1)
     # print('Number of gene:', len(gene_to_cluster_id_1), len(gene_to_cluster_id_2), sep=' ')
     # print('Number of shared gene: ', number_of_shared_gene)
     # print('Rand Index: ', round(rand_index, 4) )
     print('Adjusted Rand Index: ', round(adjusted_rand_index, 4) )
-    print('Adjusted mutual info score: ', round(adjusted_mutual_info, 4) )
+    # print('Adjusted mutual info score: ', round(adjusted_mutual_info, 4) )
     # print('Normalized mutual info score: ', round(normalized_mutual_info, 4) )
 
 
-
-
-
-
-
-if __name__ == '__main__':
-    baseDir = '/home/noideatt/TA'
-    collection = 'Pa100'
-    global threads
-    threads = 8
-
-
+def compare_tools():
     panta_file = f'{baseDir}/{collection}/out/panta/gene_presence_absence.csv.gz'
     roary_file = f'{baseDir}/{collection}/out/roary_nosplit/gene_presence_absence.csv'
     panaroo_file = f'{baseDir}/{collection}/out/panaroo/gene_presence_absence_roary.csv'
     pirate_file = f'{baseDir}/{collection}/out/PIRATE/PIRATE.gene_families.tsv'
-    panx_file = f'{baseDir}/{collection}/out/panx/allclusters_final.tsv'
+    panx_file = f'{baseDir}/{collection}/gbk/allclusters_final.tsv'
 
-    pirate_modified_gffs = f'{baseDir}/{collection}/out/PIRATE/modified_gffs'
+    pirate_modified_gffs = glob(f'{baseDir}/{collection}/out/PIRATE/modified_gffs/*.gff')
     prirate_prev_gene_id = get_prev_gene_id_pirate(pirate_modified_gffs)
 
 
@@ -205,3 +195,56 @@ if __name__ == '__main__':
     compute_similarity_score(gene_to_cluster_id_3, gene_to_cluster_id_5)
     print('PIRATE vs PanX')
     compute_similarity_score(gene_to_cluster_id_4, gene_to_cluster_id_5)
+
+
+def compare_add_pipeline():
+    panta_file = f'{baseDir}/{collection}/out/panta/gene_presence_absence.csv.gz'
+    gene_to_cluster_id_1 = get_cluster_panta(panta_file)
+
+    for n in [2,25,50,75,99]:
+        panta_add_file = f'{baseDir}/{collection}/out/panta_add/{str(n)}/gene_presence_absence.csv.gz'
+        gene_to_cluster_id_add = get_cluster_panta(panta_add_file)
+        print(n)
+        compute_similarity_score(gene_to_cluster_id_1, gene_to_cluster_id_add)
+
+def compare_add_pipeline_other_tools():
+    panta_file = f'{baseDir}/{collection}/out/panta/gene_presence_absence.csv.gz'
+    roary_file = f'{baseDir}/{collection}/out/roary_nosplit/gene_presence_absence.csv'
+    panaroo_file = f'{baseDir}/{collection}/out/panaroo/gene_presence_absence_roary.csv'
+    pirate_file = f'{baseDir}/{collection}/out/PIRATE/PIRATE.gene_families.tsv'
+    panx_file = f'{baseDir}/{collection}/gbk/allclusters_final.tsv'
+
+    pirate_modified_gffs = glob(f'{baseDir}/{collection}/out/PIRATE/modified_gffs/*.gff')
+    prirate_prev_gene_id = get_prev_gene_id_pirate(pirate_modified_gffs)
+
+
+    gene_to_cluster_id_1 = get_cluster_panta(panta_file)
+    gene_to_cluster_id_2 = get_cluster_roary(roary_file)
+    gene_to_cluster_id_3 = get_cluster_panaroo(panaroo_file)
+    gene_to_cluster_id_4 = get_cluster_pirate(pirate_file, prirate_prev_gene_id)
+    gene_to_cluster_id_5 = get_cluster_panx(panx_file)
+
+    for n in [2,25,50,75,99]:
+        panta_add_file = f'{baseDir}/{collection}/out/panta_add/{str(n)}/gene_presence_absence.csv.gz'
+        gene_to_cluster_id_add = get_cluster_panta(panta_add_file)
+        print(n)
+        compute_similarity_score(gene_to_cluster_id_1, gene_to_cluster_id_add)
+        compute_similarity_score(gene_to_cluster_id_2, gene_to_cluster_id_add)
+        compute_similarity_score(gene_to_cluster_id_3, gene_to_cluster_id_add)
+        compute_similarity_score(gene_to_cluster_id_4, gene_to_cluster_id_add)
+        compute_similarity_score(gene_to_cluster_id_5, gene_to_cluster_id_add)
+
+
+
+if __name__ == '__main__':
+    global baseDir
+    baseDir = '/home/ntanh1999'
+    global collection
+    collection = 'Pa100'
+    global threads
+    threads = 8
+
+    # compare_tools()
+
+    # compare_add_pipeline()
+    compare_add_pipeline_other_tools()

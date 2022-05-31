@@ -136,7 +136,8 @@ def run_panx(input_dir, species):
 
 if __name__ == "__main__":
 	base_dir = '/home/ntanh1999'
-	collection_name = 'Kp100'
+	collection_name = 'Pa100'
+	panta_dir = f'{base_dir}/amromics/amromics/pan-genome'
 
 	global threads
 	threads = 8
@@ -146,9 +147,9 @@ if __name__ == "__main__":
 	
 	# gff_list = get_gff(source_dataset)
 	# copy_file(gff_list[:100], gff_dir)
-	# gff_list = get_gff(gff_dir + '/*.gff')
+	
 
-	# os.chdir(f'{base_dir}/amromics/amromics/pan-genome')
+	# os.chdir(panta_dir)
 	# run_panta(gff_dir, f'{base_dir}/{collection_name}/out/panta')
 	# run_roary(gff_dir, f'{base_dir}/{collection_name}/out/roary')
 	# run_roary_nosplit(gff_dir, f'{base_dir}/{collection_name}/out/roary_nosplit')
@@ -156,8 +157,13 @@ if __name__ == "__main__":
 	# run_pirate(gff_dir, f'{base_dir}/{collection_name}/out/PIRATE')
 	# run_panaroo(gff_dir, f'{base_dir}/{collection_name}/out/panaroo')
 	
-	os.chdir(f'{base_dir}/pan-genome-analysis')
-	run_panx(f'{base_dir}/{collection_name}/gbk', 'Klebsiella_pneumoniae')
+	# os.chdir(f'{base_dir}/pan-genome-analysis')
+	# run_panx(f'{base_dir}/{collection_name}/test', 'Klebsiella_pneumoniae')
 
 	# run_pirate_align(gff_dir, f'{base_dir}/{collection_name}/out/PIRATE_align')
 	# run_panaroo_align(gff_dir, f'{base_dir}/{collection_name}/out/panaroo_align')
+
+	gff_list = get_gff(gff_dir + '/*.gff')
+	os.chdir(panta_dir)
+	for n in [2, 25, 50, 75, 99]:
+		run_add_pipeline(gff_list, f'{base_dir}/{collection_name}/out/panta_add', n)

@@ -3,27 +3,18 @@ import subprocess
 import multiprocessing
 import re
 import shutil
+import random
 from Bio import SeqIO
-
-
-def run_panta(panta_dir, input_dir, out_dir):
-	os.chdir(panta_dir)
-	if not os.path.isdir(out_dir):
-		os.makedirs(out_dir)
-	
-	cmd = f'/usr/bin/time -v python pan-genome.py main -o {out_dir} -t {threads} -g {input_dir}/*.gff 1>> {out_dir}/panta.log 2>&1'
-	os.system(cmd)
-
-	return out_dir
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 
 def create_poa(cluster_id):
     cluster_id = str(cluster_id)
     cluster_dir = os.path.join(clusters_dir, cluster_id)
     seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
 
-    matrix_file = os.path.join(baseDir, 'BLOSUM62.mtx')
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
-    cmd = f'abpoa {seq_file} -o {result_file} -r1 -p -c -m 1 2> /dev/null'
+    cmd = f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
     os.system(cmd)
 
 def create_poa_in_parallel(clusters_id_list):
@@ -52,7 +43,7 @@ def create_mafft_in_parallel(clusters_id_list):
 def run_qscore(cluster_id):
     cluster_id = str(cluster_id)
     cluster_dir = os.path.join(clusters_dir, cluster_id)
-    poa_file = os.path.join(cluster_dir, cluster_id + '.result')
+    poa_file = os.path.join(cluster_dir, cluster_id + '.aln.poa')
     mafft_file = os.path.join(cluster_dir, cluster_id + '.mafft')
     cmd = f"qscore -test {poa_file} -ref {mafft_file}"
     output = subprocess.run(cmd, capture_output=True, text=True, shell=True)
@@ -112,28 +103,119 @@ def call_snp_parallel(clusters_id_list):
 
 
 
+def split_seq_file(seq_file):
+    seq_list = []
+    with open(seq_file, 'r') as fh:
+        for record in SeqIO.parse(fh, "fasta"):
+            seq_id = record.id
+            seq = str(record.seq)
+            seq_list.append((seq_id, seq))
+
+    seq_list.sort(key= lambda x:len(x[1])) # sort sequences by length
+    
+    
+    # first_seqs = []
+    # second_seqs = []
+    # list_len = len(seq_list)
+    # num_first_part  = round(list_len * 0.2,0)
+    # if num_first_part == 0:
+    #     second_seqs = seq_list
+    # else:
+    #     index_jump = round(list_len / num_first_part,0)
+
+    #     for i, seq_tuple in enumerate(seq_list,1):
+    #         if i % index_jump == 0:
+    #             first_seqs.append(seq_tuple)
+    #         else:
+    #             second_seqs.append(seq_tuple)
+
+    random.seed(62)
+    random.shuffle(seq_list)
+    total_num = len(seq_list)
+    len_first_seqs = int(total_num * 0.2)
+    first_seqs = seq_list[:len_first_seqs]
+    second_seqs = seq_list[len_first_seqs:]
+
+    # prev_len = 1
+    # first_seqs = []
+    # second_seqs = []
+    # for seq_tuple in seq_list:
+    #     seq_len = len(seq_tuple[1])
+    #     if seq_len / prev_len > 1.1:
+    #         first_seqs.append(seq_tuple)
+    #         prev_len = seq_len
+    #     else:
+    #         second_seqs.append(seq_tuple)
+
+    mafft_seq = os.path.join(seq_file + '.1')
+    with open(mafft_seq, 'w') as fh:
+        for seq_id, seq in first_seqs: 
+            new_record = SeqRecord(Seq(seq), id = seq_id, description = '')
+            SeqIO.write(new_record, fh, 'fasta')
+    
+    poa_seq = os.path.join(seq_file + '.2')
+    with open(poa_seq, 'w') as fh:
+        for seq_id, seq in second_seqs: 
+            new_record = SeqRecord(Seq(seq), id = seq_id, description = '')
+            SeqIO.write(new_record, fh, 'fasta')
+
+    return mafft_seq, poa_seq
+
+
+def new_method(cluster_id):
+    cluster_id = str(cluster_id)
+    cluster_dir = os.path.join(clusters_dir, cluster_id)
+    seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
+
+    mafft_seq, poa_seq = split_seq_file(seq_file)
+
+    mafft_msa_file = os.path.join(cluster_dir, cluster_id + '.1.aln')
+    cmd = f"mafft --localpair --maxiterate 1000 --quiet --thread 1 {mafft_seq} > {mafft_msa_file}"
+    os.system(cmd)
+
+    result_file = os.path.join(cluster_dir, cluster_id + '.new')
+    cmd = f'abpoa {poa_seq} -i {mafft_msa_file} -o {result_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    os.system(cmd)
+
+    os.remove(poa_seq)
+    os.remove(mafft_seq)
+    os.remove(mafft_msa_file)
+
+
+def new_method_parallel(clusters_id_list):
+
+    with multiprocessing.Pool(processes=threads) as pool:
+        pool.map(new_method, clusters_id_list)
+
+
+
 if __name__ == "__main__":
 	
     global threads
     threads = 8
 
-    panta_dir = '/home/noideatt/TA/pan-genome'
-    input_dir = '/home/noideatt/TA/data/Kp26/main'
-    out_dir = '/home/noideatt/TA/evaluate_msa/out/Kp20'
-    # run_panta(panta_dir, input_dir, out_dir)
+    global matrix_file # Blosum matrix file for POA
+    matrix_file = '/home/noideatt/TA/pan-genome/BLOSUM62.mtx'
 
-    # clusters_id_file = '/home/noideatt/TA/evaluate_msa/clusters_id.txt'
-    # clusters_id_list = get_gene_list(clusters_id_file)
-    clusters_id_list =  range(0, 9252)
     global clusters_dir
-    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Kp20'
-    global baseDir
-    baseDir = panta_dir
+    clusters_dir = '/home/noideatt/TA/evaluate_msa/out/Sp100'
+
+    clusters_id_file = '/home/noideatt/TA/evaluate_msa/clusters_id.txt'
+    clusters_id_list = get_gene_list(clusters_id_file)
+    # clusters_id_list =  range(0, 4671)
+
+
+
+    # Compare POA and Mafft
+    
     # create_poa_in_parallel(clusters_id_list)
-    create_mafft_in_parallel(clusters_id_list)
+    # create_mafft_in_parallel(clusters_id_list)
     # rewrite_mafft(clusters_id_list)
-
-
     # compare(clusters_id_list)
-
     # call_snp_parallel(clusters_id_list)
+
+    # new_method: use mafft first to create high quality graph
+
+
+    new_method_parallel(clusters_id_list)
+    # compare(clusters_id_list)

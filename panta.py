@@ -32,7 +32,8 @@ def collect_sample(sample_id_list, args):
                 assembly = row[2]
                 if row[2] == '':
                     assembly = None
-                samples.append({'id':sample_id, 'gff_file':gff, 'assembly':assembly}) 
+                samples.append(
+                    {'id':sample_id, 'gff_file':gff, 'assembly':assembly}) 
     elif args.gff != None:
         gff_list = args.gff
         for gff in gff_list:
@@ -60,7 +61,8 @@ def collect_sample(sample_id_list, args):
                     continue
                 else:
                     sample_id_list.append(sample_id)
-                samples.append({'id':sample_id, 'gff_file':None, 'assembly':fasta})    
+                samples.append(
+                    {'id':sample_id, 'gff_file':None, 'assembly':fasta})    
     else:
         raise Exception(f'There is no input file')
     
@@ -90,17 +92,22 @@ def init_function(args):
         raise Exception(f'There must be at least 2 samples')
     
     # pipeline
-    clusters, gene_dictionary = wrapper.run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log)
+    clusters, gene_dictionary = wrapper.run_main_pipeline(
+        samples, collection_dir, temp_dir, baseDir, args, timing_log)
 
     if args.fasta == None:
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
             gene_dictionary=gene_dictionary)
-        output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
-        representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+        output.create_output(
+            clusters, clusters_annotation, 
+            gene_dictionary, samples, collection_dir)
+        representative_fasta = alignment.main_create_msa(
+            clusters, samples, collection_dir, baseDir, args.threads)
     
     else:        
-        representative_fasta = alignment.main_create_msa(clusters, samples, collection_dir, baseDir, args.threads)
+        representative_fasta = alignment.main_create_msa(
+            clusters, samples, collection_dir, baseDir, args.threads)
         clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=clusters,
             rep_fasta = representative_fasta,
@@ -108,7 +115,9 @@ def init_function(args):
             baseDir = baseDir,
             timing_log=timing_log,
             threads = args.threads)
-        output.create_output(clusters, clusters_annotation, gene_dictionary, samples, collection_dir)
+        output.create_output(
+            clusters, clusters_annotation, 
+            gene_dictionary, samples, collection_dir)
     # shutil.rmtree(temp_dir)
         
     elapsed = datetime.now() - starttime
@@ -136,7 +145,8 @@ def add_function(args):
     baseDir = os.path.dirname(os.path.realpath(__file__))
 
     # Check required files
-    old_representative_fasta = os.path.join(collection_dir, 'reference_pangenome.fasta')
+    old_representative_fasta = os.path.join(
+        collection_dir, 'reference_pangenome.fasta')
     if not os.path.isfile(old_representative_fasta):
         raise Exception(f'{old_representative_fasta} does not exist')
     
@@ -148,7 +158,8 @@ def add_function(args):
     if not os.path.exists(samples_dir):
         raise Exception(f'{samples_dir} does not exist')
 
-    old_presence_absence_file = os.path.join(collection_dir, 'gene_presence_absence.csv.gz')
+    old_presence_absence_file = os.path.join(
+        collection_dir, 'gene_presence_absence.csv.gz')
     if not os.path.isfile(old_presence_absence_file):
         raise Exception(f'{old_presence_absence_file} does not exist')
 
@@ -162,7 +173,8 @@ def add_function(args):
             cells = line.rstrip().split('\t')
             if cells[0] == "Total genes":
                 num_of_clusters = int(cells[2])
-                old_clusters = [] # create a list of empty lists inside, used to grab new seqs
+                # create a list contains empty lists, used to grab new seqs
+                old_clusters = [] 
                 for i in range(0, num_of_clusters):
                     old_clusters.append([])
     
@@ -178,16 +190,24 @@ def add_function(args):
         raise Exception(f'There must be at least one new sample')
     
     # pipeline
-    new_clusters, gene_dictionary = wrapper.add_sample(new_samples, old_representative_fasta, old_clusters, collection_dir, temp_dir, args, timing_log)
+    new_clusters, gene_dictionary = wrapper.add_sample(
+        new_samples, old_representative_fasta, old_clusters, 
+        collection_dir, temp_dir, args, timing_log)
     
     if args.fasta == None:
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary)
-        output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
-        new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
+        output.update_output(old_clusters, new_clusters, 
+            new_clusters_annotation, gene_dictionary, 
+            new_samples, temp_dir, collection_dir)
+        new_representative_fasta = alignment.add_create_msa(
+            old_clusters, new_clusters, new_samples, 
+            collection_dir, baseDir, args.threads)
     else:
-        new_representative_fasta = alignment.add_create_msa(old_clusters, new_clusters, new_samples, collection_dir, baseDir, args.threads)
+        new_representative_fasta = alignment.add_create_msa(
+            old_clusters, new_clusters, new_samples, 
+            collection_dir, baseDir, args.threads)
         new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
             rep_fasta = new_representative_fasta,
@@ -195,7 +215,9 @@ def add_function(args):
             baseDir = baseDir,
             timing_log = timing_log,
             threads = args.threads)
-        output.update_output(old_clusters, new_clusters, new_clusters_annotation, gene_dictionary, new_samples, temp_dir, collection_dir)
+        output.update_output(
+            old_clusters, new_clusters, new_clusters_annotation, 
+            gene_dictionary, new_samples, temp_dir, collection_dir)
 
     # shutil.rmtree(temp_dir)
 
@@ -204,45 +226,57 @@ def add_function(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
-    
-    init_cmd = subparsers.add_parser(
-        'init',
-        description='Init pipeline: run initial pan-genome analysis',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    init_cmd.set_defaults(func=init_function)
-    init_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
-    init_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
-    init_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
-    init_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
-    init_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    init_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
-    init_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
-    init_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
-    init_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
-    init_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
-    init_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
-    init_cmd.add_argument('--table', help='codon table', default=11, type=int)
+    pipeline_help = """
+        Select the pipeline: 
+        run initial pan-genome analysis (init), 
+        add new samples to previous collection (add)
+        """
+    parser.add_argument(
+        '-p', '--pipeline', help = pipeline_help,
+        action='store', choices=['init', 'add'], required=True)
+    parser.add_argument(
+        '-g', '--gff', help='gff input files',
+        default=None, nargs='*', type=str)
+    parser.add_argument(
+        '-b', '--fasta', help='assembly input files',
+        default=None, nargs='*', type=str)
+    parser.add_argument(
+        '-f', '--tsv', help='tsv input file', default=None, type=str)
+    parser.add_argument(
+        '-o', '--outdir', 
+        help='output directory/previous collection directory', 
+        required=True, type=str) 
+    parser.add_argument(
+        '-d', '--diamond', 
+        help='use Diamond for all-agaist-all alignment instead of Blastp', 
+        default=False, action='store_true')
+    parser.add_argument(
+        '-i', '--identity', 
+        help='minimum percentage identity', default=0.95, type=float)
+    parser.add_argument(
+        '--LD', help='length difference cutoff between two sequences', 
+        default=0, type=float)
+    parser.add_argument(
+        '--AL', help='alignment coverage for the longer sequence', 
+        default=0, type=float)
+    parser.add_argument(
+        '--AS', help='alignment coverage for the shorter sequence', 
+        default=0, type=float)
+    parser.add_argument(
+        '-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
+    parser.add_argument(
+        '-t', '--threads', help='number of threads to use, 0 for all', 
+        default=0, type=int)
+    parser.add_argument(
+        '--table', help='codon table', default=11, type=int)
 
-    add_cmd = subparsers.add_parser(
-        'add',
-        description='Add pipeline: add sample into previous collection',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    add_cmd.set_defaults(func=add_function)
-    add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
-    add_cmd.add_argument('-b', '--fasta', help='assembly input files',default=None, nargs='*', type=str)
-    add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
-    add_cmd.add_argument('-o', '--collection-dir', help='previous collection directory', required=True, type=str)
-    add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
-    add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
-    add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
-    add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
-    add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
-    add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
-    add_cmd.add_argument('--table', help='codon table', default=11, type=int)
+    # Execute parse_args()
+    args = parser.parse_args()
+
+    if args.pipeline == 'init':
+        init_function(args)
+    elif args.pipeline == 'add':
+        add_function(args)
 
 if __name__ == "__main__":
     main()

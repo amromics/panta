@@ -36,36 +36,33 @@ mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requ
 
 ## Usage
 ```
-usage: panta.py [initiate/add] [-h] [-g [GFF [GFF ...]]] [-b [FASTA [FASTA ...]]]
-                                [-f TSV] -o OUTDIR [-d] [-i IDENTITY] [--LD LD]
-                                [--AL AL] [--AS AS] [-e EVALUE] [-t THREADS]
-                                [--table TABLE]
-
-Initiate: run initial pan-genome analysis
-Add: add samples into previous collection
+usage: panta.py [-h] -p {init,add} [-g [GFF [GFF ...]]]
+                [-b [FASTA [FASTA ...]]] [-f TSV] -o OUTDIR [-d] [-i IDENTITY]
+                [--LD LD] [--AL AL] [--AS AS] [-e EVALUE] [-t THREADS]
+                [--table TABLE]
 
 optional arguments:
   -h, --help            show this help message and exit
+  -p {init,add}, --pipeline {init,add}
+                        Select the pipeline: run initial pan-genome analysis
+                        (init), add new samples to previous collection (add)
   -g [GFF [GFF ...]], --gff [GFF [GFF ...]]
-                        gff input files (default: None)
+                        gff input files
   -b [FASTA [FASTA ...]], --fasta [FASTA [FASTA ...]]
-                        assembly input files (default: None)
-  -f TSV, --tsv TSV     tsv input file (default: None)
+                        assembly input files
+  -f TSV, --tsv TSV     tsv input file
   -o OUTDIR, --outdir OUTDIR
-                        output directory (default: None)
+                        output directory/previous collection directory
   -d, --diamond         use Diamond for all-agaist-all alignment instead of
-                        Blastp (default: False)
+                        Blastp
   -i IDENTITY, --identity IDENTITY
-                        minimum percentage identity (default: 0.95)
+                        minimum percentage identity
   --LD LD               length difference cutoff between two sequences
-                        (default: 0)
-  --AL AL               alignment coverage for the longer sequence (default:
-                        0)
-  --AS AS               alignment coverage for the shorter sequence (default:
-                        0)
+  --AL AL               alignment coverage for the longer sequence
+  --AS AS               alignment coverage for the shorter sequence
   -e EVALUE, --evalue EVALUE
-                        Blast evalue (default: 1e-06)
+                        Blast evalue
   -t THREADS, --threads THREADS
-                        number of threads to use, 0 for all (default: 0)
-  --table TABLE         codon table (default: 11)
+                        number of threads to use, 0 for all
+  --table TABLE         codon table
 ```

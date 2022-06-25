@@ -5,6 +5,7 @@ import gzip
 import logging
 import shutil
 from datetime import datetime
+
 from Bio import SeqIO
 
 logger = logging.getLogger(__name__)

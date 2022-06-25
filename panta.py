@@ -4,11 +4,13 @@ import shutil
 import logging
 import sys
 import gzip
-import json
 import csv
 from datetime import datetime
-from pan_genome import *
+
 from pan_genome import wrapper
+from pan_genome import annotate
+from pan_genome import alignment
+from pan_genome import output
 
 logging.basicConfig(
     level=logging.DEBUG,

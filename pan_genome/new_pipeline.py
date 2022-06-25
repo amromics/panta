@@ -1,6 +1,4 @@
-import os
 from Bio import SeqIO
-from Bio.Seq import Seq
 
 
 def read_database(db_file):

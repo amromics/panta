@@ -1,10 +1,10 @@
 import os
-import re
 import logging
 from Bio import SearchIO
 from datetime import datetime
 from glob import glob
 import multiprocessing
+
 import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)

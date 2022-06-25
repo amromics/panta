@@ -1,10 +1,11 @@
 import os
 import logging
-import subprocess
 import re
+import shutil
+
 from Bio import SeqIO
 from Bio.Seq import Seq
-import shutil
+
 
 logger = logging.getLogger(__name__)
 

@@ -2,6 +2,7 @@ import os
 import logging
 from datetime import datetime
 import csv
+
 import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)

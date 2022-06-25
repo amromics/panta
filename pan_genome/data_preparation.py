@@ -5,8 +5,10 @@ import multiprocessing
 from functools import partial
 from datetime import datetime
 import gzip
+
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+
 import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)

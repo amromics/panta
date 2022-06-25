@@ -2,8 +2,11 @@ import os
 import subprocess
 import shutil
 import logging
-import json
-from pan_genome import *
+
+from pan_genome import data_preparation
+from pan_genome import main_pipeline
+from pan_genome import add_sample_pipeline
+
 import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)

@@ -2,6 +2,7 @@ import os
 import logging
 import subprocess
 from datetime import datetime
+
 import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)

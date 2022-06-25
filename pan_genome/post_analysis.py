@@ -2,10 +2,12 @@ import os
 import re
 import logging
 import gzip
+from datetime import datetime
+
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
-from datetime import datetime
+
 import pan_genome.utils as utils
 
 

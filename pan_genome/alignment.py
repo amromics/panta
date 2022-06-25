@@ -2,15 +2,16 @@ import os
 import re
 import logging
 import shutil
-import gzip
+from datetime import datetime
+import multiprocessing
+from functools import partial
+
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
-# import pyabpoa as pa
-from datetime import datetime
+
 import pan_genome.utils as utils
-import multiprocessing
-from functools import partial
+
 
 def create_pro_file_for_each_cluster(samples, gene_to_cluster, collection_dir):
     starttime = datetime.now()

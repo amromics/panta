@@ -45,7 +45,8 @@ def parse_cluster_file(cd_hit_cluster_file):
     # convert to a simple dictionary
     clusters_new = {}
     for cluster_name in clusters:
-        clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']
+        rep = clusters[cluster_name]['representative']
+        clusters_new[rep] = clusters[cluster_name]['gene_names']
     return clusters_new
 
 
@@ -163,8 +164,13 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')
     # if len(premature)!= 0:
-    #     logger.info('Have premature codon - exclude {}'.format(', '.join(premature)))
+    #     logger.info(
+    #           'Have premature codon - exclude {}'.format(
+    #               ', '.join(premature)))
     # if len(startstop)!= 0:
-    #     logger.info('Lack both start and stop codon - exclude {}'.format(', '.join(startstop)))
+    #     logger.info(
+    #           'Lack both start and stop codon - exclude {}'.format(
+    #               ', '.join(startstop)))
     # if len(unknown)!= 0:
-    #     logger.info('Too many unknowns - exclude {}'.format(', '.join(unknown)))
+    #     logger.info(
+    #           'Too many unknowns - exclude {}'.format(', '.join(unknown)))

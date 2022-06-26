@@ -14,7 +14,8 @@ def create_poa(cluster_id):
     seq_file = os.path.join(cluster_dir, cluster_id + '.faa')
 
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
-    cmd = f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {seq_file} -o {result_file} -r2 -t {matrix_file} '
+            '-O 11,0 -E 1,0 -p -c 2> /dev/null')
     os.system(cmd)
 
 def create_poa_in_parallel(clusters_id_list):
@@ -47,7 +48,9 @@ def run_qscore(cluster_id):
     mafft_file = os.path.join(cluster_dir, cluster_id + '.mafft')
     cmd = f"qscore -test {poa_file} -ref {mafft_file}"
     output = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    result = re.match(r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', output.stdout.rstrip())
+    result = re.match(
+        r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', 
+        output.stdout.rstrip())
     if result == None:
         return cluster_id, 0, 0
     else:
@@ -176,11 +179,13 @@ def new_method(cluster_id):
     mafft_seq, poa_seq = split_seq_file(seq_file)
 
     mafft_msa_file = os.path.join(cluster_dir, cluster_id + '.1.aln')
-    cmd = f"mafft --localpair --maxiterate 1000 --quiet --thread 1 {mafft_seq} > {mafft_msa_file}"
+    cmd = ("mafft --localpair --maxiterate 1000 --quiet --thread 1 "
+           f"{mafft_seq} > {mafft_msa_file}")
     os.system(cmd)
 
     result_file = os.path.join(cluster_dir, cluster_id + '.new')
-    cmd = f'abpoa {poa_seq} -i {mafft_msa_file} -o {result_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {poa_seq} -i {mafft_msa_file} -o {result_file} -r1 '
+           f'-t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null')
     os.system(cmd)
 
     os.remove(poa_seq)

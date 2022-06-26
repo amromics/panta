@@ -107,7 +107,8 @@ def get_cluster_panx(input_file):
 
 
 def classify_cluster(sample_size_ls):
-    count_list = [0] * 4 # 4 value corespond to count of core, softcore, shell, cloud gene
+    # 4 value corespond to count of core, softcore, shell, cloud gene
+    count_list = [0] * 4 
     for num_sample in sample_size_ls:
         percent = num_sample / total
         if percent >= 0.99:

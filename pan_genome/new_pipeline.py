@@ -17,7 +17,8 @@ def read_database(db_file):
     return clusters, clusters_annotation, gene_to_cluster
 
 
-def combine_result(old_clusters, old_clusters_annotation, new_clusters, new_clusters_annotation):
+def combine_result(old_clusters, old_clusters_annotation, 
+                   new_clusters, new_clusters_annotation):
     out_clusters = []
     out_clusters_annotation = []
 

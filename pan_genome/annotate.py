@@ -12,10 +12,9 @@ logger = logging.getLogger(__name__)
 def setup_db(baseDir, timing_log, force=False):
     db_dir = os.path.join(baseDir, 'db')
     bacteria_db = [
-        {'name':"AMR",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-300},
-        {'name':"IS",'dir':None,'tool': 'blastp','MINCOV': 90,'EVALUE': 1E-30},
-        {'name':"sprot",'dir':None,'tool': 'blastp','MINCOV': None,'EVALUE': None}
-    ]
+      {'name':"AMR",'dir':None,'tool':'blastp','MINCOV':90,'EVALUE':1E-300},
+      {'name':"IS",'dir':None,'tool': 'blastp','MINCOV':90,'EVALUE':1E-30},
+      {'name':"sprot",'dir':None,'tool':'blastp','MINCOV':None,'EVALUE':None}]
     
     for db in bacteria_db:
         name = db['name']
@@ -27,7 +26,8 @@ def setup_db(baseDir, timing_log, force=False):
             continue
         if not os.path.isfile(fasta):
             raise Exception(f'Database {fasta} does not exist')
-        cmd = f'makeblastdb -hash_index -dbtype prot -in {fasta} -logfile /dev/null'
+        cmd = (f'makeblastdb -hash_index -dbtype prot -in {fasta} '
+               '-logfile /dev/null')
         utils.run_command(cmd, timing_log)
                     
 
@@ -61,13 +61,17 @@ def run_parallel(faa_file, threads, database, out_dir, timing_log):
         db_dir = database['dir']
         evalue = database['EVALUE']
         mincov = database['MINCOV']
-        cmd = f'blastp -query {faa_file} -db {db_dir} -num_threads {threads} -mt_mode 1 -evalue {evalue} -qcov_hsp_perc {mincov} -num_descriptions 1 -num_alignments 1 -seg no > {out_file} 2> /dev/null'
+        cmd = (f'blastp -query {faa_file} -db {db_dir} -num_threads {threads} '
+               f'-mt_mode 1 -evalue {evalue} -qcov_hsp_perc {mincov} '
+               '-num_descriptions 1 -num_alignments 1 -seg no '
+               f'> {out_file} 2> /dev/null')
     elif database['tool'] == 'hmmer3':
         db_dir = database['dir']
         evalue = database['EVALUE']
-        cmd = f"cat {faa_file} | parallel --gnu --plain -j {threads} --block {bsize} --recstart '>' --pipe " 
-        cmd += f'hmmscan --noali --notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin '
-        cmd += f"> {out_file} 2> /dev/null"
+        cmd = (f"cat {faa_file} | parallel --gnu --plain -j {threads} "
+               f"--block {bsize} --recstart '>' --pipe hmmscan --noali "
+               f"--notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin "
+               f"> {out_file} 2> /dev/null")
 
     utils.run_command(cmd, timing_log)
             
@@ -93,10 +97,12 @@ def parse_search_result(result_file, tool, dictionary):
                 product = desc[2]
             else:
                 product = None
-            dictionary[qseqid] = {'id':sseqid, 'gene':gene_name, 'product':product}
+            dictionary[qseqid] = {
+                'id':sseqid, 'gene':gene_name, 'product':product}
 
     
-def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, timing_log, threads):
+def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, 
+                           baseDir, timing_log, threads):
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -121,10 +127,12 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, baseDir, tim
     search_result = {}
     logging.info(f'Total number of genes: {len(unlabeled_clusters)}')
     for database in ordered_database:
-        out_file = run_parallel(faa_file, threads, database, out_dir, timing_log)
+        out_file = run_parallel(
+            faa_file, threads, database, out_dir, timing_log)
         parse_search_result(out_file, database['tool'], search_result)
         filter_faa = os.path.join(out_dir, database['name'] + '.filter.faa')
-        utils.create_fasta_exclude([faa_file], list(search_result.keys()), filter_faa)
+        utils.create_fasta_exclude(
+            [faa_file], list(search_result.keys()), filter_faa)
         faa_file = filter_faa
         logging.info(f'Number of genes found: {len(search_result)}')
 
@@ -162,7 +170,7 @@ def annotate_cluster_gff(unlabeled_clusters, gene_dictionary):
             this_gene_list = gene_dictionary[gene_id]
             if this_gene_list[3] != '':
                 gene_name = this_gene_list[3]
-                gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
+                gene_name_count[gene_name]=gene_name_count.get(gene_name, 0)+1
                 if gene_name_count[gene_name] > max_number:
                     cluster_name = gene_name
                     max_number = gene_name_count[gene_name]

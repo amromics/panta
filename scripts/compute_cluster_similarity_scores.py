@@ -1,9 +1,9 @@
 import csv
 import gzip
-import json
 import re
 import multiprocessing
 from glob import glob
+
 from sklearn.metrics.cluster import rand_score
 from sklearn.metrics.cluster import adjusted_rand_score
 from sklearn.metrics.cluster import adjusted_mutual_info_score

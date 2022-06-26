@@ -11,9 +11,11 @@ import pan_genome.post_analysis as pa
 
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, collection_dir, temp_dir, args, timing_log):
+def add_sample(new_samples, old_represent_faa, old_clusters, 
+               collection_dir, temp_dir, args, timing_log):
     
-    gene_dictionary = data_preparation.extract_proteins(new_samples,collection_dir,args, timing_log)
+    gene_dictionary = data_preparation.extract_proteins(
+        new_samples,collection_dir,args, timing_log)
     
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
@@ -30,7 +32,9 @@ def add_sample(new_samples, old_represent_faa, old_clusters, collection_dir, tem
 
     add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters)
 
-    num_seq = subprocess.run(f'grep ">" {unmatched_faa} | wc -l', capture_output=True, text=True, shell=True)
+    num_seq = subprocess.run(
+        f'grep ">" {unmatched_faa} | wc -l', 
+        capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
         return None, None
 
@@ -58,7 +62,9 @@ def add_sample(new_samples, old_represent_faa, old_clusters, collection_dir, tem
         out_dir=temp_dir,
         identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
 
-    num_seq = subprocess.run(f'grep ">" {remain_fasta} | wc -l', capture_output=True, text=True, shell=True)
+    num_seq = subprocess.run(
+        f'grep ">" {remain_fasta} | wc -l', 
+        capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
         return None, None
     
@@ -89,9 +95,11 @@ def add_sample(new_samples, old_represent_faa, old_clusters, collection_dir, tem
     return new_clusters, gene_dictionary
 
 
-def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_log):
+def run_main_pipeline(samples, collection_dir, temp_dir, 
+                      baseDir, args, timing_log):
     
-    gene_dictionary = data_preparation.extract_proteins(samples,collection_dir,args, timing_log)
+    gene_dictionary = data_preparation.extract_proteins(
+        samples,collection_dir,args, timing_log)
 
     combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
@@ -134,7 +142,9 @@ def run_main_pipeline(samples, collection_dir, temp_dir, baseDir, args, timing_l
     
 
 
-def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_dir, alignment, threads, timing_log):
+def run_gene_alignment(
+        annotated_clusters, gene_dictionary, samples, 
+        collection_dir, alignment, threads, timing_log):
     
     if alignment == None:
         return
@@ -164,12 +174,18 @@ def run_gene_alignment(annotated_clusters, gene_dictionary, samples, collection_
         pan_ref_list.add(representative)
 
     if alignment == 'protein':
-        pa.create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        pa.create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)
-        pa.run_mafft_protein_alignment(annotated_clusters, collection_dir, threads, timing_log)
+        pa.create_nuc_file_for_each_cluster(
+            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        pa.create_pro_file_for_each_cluster(
+            samples, gene_to_cluster_name, collection_dir)
+        pa.run_mafft_protein_alignment(
+            annotated_clusters, collection_dir, threads, timing_log)
         pa.create_nucleotide_alignment(annotated_clusters, collection_dir)
     if alignment == 'nucleotide':
-        pa.create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        pa.run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads, timing_log)
+        pa.create_nuc_file_for_each_cluster(
+            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        pa.run_mafft_nucleotide_alignment(
+            annotated_clusters, collection_dir, threads, timing_log)
     
-    pa.create_core_gene_alignment(annotated_clusters, gene_dictionary,samples,collection_dir)
+    pa.create_core_gene_alignment(
+        annotated_clusters, gene_dictionary,samples,collection_dir)

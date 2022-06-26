@@ -47,14 +47,17 @@ def get_neighbour_genes(gene_dictionary, gene_position):
         length_of_contig = len(genes_of_contig)
         if post_index >= length_of_contig:
             post_index = length_of_contig
-        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
+        neighbour_genes = (genes_of_contig[pre_index:index] 
+                           + genes_of_contig[index+1:post_index])
         gene_neighbour_dict[gene_id] = neighbour_genes
 
     return gene_neighbour_dict
 
 
-def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index):
-    # find cluster indices of all the neighbour genes of each paralog gene
+def create_orthologs(cluster, paralog_genes, 
+                     gene_neighbour_dict, gene_to_cluster_index):
+    # find cluster indices of all the neighbour genes 
+    # of each paralog gene
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
         neighbours_of_p = gene_neighbour_dict[p]
@@ -69,7 +72,9 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
 
     # create data structure to hold new clusters
     new_clusters = [[p] for p in paralog_genes]
-    new_clusters.append([]) # extra "leftovers" list to gather genes that don't share CGN with any paralog gene
+    # extra "leftovers" list to gather genes 
+    # that don't share CGN with any paralog gene
+    new_clusters.append([]) 
 
     # add other members of the cluster to their closest match
     for g in cluster:
@@ -124,7 +129,10 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
         out_clusters = []
         any_paralogs = 0
         # convert in_clusters so we can find the cluster index of gene
-        gene_to_cluster_index = {gene:index for index, genes in enumerate(in_clusters) for gene in genes}
+        gene_to_cluster_index = {
+            gene:index 
+            for index, genes in enumerate(in_clusters) 
+            for gene in genes}
         
         for cluster in in_clusters:
             if len(cluster) == 1:
@@ -144,7 +152,9 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
                 continue
 
             # split paralogs
-            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index)
+            orthologs_clusters = create_orthologs(
+                cluster, paralog_genes, gene_neighbour_dict, 
+                gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 
@@ -160,7 +170,9 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
     return split_clusters
 
 
-def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
+def create_nuc_file_for_each_cluster(
+        samples, gene_to_cluster_name, 
+        pan_ref_list, out_dir):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -168,7 +180,8 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     with open(pan_ref_file, 'w') as ref_fh:
         for sample in samples:
             sample_id = sample['id']
-            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna')
+            fna_file = os.path.join(
+                out_dir, 'samples', sample_id, sample_id + '.fna')
             with open(fna_file, 'r') as in_fh:
                 for line in in_fh:
                     line = line.rstrip()
@@ -180,7 +193,10 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
                         ls = [line[i:i+60] for i in range(0,len(line), 60)]
                         if seq_id in gene_to_cluster_name:
                             cluster_name = gene_to_cluster_name[seq_id]
-                            with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
+                            cluster_file = os.path.join(
+                                clusters_dir, cluster_name, 
+                                cluster_name + '.fna')
+                            with open(cluster_file, 'a') as out_fh:
                                 out_fh.write('>'+ seq_id + '\n')
                                 out_fh.write('\n'.join(ls) + '\n')
                         if seq_id in pan_ref_list:
@@ -188,7 +204,8 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
                                 ref_fh.write('\n'.join(ls) + '\n')
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
+    logging.info('Create nucleotide sequence file for each gene cluster '
+                 f'-- time taken {str(elapsed)}')
 
 
 def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
@@ -196,7 +213,8 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     
     for sample in samples:
         sample_id = sample['id']
-        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+        faa_file = os.path.join(
+            out_dir, 'samples', sample_id, sample_id + '.faa')
         with open(faa_file, 'r') as in_fh:
             last_seq_id = None
             line_list = []
@@ -207,7 +225,10 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
                     seq_id = result.group(1)
                     if last_seq_id != None:
                         cluster_name = gene_to_cluster_name[last_seq_id]
-                        with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+                        cluster_file = os.path.join(
+                            out_dir, 'clusters', cluster_name, 
+                            cluster_name + '.faa')
+                        with open(cluster_file, 'a') as out_fh:
                             out_fh.write('>'+ last_seq_id + '\n')
                             out_fh.write('\n'.join(line_list) + '\n')
                     last_seq_id = seq_id
@@ -216,15 +237,20 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
                     line_list.append(line)
 
             cluster_name = gene_to_cluster_name[last_seq_id]
-            with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+            cluster_file = os.path.join(
+                out_dir, 'clusters', cluster_name, 
+                cluster_name + '.faa')
+            with open(cluster_file, 'a') as out_fh:
                 out_fh.write('>'+ last_seq_id + '\n')
                 out_fh.write('\n'.join(line_list) + '\n')
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
+    logging.info(f'Create protein sequence file for each gene cluster '
+                 f'-- time taken {str(elapsed)}')
 
 
-def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log):
+def run_mafft_protein_alignment(annotated_clusters, out_dir, 
+                                threads, timing_log):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -233,12 +259,15 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log
     with open(cmds_file,'w') as cmds:
         for cluster_name in annotated_clusters:
             cluster_dir = os.path.join(clusters_dir, cluster_name)
-            gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
-            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
+            gene_aln_file = os.path.join(
+                cluster_dir, cluster_name + '.faa.aln.gz')
+            gene_seq_file = os.path.join(
+                cluster_dir, cluster_name + '.faa')
             if not os.path.isfile(gene_seq_file):
                 logger.info('{} does not exist'.format(gene_seq_file))
                 continue
-            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
+            cmd = (f"mafft --auto --quiet --thread 1 {gene_seq_file} "
+                   f"| gzip > {gene_aln_file}")
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
@@ -249,7 +278,8 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads, timing_log
     logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
 
-def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads, timing_log):
+def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, 
+                                   threads, timing_log):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -258,13 +288,15 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads, timing_
     with open(cmds_file,'w') as cmds:
         for cluster_name in annotated_clusters:
             cluster_dir = os.path.join(clusters_dir, cluster_name)
-            gene_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
-            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.fna')
+            gene_aln_file = os.path.join(
+                cluster_dir, cluster_name + '.fna.aln.gz')
+            gene_seq_file = os.path.join(
+                cluster_dir, cluster_name + '.fna')
             if not os.path.isfile(gene_seq_file):
                 logger.info('{} does not exist'.format(gene_aln_file))
                 continue
-            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
-            cmd += f' && rm {gene_seq_file}'
+            cmd = (f"mafft --auto --quiet --thread 1 {gene_seq_file} "
+                   f"| gzip > {gene_aln_file} && rm {gene_seq_file}")
             cmds.write(cmd + '\n')
 
     cmd = f"parallel --progress -j {threads} -a {cmds_file}"
@@ -281,7 +313,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     for cluster_name in annotated_clusters:
         cluster_dir = os.path.join(out_dir, 'clusters', cluster_name)
         
-        protein_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
+        protein_aln_file = os.path.join(
+            cluster_dir, cluster_name + '.faa.aln.gz')
         if not os.path.isfile(protein_aln_file):
             logger.info('{} does not exist'.format(protein_aln_file))
             continue
@@ -298,7 +331,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
         for seq_record in SeqIO.parse(nucleotide_seq_file, 'fasta'):
             nucleotide_dict[seq_record.id] = str(seq_record.seq)
 
-        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
+        nucleotide_aln_file = os.path.join(
+            cluster_dir, cluster_name + '.fna.aln.gz')
         with gzip.open(nucleotide_aln_file, 'wt') as fh:
             for seq_id in protein_dict.keys():
                 protein = protein_dict[seq_id]
@@ -311,7 +345,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
                     else:
                         result += nucleotide[codon_pos * 3: codon_pos * 3 + 3]
                         codon_pos += 1
-                new_record = SeqRecord(Seq(result), id = seq_id, description = '')
+                new_record = SeqRecord(
+                    Seq(result), id = seq_id, description = '')
                 SeqIO.write(new_record, fh, 'fasta')
 
         os.remove(nucleotide_seq_file)
@@ -320,7 +355,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
 
-def create_core_gene_alignment(annotated_clusters, gene_dictionary, samples, out_dir):
+def create_core_gene_alignment(annotated_clusters, gene_dictionary, 
+                               samples, out_dir):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -346,7 +382,8 @@ def create_core_gene_alignment(annotated_clusters, gene_dictionary, samples, out
         if skip == True:
             continue
 
-        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
+        nucleotide_aln_file = os.path.join(
+            cluster_dir, cluster_name + '.fna.aln.gz')
         if not os.path.isfile(nucleotide_aln_file):
             logger.info('{} does not exist'.format(nucleotide_aln_file))
             continue
@@ -363,7 +400,8 @@ def create_core_gene_alignment(annotated_clusters, gene_dictionary, samples, out
     core_gene_aln_file = os.path.join(out_dir, 'core_gene_alignment.aln.gz')
     with gzip.open(core_gene_aln_file, 'wt') as fh:
         for sample in seq_dict:
-            new_record = SeqRecord(Seq(seq_dict[sample]), id = sample, description = '')
+            new_record = SeqRecord(
+                Seq(seq_dict[sample]), id = sample, description = '')
             SeqIO.write(new_record, fh, 'fasta')
 
     elapsed = datetime.now() - starttime

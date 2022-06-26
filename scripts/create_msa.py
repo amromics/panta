@@ -26,7 +26,8 @@ def rewrite_fasta(msa_file):
 
 
 def create_poa(seq_file, msa_file):
-    cmd = f'abpoa {seq_file} -o {msa_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {seq_file} -o {msa_file} -r1 -t {matrix_file} '
+            '-O 11,0 -E 1,0 -p -c 2> /dev/null')
     run_command(cmd)
 
 def create_poa_in_parallel(input_files, output_files):
@@ -123,10 +124,12 @@ def new_method(seq_file, msa_file):
     mafft_seq, poa_seq = split_seq_file(seq_file)
 
     tmp_msa_file = msa_file + '.tmp'
-    cmd = f"mafft --localpair --maxiterate 1000 --quiet --thread 1 {mafft_seq} > {tmp_msa_file}"
+    cmd = ("mafft --localpair --maxiterate 1000 --quiet --thread 1 "
+           f"{mafft_seq} > {tmp_msa_file}")
     run_command(cmd)
 
-    cmd = f'abpoa {poa_seq} -i {tmp_msa_file} -o {msa_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {poa_seq} -i {tmp_msa_file} -o {msa_file} -r1 '
+           f'-t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null')
     run_command(cmd)
 
     rewrite_fasta(msa_file)
@@ -147,7 +150,9 @@ def run_qscore(test_file, ref_file):
     basename_2 = os.path.basename(ref_file)
     cmd = f"qscore -test {test_file} -ref {ref_file}"
     output = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    result = re.match(r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', output.stdout.rstrip())
+    result = re.match(
+        r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', 
+        output.stdout.rstrip())
     if result == None:
         return 0, 0
     else:
@@ -207,7 +212,9 @@ def run_iqtree_alisim():
     number_msa = '--num-alignments 3'
 
     os.chdir('/home/noideatt/TA/simulate')
-    cmd = f"iqtree2 --alisim {root_name} -af fasta " + model + indel + random_tree + seq_length + number_msa
+    cmd = (f"iqtree2 --alisim {root_name} -af fasta " 
+            + model + indel + random_tree 
+            + seq_length + number_msa)
 
     os.system(cmd)
     return root_name
@@ -263,7 +270,8 @@ if __name__ == "__main__":
     # root_name = run_iqtree_alisim()
     root_name = 'test'
      
-    unaligned_seqs_list = glob(f'/home/noideatt/TA/simulate/{root_name}*.unaligned.fa')
+    unaligned_seqs_list = glob(
+        f'/home/noideatt/TA/simulate/{root_name}*.unaligned.fa')
 
     
     ref_list = []

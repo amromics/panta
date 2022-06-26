@@ -74,7 +74,6 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             # if re.match(sample_id, gene_id) == None:
             #     gene_id = sample_id + '_' + gene_id
             if gene_id in gene_dictionary:
-                # raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
                 logging.info(f'{gene_id} already exists -- add suffix')
                 gene_id += '_{:05d}'.format(suffix)
                 suffix += 1
@@ -83,16 +82,15 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_dictionary           
-            gene_dictionary[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
+            gene_dictionary[gene_id] = (
+                sample_id, seq_id, length, gene_name, gene_product)
     
     in_fh.close()
     
     return bed_file, assembly_file, gene_dictionary
     
 
-def process_single_sample_gff(sample, out_dir, table, timing_log):
-    # starttime = datetime.now()
-    
+def process_single_sample_gff(sample, out_dir, table):
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
     if not os.path.exists(sample_dir):
@@ -109,7 +107,8 @@ def process_single_sample_gff(sample, out_dir, table, timing_log):
     
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    cmd = f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1"
+    cmd = (f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} "
+           f"-fo {fna_file} -name > /dev/null 2>&1")
     utils.run_command(cmd)
 
     # translate nucleotide to protein
@@ -122,13 +121,10 @@ def process_single_sample_gff(sample, out_dir, table, timing_log):
     os.remove(assembly_file + '.fai')
     os.remove(fna_file)
 
-    # elapsed = datetime.now() - starttime
-    # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
-
     return gene_dictionary
 
 
-def process_single_sample_fasta(sample, out_dir, table, timing_log):
+def process_single_sample_fasta(sample, out_dir, table):
 
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -140,9 +136,11 @@ def process_single_sample_fasta(sample, out_dir, table, timing_log):
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
     
     if assembly_file.endswith('.gz'):
-        cmd = f'zcat {assembly_file} | prodigal -a {faa_file} -g {table} -c -m -q -o /dev/null'
+        cmd = (f'zcat {assembly_file} | '
+               f'prodigal -a {faa_file} -g {table} -c -m -q -o /dev/null')
     else:
-        cmd = f'prodigal -i {assembly_file} -a {faa_file} -g {table} -c -m -q -o /dev/null'
+        cmd = (f'prodigal -i {assembly_file} -a {faa_file} -g {table} '
+               f'-c -m -q -o /dev/null')
     
     if not os.path.isfile(faa_file):
         utils.run_command(cmd)
@@ -188,7 +186,8 @@ def process_single_sample_fasta(sample, out_dir, table, timing_log):
             gene_id = sample_id + '_{:05d}'.format(count)
             count += 1
             desc = '{}~~~{}~~~{}~~~{}'.format(contig, start, end, trand)
-            new_record = SeqRecord(record.seq, id = gene_id, description = desc)
+            new_record = SeqRecord(
+                record.seq, id = gene_id, description = desc)
             SeqIO.write(new_record, out_fh, 'fasta')
             passed_genes.add(gene_id)
             # add to gene_dictionary           
@@ -207,9 +206,15 @@ def extract_proteins(samples, out_dir, args, timing_log):
 
     with multiprocessing.Pool(processes=threads) as pool:
         if args.fasta == None:
-            results = pool.map(partial(process_single_sample_gff, out_dir=out_dir, table=args.table, timing_log=timing_log), samples)
+            results = pool.map(
+                partial(process_single_sample_gff, out_dir=out_dir, 
+                        table=args.table, timing_log=timing_log), 
+                samples)
         else:
-            results = pool.map(partial(process_single_sample_fasta, out_dir=out_dir, table=args.table, timing_log=timing_log), samples)
+            results = pool.map(
+                partial(process_single_sample_fasta, out_dir=out_dir, 
+                        table=args.table, timing_log=timing_log), 
+                samples)
     
     gene_dictionary = {}
     for sample, result in zip(samples, results):
@@ -234,7 +239,8 @@ def combine_proteins(collection_dir, out_dir, samples, timing_log):
     with open(protein_files, 'w') as fh:
         for sample in samples:
             sample_id = sample['id']
-            faa_file = os.path.join(collection_dir, 'samples', sample_id, sample_id + '.faa')
+            faa_file = os.path.join(
+                collection_dir, 'samples', sample_id, sample_id + '.faa')
             if os.path.isfile(faa_file):
                 fh.write(faa_file + '\n')
             else:

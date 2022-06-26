@@ -13,13 +13,15 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
     not_match_fasta = os.path.join(out_dir, 'cd-hit-2d.fasta')
     cd_hit_cluster_file = not_match_fasta + '.clstr'
     
-    cmd = f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} -s 0.98 -s2 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    cmd=(f'cd-hit-2d -i {database_1} -i2 {database_2} -o {not_match_fasta} '
+         f'-s 0.98 -s2 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null')
     utils.run_command(cmd, timing_log)
 
     clusters = utils.parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run CD-HIT-2D with 98% identity -- time taken {str(elapsed)}')
+    logging.info(
+        f'Run CD-HIT-2D with 98% identity -- time taken {str(elapsed)}')
     return not_match_fasta, clusters
 
 
@@ -36,7 +38,8 @@ def add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters):
     return old_clusters
 
 
-def add_gene_blast(old_clusters, unmatched_clusters, blast_result, fasta_file, out_dir, identity, LD, AL, AS):
+def add_gene_blast(old_clusters, unmatched_clusters, blast_result, 
+                   fasta_file, out_dir, identity, LD, AL, AS):
     starttime = datetime.now()
     
     csv_reader = csv.reader(open(blast_result, 'r'), delimiter='\t')
@@ -60,7 +63,10 @@ def add_gene_blast(old_clusters, unmatched_clusters, blast_result, fasta_file, o
         align_short = alignment_length / short_seq
         align_long = alignment_length / long_seq
             
-        if pident <= identity or len_diff <= LD or align_short <= AS or align_long <= AL:
+        if (pident <= identity 
+            or len_diff <= LD 
+            or align_short <= AS 
+            or align_long <= AL):
             continue
         
         evalue = float(row[10])
@@ -79,7 +85,10 @@ def add_gene_blast(old_clusters, unmatched_clusters, blast_result, fasta_file, o
         del unmatched_clusters[new]
     
     blast_remain_fasta = os.path.join(out_dir, 'blast_remain_fasta')
-    utils.create_fasta_exclude(fasta_file_list=[fasta_file], exclude_list=match_dict.keys(), output_file=blast_remain_fasta)
+    utils.create_fasta_exclude(
+        fasta_file_list=[fasta_file], 
+        exclude_list=match_dict.keys(), 
+        output_file=blast_remain_fasta)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Add new gene to clusters -- time taken {str(elapsed)}')

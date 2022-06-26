@@ -18,9 +18,11 @@ def extract_panta(input_file, product_dictionary):
                     if gene == '':
                         continue
                     product = product_dictionary[gene]
-                    if product != 'hypothetical protein' and product != "putative protein":
+                    if (product != 'hypothetical protein' and 
+                        product != "putative protein"):
                         cluster_product.add(product)
-                        product_dictionary.setdefault(product, set()).add(cluster_id)
+                        product_dictionary.setdefault(
+                            product, set()).add(cluster_id)
             
     return product_dictionary, clusters_list
             
@@ -45,9 +47,11 @@ def extract_panaroo(input_file, product_dictionary):
                         excluded_gene.append(gene)
                         continue
                     product = product_dictionary[gene]
-                    if product != 'hypothetical protein' and product != "putative protein":
+                    if (product != 'hypothetical protein' and 
+                        product != "putative protein"):
                         cluster_product.add(product)
-                        product_dictionary.setdefault(product, set()).add(cluster_id)
+                        product_dictionary.setdefault(
+                            product, set()).add(cluster_id)
     print('Excluded gene: ', len(excluded_gene), sep = '')
     return product_dictionary, clusters_list
 
@@ -70,9 +74,11 @@ def extract_roary(input_file, product_dictionary):
                         excluded_gene.append(gene)
                         continue
                     product = product_dictionary[gene]
-                    if product != 'hypothetical protein' and product != "putative protein":
+                    if (product != 'hypothetical protein' and 
+                        product != "putative protein"):
                         cluster_product.add(product)
-                        product_dictionary.setdefault(product, set()).add(cluster_id)
+                        product_dictionary.setdefault(
+                            product, set()).add(cluster_id)
     print('Excluded gene: ', len(excluded_gene), sep = '')
     return product_dictionary, clusters_list
 
@@ -95,9 +101,11 @@ def extract_roary_2(input_file, product_dictionary):
                         excluded_gene.append(gene)
                         continue
                     product = product_dictionary[gene]
-                    if product != 'hypothetical protein' and product != "putative protein":
+                    if (product != 'hypothetical protein' and 
+                        product != "putative protein"):
                         cluster_product.add(product)
-                        product_dictionary.setdefault(product, set()).add(cluster_id)
+                        product_dictionary.setdefault(
+                            product, set()).add(cluster_id)
     print('Excluded gene: ', len(excluded_gene), sep = '')
     return product_dictionary, clusters_list
 
@@ -122,9 +130,11 @@ def extract_pirate(input_file, product_dictionary):
                         excluded_gene.append(gene)
                         continue
                     product = product_dictionary[gene]
-                    if product != 'hypothetical protein' and product != "putative protein":
+                    if (product != 'hypothetical protein' and 
+                        product != "putative protein"):
                         cluster_product.add(product)
-                        product_dictionary.setdefault(product, set()).add(cluster_id)
+                        product_dictionary.setdefault(
+                            product, set()).add(cluster_id)
     print('Excluded gene: ', len(excluded_gene), sep = '')
     return product_dictionary, clusters_list
 
@@ -177,20 +187,24 @@ if __name__ == '__main__':
     
     # panta
     input_file = '/home/noideatt/TA/out/Sp100/100/gene_presence_absence.csv.gz'
-    product_dictionary, clusters_list = extract_panta(input_file, product_dictionary)
+    product_dictionary, clusters_list = extract_panta(
+        input_file, product_dictionary)
     
     # pararoo
     # input_file = '/home/noideatt/TA/check_consistency/Pa800_panaroo.csv'
-    # product_dictionary, clusters_list = extract_panaroo(input_file, product_dictionary)
+    # product_dictionary, clusters_list = extract_panaroo(
+    # input_file, product_dictionary)
     
     # roary
     # input_file = '/home/noideatt/TA/check_consistency/Pa800_roary_nosplit.csv'
-    # product_dictionary, clusters_list = extract_roary_2(input_file, product_dictionary)
+    # product_dictionary, clusters_list = extract_roary_2(
+    # input_file, product_dictionary)
 
 
     # pirate
     # input_file = '/home/noideatt/TA/check_consistency/Pa800_pirate.tsv'
-    # product_dictionary, clusters_list = extract_pirate(input_file, product_dictionary)
+    # product_dictionary, clusters_list = extract_pirate(
+    # input_file, product_dictionary)
 
 
     count_merged_cluster(clusters_list)

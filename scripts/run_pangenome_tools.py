@@ -22,7 +22,9 @@ def run_panta(input_dir, out_dir):
 	if not os.path.exists(out_dir):
 		os.makedirs(out_dir)
 	
-	cmd = f'/usr/bin/time -v python pan-genome.py main -o {out_dir} -t {threads} -g {input_dir}/*.gff 1>> {out_dir}/panta.log 2>&1'
+	cmd = ('/usr/bin/time -v python pan-genome.py main '
+	  	   f'-o {out_dir} -t {threads} -g {input_dir}/*.gff '
+		   f'1>> {out_dir}/panta.log 2>&1')
 	os.system(cmd)
 
 	return out_dir
@@ -31,12 +33,14 @@ def run_add_pipeline(gff_list, out_dir, n):
 	if not os.path.exists(out_dir):
 		os.makedirs(out_dir)
 
-	cmd = f'/usr/bin/time -v python pan-genome.py main -o {out_dir}/{str(n)} -t {threads} -g '
+	cmd = ('/usr/bin/time -v python pan-genome.py main '
+		   f'-o {out_dir}/{str(n)} -t {threads} -g ')
 	cmd += ' '.join(gff_list[:n])
 	cmd += f' 1>> {out_dir}/{str(n)}.log 2>&1'
 	os.system(cmd)
 			
-	cmd = f'/usr/bin/time -v python pan-genome.py add -o {out_dir}/{str(n)} -t {threads} -g '
+	cmd = ('/usr/bin/time -v python pan-genome.py add '
+		   f'-o {out_dir}/{str(n)} -t {threads} -g ')
 	cmd += ' '.join(gff_list[n:])
 	cmd += f' 1>> {out_dir}/{str(n)}.log 2>&1'
 	os.system(cmd)
@@ -47,7 +51,8 @@ def run_roary(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 	
-	cmd = f'/usr/bin/time -v roary -v -z -p {threads} -f {out_dir} {input_dir}/*.gff 1>> roary.log 2>&1'
+	cmd = (f'/usr/bin/time -v roary -v -z -p {threads} -f {out_dir} '
+		   f'{input_dir}/*.gff 1>> roary.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv roary.log {out_dir}')
@@ -58,7 +63,8 @@ def run_roary_nosplit(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v roary -v -s -z -p {threads} -f {out_dir} {input_dir}/*.gff 1>> roary.log 2>&1'
+	cmd = (f'/usr/bin/time -v roary -v -s -z -p {threads} -f {out_dir} '
+		   f'{input_dir}/*.gff 1>> roary.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv roary.log {out_dir}')
@@ -70,7 +76,8 @@ def run_roary_nosplit_align(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v roary -v -s -z -e -n -p {threads} -f {out_dir} {input_dir}/*.gff 1>> roary.log 2>&1'
+	cmd = (f'/usr/bin/time -v roary -v -s -z -e -n -p {threads} -f {out_dir} '
+		   f'{input_dir}/*.gff 1>> roary.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv roary.log {out_dir}')
@@ -82,7 +89,8 @@ def run_pirate(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v PIRATE -i {input_dir} -o {out_dir} -t {threads} -z 2  1>> pirate.log 2>&1'
+	cmd = (f'/usr/bin/time -v PIRATE -i {input_dir} -o {out_dir} '
+		   f'-t {threads} -z 2  1>> pirate.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv pirate.log {out_dir}')
@@ -94,7 +102,8 @@ def run_pirate_align(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v PIRATE -i {input_dir} -o {out_dir} -t {threads} -z 2 --align  1>> pirate.log 2>&1'
+	cmd = (f'/usr/bin/time -v PIRATE -i {input_dir} -o {out_dir} '
+		   f'-t {threads} -z 2 --align  1>> pirate.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv pirate.log {out_dir}')
@@ -105,7 +114,8 @@ def run_panaroo(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v panaroo -i {input_dir}/*.gff -o {out_dir} -t {threads} --clean-mode strict 1>> panaroo.log 2>&1'
+	cmd = (f'/usr/bin/time -v panaroo -i {input_dir}/*.gff -o {out_dir} '
+		   f'-t {threads} --clean-mode strict 1>> panaroo.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv panaroo.log {out_dir}')
@@ -116,7 +126,9 @@ def run_panaroo_align(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
 
-	cmd = f'/usr/bin/time -v panaroo -i {input_dir}/*.gff -o {out_dir} -t {threads} --clean-mode strict -a pan --aligner mafft 1>> panaroo.log 2>&1'
+	cmd = (f'/usr/bin/time -v panaroo -i {input_dir}/*.gff -o {out_dir} '
+		   f'-t {threads} --clean-mode strict -a pan --aligner mafft '
+		   '1>> panaroo.log 2>&1')
 	os.system(cmd)
 
 	os.system(f'mv panaroo.log {out_dir}')
@@ -125,7 +137,8 @@ def run_panaroo_align(input_dir, out_dir):
 
 def run_panx(input_dir, species):
 
-	cmd = f'/usr/bin/time -v ./panX.py -fn {input_dir} -sl {species} -dmdc -sitr -t {threads} -cg 0.99 -slt -rlt 1>> panx.log 2>&1'
+	cmd = (f'/usr/bin/time -v ./panX.py -fn {input_dir} -sl {species} '
+		   f'-dmdc -sitr -t {threads} -cg 0.99 -slt -rlt 1>> panx.log 2>&1')
 	os.system(cmd)
 
 	# os.system(f'mv panx.log {input_dir}')
@@ -166,4 +179,5 @@ if __name__ == "__main__":
 	gff_list = get_gff(gff_dir + '/*.gff')
 	os.chdir(panta_dir)
 	for n in [2, 25, 50, 75, 99]:
-		run_add_pipeline(gff_list, f'{base_dir}/{collection_name}/out/panta_add', n)
+		run_add_pipeline(
+			gff_list, f'{base_dir}/{collection_name}/out/panta_add', n)

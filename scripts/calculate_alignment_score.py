@@ -1,8 +1,7 @@
+import multiprocessing
+
 from Bio.Align import substitution_matrices
 from Bio import AlignIO
-import multiprocessing
-from glob import glob
-import os
 
 
 def pairwise_score(S1S2):

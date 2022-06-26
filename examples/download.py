@@ -1,6 +1,7 @@
 # download dataset
 # usage: python download.py [Klebsiella.tsv] [column] [output dir]
-# column: 2 = assembly (fna.gz) 3 = annotation (gff.gz)  4 = protein (faa.gz)
+# column: 2 = assembly (fna.gz) 
+# 3 = annotation (gff.gz)  4 = protein (faa.gz)
 
 
 import os
@@ -19,7 +20,8 @@ for line in open(ftp_file, 'r'):
     acc_id = cells[0]
     ftp_link = cells[column]
     rsync_link = 'rsync:' + ftp_link.split(':')[1]
-    out_file = os.path.join(out_dir,acc_id + '.' + ftp_link.split('.')[-2] + '.gz')
+    out_file = os.path.join(
+        out_dir,acc_id + '.' + ftp_link.split('.')[-2] + '.gz')
     if os.path.exists(out_file):
         continue
     cmd = f'rsync --copy-links --times {rsync_link} {out_file}'

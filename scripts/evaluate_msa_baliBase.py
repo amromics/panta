@@ -13,7 +13,8 @@ from Bio.Seq import Seq
 def create_poa(seq_file):
     filename = os.path.basename(seq_file)
     result_file = os.path.join(out_dir, filename)
-    cmd = f'abpoa {seq_file} -o {result_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {seq_file} -o {result_file} -r1 -t {matrix_file} '
+            '-O 11,0 -E 1,0 -p -c 2> /dev/null')
     os.system(cmd)
 
 def create_poa_in_parallel(seq_files):
@@ -110,11 +111,13 @@ def new_method(seq_file):
     mafft_seq, poa_seq = split_seq_file(seq_file)
 
     mafft_msa_file = os.path.join(out_dir, filename + '.1.aln')
-    cmd = f"mafft --localpair --maxiterate 1000 --quiet --thread 1 {mafft_seq} > {mafft_msa_file}"
+    cmd = ("mafft --localpair --maxiterate 1000 --quiet --thread 1 "
+           f"{mafft_seq} > {mafft_msa_file}")
     os.system(cmd)
 
     result_file = os.path.join(out_dir, filename)
-    cmd = f'abpoa {poa_seq} -i {mafft_msa_file} -o {result_file} -r1 -t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null'
+    cmd = (f'abpoa {poa_seq} -i {mafft_msa_file} -o {result_file} -r1 '
+           f'-t {matrix_file} -O 11,0 -E 1,0 -p -c 2> /dev/null')
     os.system(cmd)
 
 
@@ -126,9 +129,12 @@ def run_qscore(seq_file):
     filename = os.path.basename(seq_file)
     ref_file = os.path.join(ref_dir, filename)
     test_file = os.path.join(out_dir, filename)
-    cmd = f"qscore -test {test_file} -ref {ref_file} -seqdiffwarn -truncname -quiet"
+    cmd = (f"qscore -test {test_file} -ref {ref_file} "
+            "-seqdiffwarn -truncname -quiet")
     output = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    result = re.match(r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', output.stdout.rstrip())
+    result = re.match(
+        r'Test=.+;Ref=.+;Q=([\d\.]+);TC=([\d\.]+)', 
+        output.stdout.rstrip())
     if result == None:
         return filename, 0, 0
     else:
@@ -190,8 +196,9 @@ if __name__ == "__main__":
     
     global ref_dir # directory contain the reference MSA
     ref_dir = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/ref'
-
-    in_dir = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/in' # directory of input sequences 
+    
+    # directory of input sequences 
+    in_dir = '/home/noideatt/TA/evaluate_msa/bench/bench/bali3/in' 
     seqid_file = '/home/noideatt/TA/evaluate_msa/seq_id.txt'
     seqid_list = get_gene_list(seqid_file)
 

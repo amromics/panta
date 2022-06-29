@@ -9,14 +9,37 @@ logger = logging.getLogger(__name__)
 
 
 def run_cd_hit(faa_file, out_dir, threads, timing_log):
-    starttime = datetime.now()
+    """
+    Cluster by CD-HIT and parse the resulting cluster file.
+
+    Parameters
+    ----------
+    faa_file : path
+        fasta file of sequences
+    out_dir : path
+        directory of the output files (temp_dir)
+    threads : int
+        number of threads
+    timing_log : path
+        path of time.log
     
+    Returns
+    -------
+    cd_hit_represent_fasta : path
+        fasta file containing representative sequences
+    cd_hit_clusters : dict
+        dictionary of CD-HIT clusters
+        {representative seq : [other sequences ids]}
+    """
+    starttime = datetime.now()
+    # run CD-HIT
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = (f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 '
            f'-T {threads} -M 0 -g 1 -d 256 > /dev/null')
     utils.run_command(cmd, timing_log)
-            
+
+    # Parse cluster result
     cd_hit_clusters = utils.parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
@@ -26,6 +49,31 @@ def run_cd_hit(faa_file, out_dir, threads, timing_log):
 
 def run_blast(database_fasta, query_fasta, out_dir, timing_log, 
               evalue=1E-6, max_target_seqs=2000, threads=4):
+    """
+    Make blast database and then run BLASTP.
+
+    Parameters
+    ----------
+    database_fasta : path
+        fasta file of database
+    query_fasta : path
+        fasta file of query
+    out_dir : path
+        directory of blast output files (temp dir)
+    timing_log : path
+        path of time.log
+    evalue : float
+        evalue threshold
+    max_target_seq : int
+        number of max target sequences
+    threads : int
+        number of threads
+    
+    Returns
+    -------
+    path
+        path of blast result file
+    """
     starttime = datetime.now()
 
     if not os.path.exists(out_dir):
@@ -46,10 +94,8 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
            f'-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart '
             'qend sstart send evalue bitscore qlen slen" '
            f'2> /dev/null 1> {blast_result}')
-
     utils.run_command(cmd, timing_log)
             
-
     elapsed = datetime.now() - starttime
     logging.info(f'Run BLASTP -- time taken {str(elapsed)}')
     return blast_result
@@ -57,6 +103,31 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
 
 def run_diamond(database_fasta, query_fasta, out_dir, timing_log, 
                 evalue=1E-6, max_target_seqs=2000, threads=4):
+    """
+    Make DIAMOND database and then run DIAMOND.
+
+    Parameters
+    ----------
+    database_fasta : path
+        fasta file of database
+    query_fasta : path
+        fasta file of query
+    out_dir : path
+        directory of blast output files (temp dir)
+    timing_log : path
+        path of time.log
+    evalue : float
+        evalue threshold
+    max_target_seq : int
+        number of max target sequences
+    threads : int
+        number of threads
+    
+    Returns
+    -------
+    path
+        path of DIAMOND result file
+    """    
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -87,6 +158,33 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
 def pairwise_alignment(
         diamond, database_fasta, query_fasta, out_dir, timing_log, 
         evalue=1E-6, max_target_seqs=2000, threads=4):
+    """
+    Make search tool, BLAST or DIAMOND.
+
+    Parameters
+    ----------
+    diamond : bool
+        True - Run by DIAMOND, False - Run by BLASTP
+    database_fasta : path
+        fasta file of database
+    query_fasta : path
+        fasta file of query
+    out_dir : path
+        directory of blast output files (temp dir)
+    timing_log : path
+        path of time.log
+    evalue : float
+        evalue threshold
+    max_target_seq : int
+        number of max target sequences
+    threads : int
+        number of threads
+    
+    Returns
+    -------
+    path
+        path of result file
+    """    
     # print out the number of sequences
     database_result = subprocess.run(
         f'grep ">" {database_fasta} | wc -l', 
@@ -122,6 +220,24 @@ def pairwise_alignment(
 
 
 def filter_blast_result(blast_result, out_dir, args):
+    """
+    Filter BLAST result to find matched sequences. There are 4 
+    criteria: identity, LD, AL, AS. Output the filtered blast file.
+
+    Parameters
+    ----------
+    blast_result : path
+        blast 1 result file
+    out_dir : path
+        directory of filtered fasta output
+    args : object
+        Command-line input arguments
+    
+    Returns
+    -------
+    filtered_blast_result : path
+        BLAST result file after filtering
+    """    
     filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
 
     with open(filtered_blast_result, 'w') as fh:
@@ -150,6 +266,23 @@ def filter_blast_result(blast_result, out_dir, args):
 
             
 def cluster_with_mcl(blast_result, out_dir, timing_log):
+    """
+    Run MCL to cluster sequences
+
+    Parameters
+    ----------
+    blast_result : path
+        path of filtered blast result file
+    out_dir
+        directory for MCL output file
+    timing_log : path
+        path of time.log
+    
+    Returns
+    path
+        path of MCL result file
+    -------
+    """
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = (f"mcxdeblast --m9 --score r --line-mode=abc {blast_result} "
@@ -162,6 +295,23 @@ def cluster_with_mcl(blast_result, out_dir, timing_log):
 
 
 def reinflate_clusters(cd_hit_clusters, mcl_file):
+    """
+    Bring back sequences that are excluded in CD-HIT step.
+
+    Parameters
+    ----------
+    cd_hit_clusters : dict
+        dictionary of CD-HIT clusters
+        {representative seq : [other sequences ids]}
+    mcl_file : path
+        path of MCL result file
+
+    Returns
+    -------
+    list 
+        list of complete clusters
+
+    """
     starttime = datetime.now()
 
     inflated_clusters = []

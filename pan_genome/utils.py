@@ -56,7 +56,21 @@ def run_command(cmd, timing_log=None):
         logger.error(f'Error running {cmd}')
         # raise Exception(f'Error running {cmd}')
 
-def parse_cluster_file(cd_hit_cluster_file): 
+def parse_cluster_file(cd_hit_cluster_file):
+    """
+    Parse CD-HIT cluster file.
+
+    Parameters
+    ----------
+    cd_hit_cluster_file : path
+        CD-HIT or CD-HIT-2D cluster file.
+    
+    Returns
+    -------
+    dictionary
+        dictionary of sequence clusters.
+        {representative sequence id: [other sequence ids]}
+    """
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:
         for line in fh:
@@ -84,40 +98,18 @@ def parse_cluster_file(cd_hit_cluster_file):
     return clusters_new
 
 
-def chunk_fasta_file(fasta_file, out_dir):
-    # starttime = datetime.now()
-    if os.path.exists(out_dir):
-        shutil.rmtree(out_dir)
-        os.makedirs(out_dir)
-    else:
-        os.makedirs(out_dir)
-    
-    chunked_file_list = []
-    chunk_number = 0
-    current_chunk_length = 0
-    chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-    chunked_fh = open(chunked_file, 'w')
-    chunked_file_list.append(chunked_file)
-    for seq_record in SeqIO.parse(fasta_file, "fasta"):
-        if current_chunk_length > 200000:
-            chunked_fh.close()
-            chunk_number += 1
-            current_chunk_length = 0
-            chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-            chunked_file_list.append(chunked_file)
-            chunked_fh = open(chunked_file, 'w')
-            SeqIO.write(seq_record, chunked_fh, 'fasta')
-        else:
-            chunked_file = os.path.join(out_dir, str(chunk_number) + '.seq')
-            SeqIO.write(seq_record, chunked_fh, 'fasta')
-            current_chunk_length += len(seq_record.seq)
-    
-    chunked_fh.close()
-    # elapsed = datetime.now() - starttime
-    # logging.info(f'Chunk fasta -- time taken {str(elapsed)}')
-    return chunked_file_list
-
 def create_fasta_exclude(fasta_file_list, exclude_list, output_file):
+    """
+    Create a new fasta from some input fasta, but exclude some sequences.
+
+    Parameters:
+    fasta_file_list : list
+        list of input fasta file path
+    exclude_list : list
+        list of excluding sequences
+    output_file : path
+        path of output fasta
+    """
     with open(output_file,'w') as fh_out:
         for fasta_file in fasta_file_list:
             if fasta_file == None:
@@ -140,6 +132,17 @@ def create_fasta_exclude(fasta_file_list, exclude_list, output_file):
 
 
 def create_fasta_include(fasta_file_list, include_list, output_file):
+    """
+    Create a new fasta from some input fasta, only include specific sequences.
+
+    Parameters:
+    fasta_file_list : list
+        list of input fasta file path
+    include_list : list
+        list of including sequences
+    output_file : path
+        path of output fasta
+    """
     with open(output_file,'w') as fh_out:
         for fasta_file in fasta_file_list:
             if fasta_file == None:
@@ -162,9 +165,22 @@ def create_fasta_include(fasta_file_list, include_list, output_file):
 
 
 def translate_protein(nu_fasta, pro_fasta, table):
-    premature = []
-    startstop = []
-    unknown = []
+    """
+    Translate nucleotide fasta file to protein fasta file.
+    Filter out sequences:
+        - with premature codon
+        - lack start and stop codon
+        - have more than 5% of unknown
+
+    Parameters
+    ----------
+    nu_fasta : path
+        input nucleotide fasta file
+    pro_fasta : path
+        output protein fasta file
+    table : int
+        codon table
+    """
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
             line = line.rstrip()
@@ -180,31 +196,17 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 # filter seq with premature codon
                 results = re.findall(r'\*', pro)
                 if len(results) > 1:
-                    premature.append(seq_id)
                     continue
                 
                 # filter seq lacking start and stop codon
                 if pro[0] != 'M' and pro[-1] != '*':
-                    startstop.append(seq_id)
                     continue
 
                 # filter seq which has more than 5% of unknown
                 results = re.findall(r'X', pro)
                 if len(results) / len (pro) > 0.05:
-                    unknown.append(seq_id)
                     continue
                 
                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')
-    # if len(premature)!= 0:
-    #     logger.info(
-    #           'Have premature codon - exclude {}'.format(
-    #               ', '.join(premature)))
-    # if len(startstop)!= 0:
-    #     logger.info(
-    #           'Lack both start and stop codon - exclude {}'.format(
-    #               ', '.join(startstop)))
-    # if len(unknown)!= 0:
-    #     logger.info(
-    #           'Too many unknowns - exclude {}'.format(', '.join(unknown)))

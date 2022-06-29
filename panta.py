@@ -215,7 +215,7 @@ def add_function(args):
     Parameters
     ----------
     args : object
-        Command-line input arguments.
+        Command-line input arguments
     """
     starttime = datetime.now()
 
@@ -241,7 +241,7 @@ def add_function(args):
     check_dir_exist(old_presence_absence_file)
     check_dir_exist(old_cluster_info_file)
     check_dir_exist(summary_file)
-    old_clusters = get_previous_cluster(summary_file)
+    previous_clusters = get_previous_cluster(summary_file)
     # collect new samples
     previous_sample_id = get_previous_sample_id(old_presence_absence_file)
     new_samples = collect_sample(args, previous_sample_id)
@@ -250,7 +250,7 @@ def add_function(args):
     
     # call clustering pipeline
     new_clusters, gene_dictionary = wrapper.run_add_pipeline(
-        new_samples, old_representative_fasta, old_clusters, 
+        new_samples, old_representative_fasta, previous_clusters, 
         collection_dir, temp_dir, args, timing_log)
     
     # annotate clusters, create gene alignment and output
@@ -258,15 +258,15 @@ def add_function(args):
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary)
-        output.update_output(old_clusters, new_clusters, 
+        output.update_output(previous_clusters, new_clusters, 
             new_clusters_annotation, gene_dictionary, 
             new_samples, temp_dir, collection_dir)
         new_representative_fasta = alignment.add_create_msa(
-            old_clusters, new_clusters, new_samples, 
+            previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
     else:
         new_representative_fasta = alignment.add_create_msa(
-            old_clusters, new_clusters, new_samples, 
+            previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
         new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
@@ -276,7 +276,7 @@ def add_function(args):
             timing_log = timing_log,
             threads = args.threads)
         output.update_output(
-            old_clusters, new_clusters, new_clusters_annotation, 
+            previous_clusters, new_clusters, new_clusters_annotation, 
             gene_dictionary, new_samples, temp_dir, collection_dir)
 
     # shutil.rmtree(temp_dir)

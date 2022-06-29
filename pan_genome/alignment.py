@@ -178,15 +178,15 @@ def main_create_msa(clusters, samples, collection_dir, baseDir, threads):
 
     return representative_fasta
 
-def add_create_msa(old_clusters, new_clusters, new_samples, 
+def add_create_msa(previous_clusters, new_clusters, new_samples, 
                    collection_dir, baseDir, threads):
     # find the cluster id for a specific gene
     gene_to_cluster_id = {} 
-    for i, cluster in enumerate(old_clusters):
+    for i, cluster in enumerate(previous_clusters):
         for gene in cluster:
             gene_to_cluster_id[gene] = i
     # continue the id of old clusters
-    for i, cluster in enumerate(new_clusters, len(old_clusters)): 
+    for i, cluster in enumerate(new_clusters, len(previous_clusters)): 
         for gene in cluster:
             gene_to_cluster_id[gene] = i
 
@@ -194,14 +194,14 @@ def add_create_msa(old_clusters, new_clusters, new_samples,
         new_samples, gene_to_cluster_id, collection_dir)
 
     # add new gene to existing clusters
-    cluster_id_list = range(0, len(old_clusters))
+    cluster_id_list = range(0, len(previous_clusters))
     old_representative_fasta = add_poa_in_parallel(
         cluster_id_list, collection_dir, baseDir, threads)
 
     # create msa for the new clusters
     cluster_id_list = range(
-        len(old_clusters), 
-        len(old_clusters) + len(new_clusters))
+        len(previous_clusters), 
+        len(previous_clusters) + len(new_clusters))
     out_dir = os.path.join(collection_dir, 'temp')
     new_representative_fasta = create_poa_in_parallel(
         cluster_id_list, collection_dir, baseDir, out_dir, threads)

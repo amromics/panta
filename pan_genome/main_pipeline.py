@@ -121,7 +121,7 @@ def pairwise_alignment(
     return blast_result
 
 
-def filter_blast_result(blast_result, out_dir, identity, LD, AS, AL):
+def filter_blast_result(blast_result, out_dir, args):
     filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
 
     with open(filtered_blast_result, 'w') as fh:
@@ -138,10 +138,10 @@ def filter_blast_result(blast_result, out_dir, identity, LD, AS, AL):
             align_short = alignment_length / short_seq
             align_long = alignment_length / long_seq
             
-            if (pident <= identity 
-                    or len_diff <= LD 
-                    or align_short <= AS 
-                    or align_long <= AL):
+            if (pident <= args.identity 
+                    or len_diff <= args.LD 
+                    or align_short <= args.AS 
+                    or align_long <= args.AL):
                 continue
 
             fh.write(line)

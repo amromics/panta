@@ -124,7 +124,7 @@ def create_output(clusters, clusters_annotation,
 
 
 def update_output(
-        old_clusters, new_clusters, new_clusters_annotation, 
+        previous_clusters, new_clusters, new_clusters_annotation, 
         gene_dictionary, new_samples, temp_dir, collection_dir):
     starttime = datetime.now()
     new_cluster_info_file = os.path.join(
@@ -163,7 +163,7 @@ def update_output(
             
             # update old row
             cluster_id = 0
-            for row_1, row_2, cluster in zip(reader_1, reader_2, old_clusters):
+            for row_1, row_2, cluster in zip(reader_1, reader_2, previous_clusters):
                 num_seq = int(row_1[4])
                 num_iso = int(row_1[3])
                 min_len = int(row_1[6])
@@ -308,7 +308,7 @@ def create_rtab(clusters, gene_dictionary, samples, out_dir):
     logging.info(f'Create Rtab -- time taken {str(elapsed)}')
     return rtab_file
 
-def update_rtab(old_file, old_clusters, new_clusters, 
+def update_rtab(old_file, previous_clusters, new_clusters, 
                 gene_dictionary, new_samples, temp_dir):
     starttime = datetime.now()
     new_file = os.path.join(temp_dir, 'gene_presence_absence.Rtab.gz')
@@ -327,7 +327,7 @@ def update_rtab(old_file, old_clusters, new_clusters,
         
         # update old row
         cluster_id = 0
-        for row, cluster in zip(reader, old_clusters):
+        for row, cluster in zip(reader, previous_clusters):
             cluster_id += 1
             new_sample_dict = {}
             for gene in cluster:

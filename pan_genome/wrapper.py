@@ -72,7 +72,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
         out_dir = temp_dir, 
-        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+        args=args)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
@@ -86,7 +86,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
     return clusters, gene_dictionary
 
 
-def run_add_pipeline(new_samples, old_represent_faa, old_clusters, 
+def run_add_pipeline(new_samples, old_represent_faa, previous_clusters, 
                      collection_dir, temp_dir, args, timing_log):
     """
     Add new samples to previous collection.
@@ -105,7 +105,7 @@ def run_add_pipeline(new_samples, old_represent_faa, old_clusters,
         list of new samples
     old_represent_faa : path
         path of reference_pangenome.fasta
-    old_clusters : list  of []
+    previous_clusters : list  of []
         each empty list correspond to a previous cluster
     collection_dir : path
         collection directory
@@ -133,23 +133,23 @@ def run_add_pipeline(new_samples, old_represent_faa, old_clusters,
         samples=new_samples,
         timing_log=timing_log)
 
-    unmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
+    notmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = old_represent_faa,
         database_2 = new_combined_faa,
         out_dir = temp_dir,
         threads=args.threads,
         timing_log=timing_log)
 
-    add_sample_pipeline.add_gene_cd_hit_2d(old_clusters, cd_hit_2d_clusters)
+    add_sample_pipeline.add_gene_cd_hit_2d(previous_clusters, cd_hit_2d_clusters)
 
     num_seq = subprocess.run(
-        f'grep ">" {unmatched_faa} | wc -l', 
+        f'grep ">" {notmatched_faa} | wc -l', 
         capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
         return None, None
 
-    unmatched_represent_faa, unmatched_clusters = main_pipeline.run_cd_hit(
-        faa_file=unmatched_faa,
+    notmatched_represent_faa, cd_hit_clusters = main_pipeline.run_cd_hit(
+        faa_file=notmatched_faa,
         out_dir=temp_dir,
         threads=args.threads,
         timing_log=timing_log)
@@ -157,20 +157,20 @@ def run_add_pipeline(new_samples, old_represent_faa, old_clusters,
     blast_1_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = old_represent_faa,
-        query_fasta = unmatched_represent_faa,
+        query_fasta = notmatched_represent_faa,
         out_dir = os.path.join(temp_dir, 'blast1'),
         timing_log=timing_log,
         evalue = args.evalue,
         max_target_seqs=2000,
         threads=args.threads)
 
-    remain_fasta, old_clusters = add_sample_pipeline.add_gene_blast(
-        old_clusters=old_clusters,
-        unmatched_clusters = unmatched_clusters,
+    remain_fasta = add_sample_pipeline.add_gene_blast(
+        previous_clusters=previous_clusters,
+        cd_hit_clusters = cd_hit_clusters,
         blast_result=blast_1_result, 
-        fasta_file=unmatched_represent_faa, 
+        fasta_file=notmatched_represent_faa, 
         out_dir=temp_dir,
-        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+        args=args)
 
     num_seq = subprocess.run(
         f'grep ">" {remain_fasta} | wc -l', 
@@ -191,7 +191,7 @@ def run_add_pipeline(new_samples, old_represent_faa, old_clusters,
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_2_result,
         out_dir = temp_dir, 
-        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+        args=args)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
@@ -199,7 +199,7 @@ def run_add_pipeline(new_samples, old_represent_faa, old_clusters,
         timing_log=timing_log)
 
     new_clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters = unmatched_clusters,
+        cd_hit_clusters = cd_hit_clusters,
         mcl_file=mcl_file)
 
     return new_clusters, gene_dictionary

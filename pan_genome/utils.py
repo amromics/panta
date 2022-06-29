@@ -1,9 +1,8 @@
 import os
 import logging
 import re
-import shutil
 
-from Bio import SeqIO
+
 from Bio.Seq import Seq
 
 

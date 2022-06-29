@@ -1,3 +1,6 @@
 data
 tests
 __pycache__
+examples/test/ouput
+db/bacteria/*.*
+db/hmm/*.h??

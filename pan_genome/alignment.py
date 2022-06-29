@@ -83,7 +83,7 @@ def create_poa(cluster_id, collection_dir, baseDir):
                 fasta_out.write_record(seq_record)
     # os.remove(result_file)
 
-    return cons_seq
+    return cluster_id, cons_seq
 
 def create_poa_in_parallel(clusters_id_list, collection_dir, 
                            baseDir, out_dir, threads):
@@ -96,7 +96,7 @@ def create_poa_in_parallel(clusters_id_list, collection_dir,
 
     representative_fasta = os.path.join(out_dir, 'reference_pangenome.fasta')
     with open(representative_fasta, 'w') as fh:
-        for cluster_id, cons_seq in enumerate(results):
+        for cluster_id, cons_seq in results:
             # remove dash character in consensus sequences
             cons_seq = re.sub('-', '', cons_seq) 
             new_record = SeqRecord(

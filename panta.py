@@ -6,6 +6,7 @@ import sys
 import gzip
 import csv
 from datetime import datetime
+import multiprocessing
 
 from pan_genome import wrapper
 from pan_genome import annotate
@@ -131,7 +132,7 @@ def add_function(args):
     starttime = datetime.now()
 
     # parse arguments
-    collection_dir = args.collection_dir
+    collection_dir = args.outdir
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
     
@@ -274,6 +275,8 @@ def main():
 
     # Execute parse_args()
     args = parser.parse_args()
+    if args.threads <= 0:
+        args.threads = multiprocessing.cpu_count()
 
     if args.pipeline == 'init':
         init_function(args)

@@ -28,7 +28,7 @@ The simplest method is installed via conda:
 
 conda create -y -c conda-forge -c defaults --name panta python=3.7 mamba
 
-source activate panta
+conda activate panta
 
 mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requirements.txt
 
@@ -65,4 +65,12 @@ optional arguments:
   -t THREADS, --threads THREADS
                         number of threads to use, 0 for all
   --table TABLE         codon table
+```
+
+## Examples
+```bash
+conda activate panta
+python panta.py -p init -g examples/test/init/*.gff.gz -o examples/test/ouput
+python panta.py -p add -b examples/test/add/*.fna.gz -o examples/test/ouput
+python panta.py -p add -b examples/test/add/*.gff.gz -o examples/test/ouput
 ```

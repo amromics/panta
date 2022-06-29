@@ -198,22 +198,17 @@ def process_single_sample_fasta(sample, out_dir, table):
 
 def extract_proteins(samples, out_dir, args, timing_log):
     starttime = datetime.now()
-    
-    if args.threads == 0:
-        threads = multiprocessing.cpu_count()
-    else:
-        threads = args.threads
 
-    with multiprocessing.Pool(processes=threads) as pool:
+    with multiprocessing.Pool(processes=args.threads) as pool:
         if args.fasta == None:
             results = pool.map(
-                partial(process_single_sample_gff, out_dir=out_dir, 
-                        table=args.table, timing_log=timing_log), 
+                partial(process_single_sample_gff, 
+                        out_dir=out_dir, table=args.table), 
                 samples)
         else:
             results = pool.map(
-                partial(process_single_sample_fasta, out_dir=out_dir, 
-                        table=args.table, timing_log=timing_log), 
+                partial(process_single_sample_fasta, 
+                        out_dir=out_dir, table=args.table), 
                 samples)
     
     gene_dictionary = {}

@@ -102,6 +102,7 @@ def collect_sample(args, previous_sample_id=None):
     samples.sort(key= lambda x:x['id'])
     return samples
 
+
 def get_previous_cluster(summary_file):
     """
     Re-create previous cluster.
@@ -127,6 +128,7 @@ def get_previous_cluster(summary_file):
     for i in range(0, num_of_clusters):
         previous_clusters.append([])
     return previous_clusters
+
 
 def get_previous_sample_id(presence_absence_file):
     """
@@ -174,8 +176,8 @@ def init_function(args):
         raise Exception(f'There must be at least 2 samples')
     
     # call clustering pipeline
-    clusters, gene_dictionary = wrapper.run_main_pipeline(
-        samples, collection_dir, temp_dir, baseDir, args, timing_log)
+    clusters, gene_dictionary = wrapper.run_init_pipeline(
+        samples, collection_dir, temp_dir, args, timing_log)
 
     # annotate clusters, create gene alignment and output
     if args.fasta == None:
@@ -206,7 +208,6 @@ def init_function(args):
     logging.info(f'Done -- time taken {str(elapsed)}')
 
     
-
 def add_function(args):
     """
     Parse arguments and run Add pipeline.
@@ -248,7 +249,7 @@ def add_function(args):
         raise Exception(f'There must be at least one new sample')
     
     # call clustering pipeline
-    new_clusters, gene_dictionary = wrapper.add_sample(
+    new_clusters, gene_dictionary = wrapper.run_add_pipeline(
         new_samples, old_representative_fasta, old_clusters, 
         collection_dir, temp_dir, args, timing_log)
     

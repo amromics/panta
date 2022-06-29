@@ -408,3 +408,50 @@ def create_core_gene_alignment(annotated_clusters, gene_dictionary,
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
 
 
+def run_gene_alignment(
+        annotated_clusters, gene_dictionary, samples, 
+        collection_dir, alignment, threads, timing_log):
+    
+    if alignment == None:
+        return
+
+    gene_to_cluster_name = {}
+    pan_ref_list = set()
+
+    clusters_dir = os.path.join(collection_dir, 'clusters')
+    if os.path.exists(clusters_dir):
+        shutil.rmtree(clusters_dir)
+        os.mkdir(clusters_dir)
+    else:
+        os.mkdir(clusters_dir)
+
+    for cluster_name in annotated_clusters:
+        cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
+        if not os.path.exists(cluster_dir):
+            os.mkdir(cluster_dir)
+        length_max = 0
+        representative = None
+        for gene in annotated_clusters[cluster_name]['gene_id']:
+            gene_to_cluster_name[gene] = cluster_name
+            length = gene_dictionary[gene][2]
+            if length > length_max:
+                representative = gene
+                length_max = length
+        pan_ref_list.add(representative)
+
+    if alignment == 'protein':
+        pa.create_nuc_file_for_each_cluster(
+            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        pa.create_pro_file_for_each_cluster(
+            samples, gene_to_cluster_name, collection_dir)
+        pa.run_mafft_protein_alignment(
+            annotated_clusters, collection_dir, threads, timing_log)
+        pa.create_nucleotide_alignment(annotated_clusters, collection_dir)
+    if alignment == 'nucleotide':
+        pa.create_nuc_file_for_each_cluster(
+            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        pa.run_mafft_nucleotide_alignment(
+            annotated_clusters, collection_dir, threads, timing_log)
+    
+    pa.create_core_gene_alignment(
+        annotated_clusters, gene_dictionary,samples,collection_dir)

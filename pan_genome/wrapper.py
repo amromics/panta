@@ -1,19 +1,129 @@
+# -*- coding: utf-8 -*-
+"""
+    Wrapper for pipelines
+"""
 import os
 import subprocess
-import shutil
 import logging
 
 from pan_genome import data_preparation
 from pan_genome import main_pipeline
 from pan_genome import add_sample_pipeline
 
-import pan_genome.post_analysis as pa
-
 logger = logging.getLogger(__name__)
 
-def add_sample(new_samples, old_represent_faa, old_clusters, 
-               collection_dir, temp_dir, args, timing_log):
-    
+
+def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
+    """
+    Run initial pan-genome analysis.
+
+    Pipeline description: 
+        (1) extract gene sequences
+        (2) cluster by CD-HIT
+        (3) All-agaist-all comparision by BLASTP
+        (4) cluster by Markov clustering algorithms - MCL
+
+    Parameters
+    ----------
+    samples : list
+        list of samples
+    collection_dir : path
+        collection directory
+    temp_dir : path
+        temporary directory
+    args : object
+        Command-line input arguments
+    timing_log : path
+        path of time.log
+
+    Returns
+    -------
+    clusters : list of list
+        list of sequence clusters
+    gene_dictionary : dictionary of {gene_id:(tuple)}
+        a data structure contains information of each gene.
+        Includes: sample, contig, length, name, product
+    """
+    gene_dictionary = data_preparation.extract_proteins(
+        samples,collection_dir,args, timing_log)
+
+    combined_faa = data_preparation.combine_proteins(
+        collection_dir= collection_dir, 
+        out_dir=temp_dir,
+        samples=samples,
+        timing_log=timing_log)
+
+    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+        faa_file=combined_faa,
+        out_dir=temp_dir,
+        threads=args.threads,
+        timing_log=timing_log)
+
+    blast_result = main_pipeline.pairwise_alignment(
+        diamond=args.diamond,
+        database_fasta = cd_hit_represent_fasta,
+        query_fasta = cd_hit_represent_fasta,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        timing_log=timing_log,
+        evalue = args.evalue,
+        max_target_seqs=2000,
+        threads=args.threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir, 
+        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = filtered_blast_result,
+        timing_log=timing_log)
+
+    clusters = main_pipeline.reinflate_clusters(
+        cd_hit_clusters=cd_hit_clusters,
+        mcl_file=mcl_file)
+
+    return clusters, gene_dictionary
+
+
+def run_add_pipeline(new_samples, old_represent_faa, old_clusters, 
+                     collection_dir, temp_dir, args, timing_log):
+    """
+    Add new samples to previous collection.
+
+    Pipeline description: 
+        (1) extract gene sequences of new samples
+        (2) match new sequence with previous clusters by CD-HIT-2D
+        (3) cluster the remain sequences by CD-HIT 
+        (4) match new sequence with previous clusters by BLASTP
+        (5) All-agaist-all comparision by BLASTP
+        (6) cluster by Markov clustering algorithms - MCL
+
+    Parameters
+    ----------
+    new_samples : list
+        list of new samples
+    old_represent_faa : path
+        path of reference_pangenome.fasta
+    old_clusters : list  of []
+        each empty list correspond to a previous cluster
+    collection_dir : path
+        collection directory
+    temp_dir : path
+        temporary directory
+    args : object
+        Command-line input arguments
+    timing_log : path
+        path of time.log
+
+    Returns
+    -------
+    new_clusters : list of list
+        list of new clusters
+    gene_dictionary : dictionary of {gene_id:(tuple)}
+        a data structure contains information of each gene.
+        Includes: sample, contig, length, name, product
+    """
     gene_dictionary = data_preparation.extract_proteins(
         new_samples,collection_dir,args, timing_log)
     
@@ -93,99 +203,3 @@ def add_sample(new_samples, old_represent_faa, old_clusters,
         mcl_file=mcl_file)
 
     return new_clusters, gene_dictionary
-
-
-def run_main_pipeline(samples, collection_dir, temp_dir, 
-                      baseDir, args, timing_log):
-    
-    gene_dictionary = data_preparation.extract_proteins(
-        samples,collection_dir,args, timing_log)
-
-    combined_faa = data_preparation.combine_proteins(
-        collection_dir= collection_dir, 
-        out_dir=temp_dir,
-        samples=samples,
-        timing_log=timing_log)
-
-    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
-        faa_file=combined_faa,
-        out_dir=temp_dir,
-        threads=args.threads,
-        timing_log=timing_log)
-
-    blast_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
-        database_fasta = cd_hit_represent_fasta,
-        query_fasta = cd_hit_represent_fasta,
-        out_dir = os.path.join(temp_dir, 'blast'),
-        timing_log=timing_log,
-        evalue = args.evalue,
-        max_target_seqs=2000,
-        threads=args.threads)
-
-    filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_result,
-        out_dir = temp_dir, 
-        identity=args.identity, LD=args.LD, AS=args.AS, AL=args.AL)
-
-    mcl_file = main_pipeline.cluster_with_mcl(
-        out_dir = temp_dir,
-        blast_result = filtered_blast_result,
-        timing_log=timing_log)
-
-    clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=cd_hit_clusters,
-        mcl_file=mcl_file)
-
-    return clusters, gene_dictionary
-
-    
-
-
-def run_gene_alignment(
-        annotated_clusters, gene_dictionary, samples, 
-        collection_dir, alignment, threads, timing_log):
-    
-    if alignment == None:
-        return
-
-    gene_to_cluster_name = {}
-    pan_ref_list = set()
-
-    clusters_dir = os.path.join(collection_dir, 'clusters')
-    if os.path.exists(clusters_dir):
-        shutil.rmtree(clusters_dir)
-        os.mkdir(clusters_dir)
-    else:
-        os.mkdir(clusters_dir)
-
-    for cluster_name in annotated_clusters:
-        cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
-        if not os.path.exists(cluster_dir):
-            os.mkdir(cluster_dir)
-        length_max = 0
-        representative = None
-        for gene in annotated_clusters[cluster_name]['gene_id']:
-            gene_to_cluster_name[gene] = cluster_name
-            length = gene_dictionary[gene][2]
-            if length > length_max:
-                representative = gene
-                length_max = length
-        pan_ref_list.add(representative)
-
-    if alignment == 'protein':
-        pa.create_nuc_file_for_each_cluster(
-            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        pa.create_pro_file_for_each_cluster(
-            samples, gene_to_cluster_name, collection_dir)
-        pa.run_mafft_protein_alignment(
-            annotated_clusters, collection_dir, threads, timing_log)
-        pa.create_nucleotide_alignment(annotated_clusters, collection_dir)
-    if alignment == 'nucleotide':
-        pa.create_nuc_file_for_each_cluster(
-            samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        pa.run_mafft_nucleotide_alignment(
-            annotated_clusters, collection_dir, threads, timing_log)
-    
-    pa.create_core_gene_alignment(
-        annotated_clusters, gene_dictionary,samples,collection_dir)

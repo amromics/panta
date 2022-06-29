@@ -9,8 +9,42 @@ from Bio.Seq import Seq
 
 logger = logging.getLogger(__name__)
 
+def check_dir_exist(path):
+    """
+    Check and raise exception if a directory does not exit.
+
+    Parameters
+    ----------
+    path : str
+        path
+    """
+    if not os.path.exists(path):
+        raise Exception(f'{path} does not exist')
+
+def check_create_folder(path):
+    """
+    Check and create folder if it does not exit.
+
+    Parameters
+    ----------
+    path : str
+        path
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 
 def run_command(cmd, timing_log=None):
+    """
+    Run external command. Log error if it is failed.
+
+    Parameters
+    ----------
+    cmd : str
+        command
+    time_log : path
+        path of time.log
+    """
     if timing_log == None:
         ret = os.system(cmd)
     else:

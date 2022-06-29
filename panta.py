@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+    The entry point
+"""
 import argparse
 import os
 import shutil
@@ -12,6 +17,7 @@ from pan_genome import wrapper
 from pan_genome import annotate
 from pan_genome import alignment
 from pan_genome import output
+from pan_genome.utils import check_dir_exist, check_create_folder
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -19,19 +25,43 @@ logging.basicConfig(
     datefmt='%I:%M:%S')
 logger = logging.getLogger(__name__)
 
-def collect_sample(sample_id_list, args):
+def collect_sample(args, previous_sample_id=None):
+    """
+    Collect sample from command-line input.
+
+    There are three ways to input data: tsv file (-f/--tsv), gff files 
+    (-g/--gff) and fasta files (-b/--fasta). Samples is extracted by 
+    only one of these ways, followed the mentioned order.
+
+    Parameters
+    ----------
+    args : object
+        Command-line input arguments.
+    previous_sample_id : list of str, default 'None'
+        Existing sample ID from the previous collection. 
+        It is None if we run the init pipeline.
+    Returns
+    -------
+    list 
+        List of sample from the command line. 
+        The list is sorted by sample ID. 
+        Each sample is a dictionary {'id':, 'gff_file':, 'assembly':} 
+    """
+    ## TODO Accept both gff and fasta file at the same time.
     samples = []
+    if previous_sample_id == None:
+        previous_sample_id = []
     if args.tsv != None:
         with open(args.tsv,'r') as fh:
             csv_reader = csv.reader(fh, delimiter='\t')
             for row in csv_reader:
                 gff = row[1]
                 sample_id = row[0]
-                if sample_id in sample_id_list:
+                if sample_id in previous_sample_id:
                     logging.info(f'{sample_id} already exists -- skip')
                     continue
                 else:
-                    sample_id_list.append(sample_id)
+                    previous_sample_id.append(sample_id)
                 assembly = row[2]
                 if row[2] == '':
                     assembly = None
@@ -45,11 +75,11 @@ def collect_sample(sample_id_list, args):
                 sample_id = base_name.rsplit('.', 2)[0]
             else:
                 sample_id = base_name.rsplit('.', 1)[0]
-            if sample_id in sample_id_list:
+            if sample_id in previous_sample_id:
                 logging.info(f'{sample_id} already exists -- skip')
                 continue
             else:
-                sample_id_list.append(sample_id)
+                previous_sample_id.append(sample_id)
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
     elif args.fasta != None:
             fasta_list = args.fasta
@@ -59,11 +89,11 @@ def collect_sample(sample_id_list, args):
                     sample_id = base_name.rsplit('.', 2)[0]
                 else:
                     sample_id = base_name.rsplit('.', 1)[0]
-                if sample_id in sample_id_list:
+                if sample_id in previous_sample_id:
                     logging.info(f'{sample_id} already exists -- skip')
                     continue
                 else:
-                    sample_id_list.append(sample_id)
+                    previous_sample_id.append(sample_id)
                 samples.append(
                     {'id':sample_id, 'gff_file':None, 'assembly':fasta})    
     else:
@@ -72,32 +102,82 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
+def get_previous_cluster(summary_file):
+    """
+    Re-create previous cluster.
+
+    Parameters
+    ----------
+    summary_file : path
+        summary file of previous pan-genome.
+    
+    Returns
+    -------
+    list
+        a list of []
+        each empty list correspond to a previous cluster.
+
+    """
+    with open(summary_file, 'r') as fh:
+        for line in fh:
+            cells = line.rstrip().split('\t')
+            if cells[0] == "Total genes":
+                num_of_clusters = int(cells[2])
+    previous_clusters = [] 
+    for i in range(0, num_of_clusters):
+        previous_clusters.append([])
+    return previous_clusters
+
+def get_previous_sample_id(presence_absence_file):
+    """
+    Get previous sample ID.
+
+    Parameters
+    ----------
+    presence_absence_file : path
+        Gene presence absence file of previous pan-genome.
+    
+    Returns
+    -------
+    list
+        a list of previous sample ID.
+    """
+    with gzip.open(presence_absence_file, 'rt') as fh:
+        csv.field_size_limit(sys.maxsize)
+        reader = csv.reader(fh, delimiter=',')
+        header = next(reader)
+        previous_sample_id = header[1:] # exclude ID column
+        return previous_sample_id
+
+
 def init_function(args):
+    """
+    Parse arguments and run Init pipeline.
+
+    Parameters
+    ----------
+    args : object
+        Command-line input arguments.
+    """
     starttime = datetime.now()
 
     # parse arguments
     collection_dir = args.outdir
-    if not os.path.exists(collection_dir):
-        os.makedirs(collection_dir)
-    
-    timing_log = os.path.join(collection_dir, 'time.log')
-
     temp_dir = os.path.join(collection_dir, 'temp')
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)   
-    
+    check_create_folder(collection_dir)
+    check_create_folder(temp_dir)
+    timing_log = os.path.join(collection_dir, 'time.log')
     baseDir = os.path.dirname(os.path.realpath(__file__))
-
     # collect samples
-    sample_id_list = []
-    samples = collect_sample(sample_id_list, args)
+    samples = collect_sample(args)
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
     
-    # pipeline
+    # call clustering pipeline
     clusters, gene_dictionary = wrapper.run_main_pipeline(
         samples, collection_dir, temp_dir, baseDir, args, timing_log)
 
+    # annotate clusters, create gene alignment and output
     if args.fasta == None:
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
@@ -107,7 +187,6 @@ def init_function(args):
             gene_dictionary, samples, collection_dir)
         representative_fasta = alignment.main_create_msa(
             clusters, samples, collection_dir, baseDir, args.threads)
-    
     else:        
         representative_fasta = alignment.main_create_msa(
             clusters, samples, collection_dir, baseDir, args.threads)
@@ -121,82 +200,59 @@ def init_function(args):
         output.create_output(
             clusters, clusters_annotation, 
             gene_dictionary, samples, collection_dir)
-    # shutil.rmtree(temp_dir)
-        
+    
+    # shutil.rmtree(temp_dir)    
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
     
 
 def add_function(args):
+    """
+    Parse arguments and run Add pipeline.
+
+    Parameters
+    ----------
+    args : object
+        Command-line input arguments.
+    """
     starttime = datetime.now()
 
     # parse arguments
     collection_dir = args.outdir
-    if not os.path.exists(collection_dir):
-        raise Exception(f'{collection_dir} does not exist')
-    
-    timing_log = os.path.join(collection_dir, 'time.log')
-    
     temp_dir = os.path.join(collection_dir, 'temp')
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir)
-    else:
-        os.makedirs(temp_dir)    
-    
+    check_dir_exist(collection_dir)
+    check_create_folder(temp_dir)
+    timing_log = os.path.join(collection_dir, 'time.log')
     baseDir = os.path.dirname(os.path.realpath(__file__))
-
     # Check required files
     old_representative_fasta = os.path.join(
         collection_dir, 'reference_pangenome.fasta')
-    if not os.path.isfile(old_representative_fasta):
-        raise Exception(f'{old_representative_fasta} does not exist')
-    
     clusters_dir = os.path.join(collection_dir, 'clusters')
-    if not os.path.exists(clusters_dir):
-        raise Exception(f'{clusters_dir} does not exist')
-
     samples_dir = os.path.join(collection_dir, 'samples')
-    if not os.path.exists(samples_dir):
-        raise Exception(f'{samples_dir} does not exist')
-
     old_presence_absence_file = os.path.join(
         collection_dir, 'gene_presence_absence.csv.gz')
-    if not os.path.isfile(old_presence_absence_file):
-        raise Exception(f'{old_presence_absence_file} does not exist')
-
     old_cluster_info_file = os.path.join(collection_dir, 'cluster_info.csv')
-    if not os.path.isfile(old_cluster_info_file):
-        raise Exception(f'{old_cluster_info_file} does not exist')
-    
     summary_file = os.path.join(collection_dir, 'summary_statistics.txt')
-    with open(summary_file, 'r') as fh:
-        for line in fh:
-            cells = line.rstrip().split('\t')
-            if cells[0] == "Total genes":
-                num_of_clusters = int(cells[2])
-                # create a list contains empty lists, used to grab new seqs
-                old_clusters = [] 
-                for i in range(0, num_of_clusters):
-                    old_clusters.append([])
-    
-    with gzip.open(old_presence_absence_file, 'rt') as fh:
-        csv.field_size_limit(sys.maxsize)
-        reader = csv.reader(fh, delimiter=',')
-        header = next(reader)
-        sample_id_list = header[1:] # exclude ID column
-    
+    check_dir_exist(old_representative_fasta)
+    check_dir_exist(clusters_dir)
+    check_dir_exist(samples_dir)
+    check_dir_exist(old_presence_absence_file)
+    check_dir_exist(old_cluster_info_file)
+    check_dir_exist(summary_file)
+    old_clusters = get_previous_cluster(summary_file)
     # collect new samples
-    new_samples = collect_sample(sample_id_list, args)
+    previous_sample_id = get_previous_sample_id(old_presence_absence_file)
+    new_samples = collect_sample(args, previous_sample_id)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
     
-    # pipeline
+    # call clustering pipeline
     new_clusters, gene_dictionary = wrapper.add_sample(
         new_samples, old_representative_fasta, old_clusters, 
         collection_dir, temp_dir, args, timing_log)
     
+    # annotate clusters, create gene alignment and output
     if args.fasta == None:
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
@@ -223,11 +279,11 @@ def add_function(args):
             gene_dictionary, new_samples, temp_dir, collection_dir)
 
     # shutil.rmtree(temp_dir)
-
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
 def main():
+    """Setup command-line interface"""
     parser = argparse.ArgumentParser()
     pipeline_help = """
         Select the pipeline: 

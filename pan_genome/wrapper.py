@@ -92,10 +92,10 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         output.create_output(
             clusters, clusters_annotation, 
             gene_dictionary, samples, collection_dir)
-        representative_fasta = alignment.main_create_msa(
+        representative_fasta = alignment.create_msa_init_pipeline(
             clusters, samples, collection_dir, baseDir, args.threads)
     else:        
-        representative_fasta = alignment.main_create_msa(
+        representative_fasta = alignment.create_msa_init_pipeline(
             clusters, samples, collection_dir, baseDir, args.threads)
         clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=clusters,
@@ -230,11 +230,11 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         output.update_output(previous_clusters, new_clusters, 
             new_clusters_annotation, gene_dictionary, 
             new_samples, temp_dir, collection_dir)
-        new_representative_fasta = alignment.add_create_msa(
+        new_representative_fasta = alignment.create_msa_add_pipeline(
             previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
     else:
-        new_representative_fasta = alignment.add_create_msa(
+        new_representative_fasta = alignment.create_msa_add_pipeline(
             previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
         new_clusters_annotation = annotate.annotate_cluster_fasta(

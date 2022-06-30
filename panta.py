@@ -174,7 +174,7 @@ def init_function(args):
     
     # call Init pipeline
     wrapper.run_init_pipeline(
-        samples, collection_dir, temp_dir, args, timing_log)
+        samples, collection_dir, temp_dir, baseDir, args, timing_log)
 
     # shutil.rmtree(temp_dir)    
     elapsed = datetime.now() - starttime
@@ -224,7 +224,7 @@ def add_function(args):
     # call Add pipeline
     wrapper.run_add_pipeline(
         new_samples, old_representative_fasta, previous_clusters, 
-        collection_dir, temp_dir, args, timing_log)
+        collection_dir, temp_dir, baseDir, args, timing_log)
     
     # shutil.rmtree(temp_dir)
     elapsed = datetime.now() - starttime

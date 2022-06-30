@@ -10,12 +10,33 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 def setup_db(baseDir, timing_log, force=False):
+    """
+    Prepare databases if they have not been done (makeblastdb and hmmpress).
+
+    Parameters
+    ----------
+    baseDir : path
+        path of panta, which contains the database
+    timing_log : path
+        path of time.log
+    force : bool
+        True - force to prepare the database again, even if it has been done.
+        False - do not prepare the database again.
+    
+    Returns
+    -------
+    bacteria_db : list of dict
+        information of database and its parameters
+    hmm_db : path
+        path to HAPMAP hmm database
+    """
     db_dir = os.path.join(baseDir, 'db')
+    
+    # Prepare blast database
     bacteria_db = [
       {'name':"AMR",'dir':None,'tool':'blastp','MINCOV':90,'EVALUE':1E-300},
       {'name':"IS",'dir':None,'tool': 'blastp','MINCOV':90,'EVALUE':1E-30},
       {'name':"sprot",'dir':None,'tool':'blastp','MINCOV':None,'EVALUE':None}]
-    
     for db in bacteria_db:
         name = db['name']
         fasta = os.path.join(db_dir, 'bacteria', name)
@@ -29,34 +50,46 @@ def setup_db(baseDir, timing_log, force=False):
         cmd = (f'makeblastdb -hash_index -dbtype prot -in {fasta} '
                '-logfile /dev/null')
         utils.run_command(cmd, timing_log)
-                    
 
-
-    hmm_db =glob(os.path.join(db_dir, 'hmm', '*.hmm'))
-    for hmm in hmm_db:
-        database_file = hmm + '.h3i'
-        if os.path.isfile(database_file) and force==False:
-            # logging.info(f'Pressing HMM database {hmm} - skipping')
-            continue
-        if not os.path.isfile(hmm):
-            raise Exception(f'Database {hmm} does not exist')
-        cmd = f'hmmpress {hmm} > /dev/null'
+    # Prepare hmm database                
+    hmm_db = os.path.join(db_dir, 'hmm', 'HAMAP.hmm')
+    database_file = hmm_db + '.h3i'
+    if not os.path.isfile(database_file) or force==True:
+        # logging.info(f'Pressing HMM database {hmm} - skipping')
+        if not os.path.isfile(hmm_db):
+            raise Exception(f'Database {hmm_db} does not exist')
+        cmd = f'hmmpress {hmm_db} > /dev/null'
         utils.run_command(cmd, timing_log)
-                    
 
-    return bacteria_db, hmm_db[0]
+    return bacteria_db, hmm_db
 
 
-def run_parallel(faa_file, threads, database, out_dir, timing_log):
+def search_sequence(faa_file, threads, database, out_dir, timing_log):
+    """
+    Search sequence in database. Use BLASTP or HMMER3.
+
+    Parameters
+    ----------
+    faa_file : path
+        fasta file contains search sequences
+    threads : int
+        number of threads
+    database : dict
+        a data structure contain information of the database, parameters
+    out_dir : path
+        output directory
+    timing_log : path
+        path to time.log
+
+    Returns
+    -------
+    out_file : path
+        path of search result file.
+    """
     name = database['name']
     out_file = os.path.join(out_dir, name + '.out')
     faa_bytes = os.path.getsize(faa_file)
-    if threads > 0:
-        bsize = int(faa_bytes / threads / 2)
-    else:
-        ncpu = multiprocessing.cpu_count()
-        bsize = int(faa_bytes / ncpu / 2)
-    
+    bsize = int(faa_bytes / threads / 2)
     if database['tool'] == 'blastp':
         db_dir = database['dir']
         evalue = database['EVALUE']
@@ -72,13 +105,23 @@ def run_parallel(faa_file, threads, database, out_dir, timing_log):
                f"--block {bsize} --recstart '>' --pipe hmmscan --noali "
                f"--notextw --acc -E {evalue} --cpu 1 {db_dir} /dev/stdin "
                f"> {out_file} 2> /dev/null")
-
     utils.run_command(cmd, timing_log)
-            
-
     return out_file
 
-def parse_search_result(result_file, tool, dictionary):
+def parse_search_result(result_file, tool, search_result):
+    """
+    Parse the search result.
+
+    Parameters
+    ----------
+    result_file : path
+        path to search result file
+    tool : {blastp, hmmer3}
+        to choose the correct format of result search file
+    search_result : dict
+        a dictionary contain search result
+        {query_id: {sseqid, gene_name, gene_product}}
+    """
     if tool == 'blastp':
         fmt = 'blast-text'
     elif tool == 'hmmer3':
@@ -97,12 +140,43 @@ def parse_search_result(result_file, tool, dictionary):
                 product = desc[2]
             else:
                 product = None
-            dictionary[qseqid] = {
+            search_result[qseqid] = {
                 'id':sseqid, 'gene':gene_name, 'product':product}
 
     
 def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir, 
                            baseDir, timing_log, threads):
+    """
+    Annotate gene clusters if the input data is genome assembly.
+
+    A representative sequence is chosen from each cluster. It will be
+    searched against some known database to find annotation information 
+    for gene clusters. The workflow and databases is from Prokka.
+    + prepare the databases
+    + search iteratively through the databases
+    + parse search result and extract annotation information
+
+    Paramters
+    ---------
+    unlabeled_clusters : list of list
+        list of sequences IDs of each cluster
+    rep_fasta : path
+        a fasta file containing representative sequences of clusters
+    temp_dir : path
+        temporary directory
+    baseDir : path
+        path of panta, which contains the database 
+    timing_log : path
+        path of time.log
+    threads : int
+        number of threads
+
+    Returns
+    -------
+    clusters_annotation : list
+        list of annotation information of each cluster
+        list of [cluster_name, cluster_product]   
+    """
     starttime = datetime.now()
     
     out_dir = os.path.join(temp_dir, 'annotate')
@@ -117,7 +191,7 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir,
     bacteria_db[2]['EVALUE'] = evalue
     hmm_db = {'name':"hmm",'dir':hmm,'tool': 'hmmer3','EVALUE': evalue}
 
-    # order database
+    # order databases
     ordered_database = []    
     ordered_database.extend(bacteria_db)
     ordered_database.append(hmm_db)
@@ -127,16 +201,19 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir,
     search_result = {}
     logging.info(f'Total number of genes: {len(unlabeled_clusters)}')
     for database in ordered_database:
-        out_file = run_parallel(
+        # search
+        out_file = search_sequence(
             faa_file, threads, database, out_dir, timing_log)
+        # parse result
         parse_search_result(out_file, database['tool'], search_result)
+        # filter out found sequences
         filter_faa = os.path.join(out_dir, database['name'] + '.filter.faa')
         utils.create_fasta_exclude(
             [faa_file], list(search_result.keys()), filter_faa)
         faa_file = filter_faa
         logging.info(f'Number of genes found: {len(search_result)}')
 
-    
+    # Extract cluster annotation
     clusters_annotation = []
     for cluster in unlabeled_clusters:
         cluster_name = ''
@@ -157,7 +234,27 @@ def annotate_cluster_fasta(unlabeled_clusters, rep_fasta, temp_dir,
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return clusters_annotation
 
+
 def annotate_cluster_gff(unlabeled_clusters, gene_dictionary):
+    """
+    Annotate gene clusters if input data is genome annotation (GFF).
+    + cluster's name is the most popular gene name in this cluster.
+    + cluster's product includes all gene products in this cluster.
+
+    Parameters
+    ----------
+    unlabeled_clusters : list of list
+        list of sequences IDs of each cluster
+    gene_dictionary : dict
+        contain information of each gene of all samples
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+
+    Returns
+    -------
+    clusters_annotation : list
+        list of annotation information of each cluster
+        list of [cluster_name, cluster_product]        
+    """
     starttime = datetime.now()
 
     clusters_annotation = []

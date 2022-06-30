@@ -11,6 +11,19 @@ from Bio import SeqIO
 logger = logging.getLogger(__name__)
 
 def classify_cluster(num_sample, total, count):
+    """
+    Clasify a cluster into core, softcore, shell and cloud gene.
+
+    Parameters
+    ----------
+    num_sample : int
+        number of sample in this cluster
+    total : int
+        total number of sample in collection
+    count : list
+        a data structure to keep track the number of 
+        core, softcore, shell and cloud gene.
+    """
     percent = num_sample / total
     if percent >= 0.99:
         count[0] += 1 # core
@@ -21,31 +34,63 @@ def classify_cluster(num_sample, total, count):
     else:
         count[3] += 1 # cloud
 
-def write_summary(count_list, out_dir):
-    total = sum(count_list)
+def write_summary(count, out_dir):
+    """
+    Write the summary file.
+
+    Parameters
+    ----------
+    count : list
+        a data structure to keep track the number of 
+        core, softcore, shell and cloud gene.
+    out_dir : path
+        directory of output file.    
+    """
+    total = sum(count)
     summary_file = os.path.join(out_dir, 'summary_statistics.txt')
     with open(summary_file, 'w') as fh:
         fh.write('Core genes' + '\t' + '(99% <= strains <= 100%)' 
-                 + '\t'+ str(count_list[0]) + '\n')
+                 + '\t'+ str(count[0]) + '\n')
         fh.write('Soft core genes' + '\t' + '(95% <= strains < 99%)' 
-                 + '\t'+ str(count_list[1]) + '\n')
+                 + '\t'+ str(count[1]) + '\n')
         fh.write('Shell genes' + '\t' + '(15% <= strains < 95%)' 
-                 + '\t' + str(count_list[2]) + '\n')
+                 + '\t' + str(count[2]) + '\n')
         fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' 
-                 + '\t'+ str(count_list[3]) + '\n')
+                 + '\t'+ str(count[3]) + '\n')
         fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' 
                  + '\t'+ str(total))
 
 def create_output(clusters, clusters_annotation, 
                   gene_dictionary, samples, out_dir):
+    """
+    Create 3 output file:
+        - cluster_info.csv
+        - gene_presence_absence.csv.gz
+        - summary_statistics.txt
+    
+    Parameters
+    ----------
+    clusters : list of list
+        list of sequence IDs of each cluster
+    clusters_annotation : list of list
+        list of annotation information of each cluster
+    gene dictionary : dict
+        contain information of each gene
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    samples : list of dict
+        list of samples information {id: , gff_file: , assembly: }
+    out_dir : path
+        output directory
+    """
     starttime = datetime.now()
-
+    # output files
     cluster_info_file = os.path.join(out_dir, 'cluster_info.csv')
     presence_absence_file = os.path.join(
         out_dir, 'gene_presence_absence.csv.gz')
     
-    # 4 value corespond to count of core, softcore, shell, cloud gene
-    count_list = [0] * 4 
+    # count: a data structure to keep track the number of 
+    # core, softcore, shell and cloud gene.
+    count = [0] * 4 
 
     with open(cluster_info_file, 'w') as fh_1, \
          gzip.open(presence_absence_file, 'wt') as fh_2:
@@ -87,7 +132,7 @@ def create_output(clusters, clusters_annotation,
             # No. isolates
             num_sample = len(sample_dict)
             row_1.append(num_sample)
-            classify_cluster(num_sample, total_sample, count_list)
+            classify_cluster(num_sample, total_sample, count)
             # No. sequences
             row_1.append(len(cluster))
             # Avg sequences per isolate
@@ -116,8 +161,8 @@ def create_output(clusters, clusters_annotation,
             writer_2.writerow(row_2)
 
             cluster_id += 1
-    
-    write_summary(count_list, out_dir)
+    # write summary file
+    write_summary(count, out_dir)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create output -- time taken {str(elapsed)}')
@@ -126,7 +171,32 @@ def create_output(clusters, clusters_annotation,
 def update_output(
         previous_clusters, new_clusters, new_clusters_annotation, 
         gene_dictionary, new_samples, temp_dir, collection_dir):
+    """
+    Update 2 output file:
+        - cluster_info.csv
+        - gene_presence_absence.csv.gz
+    Write a new summary_statistics.txt file
+    
+    Parameters
+    ----------
+    previous_clusters : list of list
+        list of sequence IDs of previous clusters
+    new_clusters : list of list
+        list of sequence IDs of new clusters
+    new_clusters_annotation : list of list
+        list of annotation information of new clusters
+    gene dictionary : dict
+        contain information of each gene
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    new_samples : list of dict
+        list of new samples {id: , gff_file: , assembly: }
+    temp_dir : path
+        temporary directory
+    collection_dir : path
+        collection directory
+    """    
     starttime = datetime.now()
+    
     new_cluster_info_file = os.path.join(
         temp_dir, 'cluster_info.csv')
     new_presence_absence_file = os.path.join(
@@ -136,8 +206,9 @@ def update_output(
     old_presence_absence_file = os.path.join(
         collection_dir, 'gene_presence_absence.csv.gz')
     
-    # 4 value corespond to count of core, softcore, shell, cloud gene
-    count_list = [0] * 4 
+    # count: a data structure to keep track the number of 
+    # core, softcore, shell and cloud gene.
+    count = [0] * 4 
 
     with open(old_cluster_info_file, 'r') as in_fh_1, \
          gzip.open(old_presence_absence_file, 'rt') as in_fh_2:
@@ -161,7 +232,7 @@ def update_output(
             writer_2.writerow(header_2)
             total_sample = len(header_2) - 1 # dont count id column
             
-            # update old row
+            # update row of previous clusters
             cluster_id = 0
             for row_1, row_2, cluster in zip(reader_1, reader_2, previous_clusters):
                 num_seq = int(row_1[4])
@@ -183,7 +254,7 @@ def update_output(
                 # No. isolates
                 num_sample = num_iso + len(new_sample_dict)
                 row_1[3] = num_sample
-                classify_cluster(num_sample, total_sample, count_list)
+                classify_cluster(num_sample, total_sample, count)
                 # No. sequences
                 row_1[4] = num_seq + len(cluster)
                 # Avg sequences per isolate
@@ -213,7 +284,7 @@ def update_output(
                 cluster_id += 1
 
 
-            # write new row
+            # write new row of new clusters
             for cluster, cluster_annotation in zip(new_clusters, 
                                                    new_clusters_annotation):
                 row_1 = []
@@ -235,7 +306,7 @@ def update_output(
                 # No. isolates
                 num_sample = len(sample_dict)
                 row_1.append(num_sample)
-                classify_cluster(num_sample, total_sample, count_list)
+                classify_cluster(num_sample, total_sample, count)
                 # No. sequences
                 row_1.append(len(cluster))
                 # Avg sequences per isolate
@@ -269,7 +340,8 @@ def update_output(
     shutil.move(new_cluster_info_file, old_cluster_info_file)
     shutil.move(new_presence_absence_file, old_presence_absence_file)
     
-    write_summary(count_list, collection_dir)
+    # write new summary file
+    write_summary(count, collection_dir)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Update output -- time taken {str(elapsed)}')
@@ -364,92 +436,6 @@ def update_rtab(old_file, previous_clusters, new_clusters,
     elapsed = datetime.now() - starttime
     logging.info(f'Update Rtab -- time taken {str(elapsed)}')
     return old_file
-
-
-def create_summary(rtab_file, out_dir):
-    starttime = datetime.now()
-    num_core = 0
-    num_soft_core = 0
-    num_shell = 0
-    num_cloud = 0
-    with gzip.open(rtab_file, 'rt') as fh:
-        for line in fh:
-            line = line.rstrip()
-            cells = line.split('\t')
-            if cells[0] == 'Gene':
-                num_sample = len(cells) - 1
-                continue
-            num_zero = 0
-            for cell in cells:
-                if cell == '0':
-                    num_zero += 1
-            percent = (num_sample - num_zero) / num_sample
-            if percent >= 0.99:
-                num_core += 1
-            elif percent >= 0.95:
-                num_soft_core += 1
-            elif percent >= 0.15:
-                num_shell += 1
-            else:
-                num_cloud += 1
-    total = num_core + num_soft_core + num_shell + num_cloud
-
-    summary_file = os.path.join(out_dir, 'summary_statistics.txt')
-    with open(summary_file, 'w') as fh:
-        fh.write('Core genes' + '\t' + '(99% <= strains <= 100%)' 
-                 + '\t'+ str(num_core) + '\n')
-        fh.write('Soft core genes' + '\t' + '(95% <= strains < 99%)' 
-                 + '\t'+ str(num_soft_core) + '\n')
-        fh.write('Shell genes' + '\t' + '(15% <= strains < 95%)' 
-                 + '\t' + str(num_shell) + '\n')
-        fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' 
-                 + '\t'+ str(num_cloud) + '\n')
-        fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' 
-                 + '\t'+ str(total))
-    elapsed = datetime.now() - starttime
-    logging.info(f'Create summary -- time taken {str(elapsed)}')
-    return summary_file
-
-
-def create_representative_fasta(
-        gene_to_cluster, clusters_annotation, 
-        source_fasta, out_fasta, mode='w'):
-    for seq_record in SeqIO.parse(open(source_fasta), "fasta"):
-        gene_id = seq_record.id
-        if gene_id in gene_to_cluster:
-            index = gene_to_cluster[gene_id]
-            annotation = clusters_annotation[index]
-            seq_record.description = "~~~".join(annotation)
-            clusters_annotation[index].append(seq_record)
-
-    with open(out_fasta, mode) as out_fh:
-        for cluster in clusters_annotation:
-            seq_record=cluster[2]
-            SeqIO.write(seq_record, out_fh, 'fasta')
-
-# def create_representative_fasta(clusters, gene_dictionary,
-#                                 fasta_list, out_dir):
-#     starttime = datetime.now()
-#     representative_fasta = os.path.join(out_dir, 'representative.fasta')
-#     representative_list = set()
-#     for cluster in clusters:
-#         length_max = 0
-#         representative = None
-#         for gene_id in cluster:
-#             length = gene_dictionary[gene_id][2]
-#             if length > length_max:
-#                 representative = gene_id
-#                 length_max = length
-#         representative_list.add(representative)
-#     utils.create_fasta_include(
-#         fasta_file_list=fasta_list, 
-#         include_list=representative_list, 
-#         output_file=representative_fasta
-#         )
-#     elapsed = datetime.now() - starttime
-#     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
-    
-#     return representative_fasta
 
 
 def write_gene_dictionary(gene_dictionary, out_dir, mode='w'):

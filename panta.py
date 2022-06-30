@@ -14,9 +14,6 @@ from datetime import datetime
 import multiprocessing
 
 from pan_genome import wrapper
-from pan_genome import annotate
-from pan_genome import alignment
-from pan_genome import output
 from pan_genome.utils import check_dir_exist, check_create_folder
 
 logging.basicConfig(
@@ -154,7 +151,7 @@ def get_previous_sample_id(presence_absence_file):
 
 def init_function(args):
     """
-    Parse arguments and run Init pipeline.
+    Parse arguments and call Init pipeline.
 
     Parameters
     ----------
@@ -175,34 +172,10 @@ def init_function(args):
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
     
-    # call clustering pipeline
-    clusters, gene_dictionary = wrapper.run_init_pipeline(
+    # call Init pipeline
+    wrapper.run_init_pipeline(
         samples, collection_dir, temp_dir, args, timing_log)
 
-    # annotate clusters, create gene alignment and output
-    if args.fasta == None:
-        clusters_annotation = annotate.annotate_cluster_gff(
-            unlabeled_clusters=clusters, 
-            gene_dictionary=gene_dictionary)
-        output.create_output(
-            clusters, clusters_annotation, 
-            gene_dictionary, samples, collection_dir)
-        representative_fasta = alignment.main_create_msa(
-            clusters, samples, collection_dir, baseDir, args.threads)
-    else:        
-        representative_fasta = alignment.main_create_msa(
-            clusters, samples, collection_dir, baseDir, args.threads)
-        clusters_annotation = annotate.annotate_cluster_fasta(
-            unlabeled_clusters=clusters,
-            rep_fasta = representative_fasta,
-            temp_dir=temp_dir,
-            baseDir = baseDir,
-            timing_log=timing_log,
-            threads = args.threads)
-        output.create_output(
-            clusters, clusters_annotation, 
-            gene_dictionary, samples, collection_dir)
-    
     # shutil.rmtree(temp_dir)    
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -210,7 +183,7 @@ def init_function(args):
     
 def add_function(args):
     """
-    Parse arguments and run Add pipeline.
+    Parse arguments and call Add pipeline.
 
     Parameters
     ----------
@@ -248,37 +221,11 @@ def add_function(args):
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
     
-    # call clustering pipeline
-    new_clusters, gene_dictionary = wrapper.run_add_pipeline(
+    # call Add pipeline
+    wrapper.run_add_pipeline(
         new_samples, old_representative_fasta, previous_clusters, 
         collection_dir, temp_dir, args, timing_log)
     
-    # annotate clusters, create gene alignment and output
-    if args.fasta == None:
-        new_clusters_annotation = annotate.annotate_cluster_gff(
-            unlabeled_clusters=new_clusters, 
-            gene_dictionary=gene_dictionary)
-        output.update_output(previous_clusters, new_clusters, 
-            new_clusters_annotation, gene_dictionary, 
-            new_samples, temp_dir, collection_dir)
-        new_representative_fasta = alignment.add_create_msa(
-            previous_clusters, new_clusters, new_samples, 
-            collection_dir, baseDir, args.threads)
-    else:
-        new_representative_fasta = alignment.add_create_msa(
-            previous_clusters, new_clusters, new_samples, 
-            collection_dir, baseDir, args.threads)
-        new_clusters_annotation = annotate.annotate_cluster_fasta(
-            unlabeled_clusters=new_clusters,
-            rep_fasta = new_representative_fasta,
-            temp_dir=temp_dir,
-            baseDir = baseDir,
-            timing_log = timing_log,
-            threads = args.threads)
-        output.update_output(
-            previous_clusters, new_clusters, new_clusters_annotation, 
-            gene_dictionary, new_samples, temp_dir, collection_dir)
-
     # shutil.rmtree(temp_dir)
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')

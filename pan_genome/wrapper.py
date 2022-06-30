@@ -9,11 +9,15 @@ import logging
 from pan_genome import data_preparation
 from pan_genome import main_pipeline
 from pan_genome import add_sample_pipeline
+from pan_genome import annotate
+from pan_genome import alignment
+from pan_genome import output
 
 logger = logging.getLogger(__name__)
 
 
-def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
+def run_init_pipeline(samples, collection_dir, temp_dir, baseDir, 
+                      args, timing_log):
     """
     Run initial pan-genome analysis.
 
@@ -22,7 +26,10 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
         (2) cluster by CD-HIT
         (3) All-agaist-all comparision by BLASTP
         (4) cluster by Markov clustering algorithms - MCL
-
+        (5) annotate gene clusters
+        (6) Create multiple sequences alignment by abPOA
+        (7) write output
+    
     Parameters
     ----------
     samples : list
@@ -31,18 +38,12 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
         collection directory
     temp_dir : path
         temporary directory
+    baseDir : path
+        directory of panta
     args : object
         Command-line input arguments
     timing_log : path
         path of time.log
-
-    Returns
-    -------
-    clusters : list of list
-        list of sequence clusters
-    gene_dictionary : dictionary of {gene_id:(tuple)}
-        a data structure contains information of each gene.
-        Includes: sample, contig, length, name, product
     """
     gene_dictionary = data_preparation.extract_proteins(
         samples,collection_dir,args)
@@ -83,11 +84,33 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
 
-    return clusters, gene_dictionary
+    # annotate clusters, create gene alignment and output
+    if args.fasta == None:
+        clusters_annotation = annotate.annotate_cluster_gff(
+            unlabeled_clusters=clusters, 
+            gene_dictionary=gene_dictionary)
+        output.create_output(
+            clusters, clusters_annotation, 
+            gene_dictionary, samples, collection_dir)
+        representative_fasta = alignment.main_create_msa(
+            clusters, samples, collection_dir, baseDir, args.threads)
+    else:        
+        representative_fasta = alignment.main_create_msa(
+            clusters, samples, collection_dir, baseDir, args.threads)
+        clusters_annotation = annotate.annotate_cluster_fasta(
+            unlabeled_clusters=clusters,
+            rep_fasta = representative_fasta,
+            temp_dir=temp_dir,
+            baseDir = baseDir,
+            timing_log=timing_log,
+            threads = args.threads)
+        output.create_output(
+            clusters, clusters_annotation, 
+            gene_dictionary, samples, collection_dir)
 
 
 def run_add_pipeline(new_samples, old_represent_faa, previous_clusters, 
-                     collection_dir, temp_dir, args, timing_log):
+                     collection_dir, temp_dir, baseDir, args, timing_log):
     """
     Add new samples to previous collection.
 
@@ -98,7 +121,10 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         (4) match new sequence with previous clusters by BLASTP
         (5) All-agaist-all comparision by BLASTP
         (6) cluster by Markov clustering algorithms - MCL
-
+        (7) annotate gene clusters
+        (8) Create multiple sequences alignment by abPOA
+        (9) update output
+    
     Parameters
     ----------
     new_samples : list
@@ -111,18 +137,12 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         collection directory
     temp_dir : path
         temporary directory
+    baseDir : path
+        directory of panta
     args : object
         Command-line input arguments
     timing_log : path
         path of time.log
-
-    Returns
-    -------
-    new_clusters : list of list
-        list of new clusters
-    gene_dictionary : dictionary of {gene_id:(tuple)}
-        a data structure contains information of each gene.
-        Includes: sample, contig, length, name, product
     """
     gene_dictionary = data_preparation.extract_proteins(
         new_samples,collection_dir,args)
@@ -202,4 +222,28 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         cd_hit_clusters = cd_hit_clusters,
         mcl_file=mcl_file)
 
-    return new_clusters, gene_dictionary
+    # annotate clusters, create gene alignment and output
+    if args.fasta == None:
+        new_clusters_annotation = annotate.annotate_cluster_gff(
+            unlabeled_clusters=new_clusters, 
+            gene_dictionary=gene_dictionary)
+        output.update_output(previous_clusters, new_clusters, 
+            new_clusters_annotation, gene_dictionary, 
+            new_samples, temp_dir, collection_dir)
+        new_representative_fasta = alignment.add_create_msa(
+            previous_clusters, new_clusters, new_samples, 
+            collection_dir, baseDir, args.threads)
+    else:
+        new_representative_fasta = alignment.add_create_msa(
+            previous_clusters, new_clusters, new_samples, 
+            collection_dir, baseDir, args.threads)
+        new_clusters_annotation = annotate.annotate_cluster_fasta(
+            unlabeled_clusters=new_clusters,
+            rep_fasta = new_representative_fasta,
+            temp_dir=temp_dir,
+            baseDir = baseDir,
+            timing_log = timing_log,
+            threads = args.threads)
+        output.update_output(
+            previous_clusters, new_clusters, new_clusters_annotation, 
+            gene_dictionary, new_samples, temp_dir, collection_dir)

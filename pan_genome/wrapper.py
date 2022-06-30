@@ -45,7 +45,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, args, timing_log):
         Includes: sample, contig, length, name, product
     """
     gene_dictionary = data_preparation.extract_proteins(
-        samples,collection_dir,args, timing_log)
+        samples,collection_dir,args)
 
     combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 
@@ -125,7 +125,7 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         Includes: sample, contig, length, name, product
     """
     gene_dictionary = data_preparation.extract_proteins(
-        new_samples,collection_dir,args, timing_log)
+        new_samples,collection_dir,args)
     
     new_combined_faa = data_preparation.combine_proteins(
         collection_dir= collection_dir, 

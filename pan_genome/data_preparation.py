@@ -14,6 +14,32 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 def parse_gff_file(ggf_file, sample_dir, sample_id):
+    """
+    Parse gff file.
+    - Filter out too short gene (less than 120 nucleotides).
+    - Extract gene information, put into gene dictionary.
+    - Write a bed file, containing location of each gene. 
+    - Write a fasta file, which is genome assembly.
+
+    Parameters
+    ----------
+    gff_file : path
+        path to gff file
+    sample_dir : path
+        directory of output
+    sample_id : str
+        sample ID
+
+    Returns
+    -------
+    bed_file : path
+        location of genes in BED format
+    assembly_file : path
+        genome assembly in FASTA format
+    gene dictionary : dict
+        contain information of each gene of one sample
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    """
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_dictionary = {}
@@ -28,6 +54,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     with open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
+                # write genome assembly 
                 fna_fh.write(line)
                 continue
             if re.match(r"^##FASTA", line) != None:
@@ -43,7 +70,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             start = int(cells[3])
             end = int(cells[4])
             length = end - start + 1
-            if length < 120:
+            if length < 120: # filter out gene less 120 nu
                 continue
             seq_id = cells[0]
             trand = cells[6]
@@ -91,6 +118,27 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     
 
 def process_single_sample_gff(sample, out_dir, table):
+    """
+    Process sample if input data is genome annotation.
+    
+    Parse GFF file, extract gene sequences by BEDTools, translate
+    nucleotide to protein.
+
+    Parameters
+    ----------
+    sample : dict
+        sample information {id: , gff_file: , assembly: }
+    out_dir : path
+        output directory
+    table : int
+        codon table
+    
+    Returns
+    -------
+    gene dictionary : dict
+        contain information of each gene of one sample
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    """
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
     if not os.path.exists(sample_dir):
@@ -114,8 +162,8 @@ def process_single_sample_gff(sample, out_dir, table):
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
-    
-    if sample['assembly'] == None: # do not remove input assembly
+
+    if sample['assembly'] == None: # not remove, if it is input assembly
         os.remove(assembly_file)
     os.remove(bed_file)
     os.remove(assembly_file + '.fai')
@@ -125,6 +173,29 @@ def process_single_sample_gff(sample, out_dir, table):
 
 
 def process_single_sample_fasta(sample, out_dir, table):
+    """
+    Process sample if input is genome assembly.
+
+    + Predict gene by Prodigal.
+    + Filter out gene sequences.
+    + Rename gene id and write a new protein sequences fasta file. 
+    + Extract gene information, and put into gene dictionary.
+
+    Parameters
+    ----------
+    sample : dict
+        sample information {id: , gff_file: , assembly: }
+    out_dir : path
+        output directory
+    table : int
+        codon table
+
+    Returns
+    -------
+    gene dictionary : dict
+        contain information of each gene of one sample
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    """
 
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
@@ -134,23 +205,19 @@ def process_single_sample_fasta(sample, out_dir, table):
     # gene prediction
     assembly_file = sample['assembly']
     faa_file = os.path.join(sample_dir, sample_id +'.original.faa')
-    
     if assembly_file.endswith('.gz'):
         cmd = (f'zcat {assembly_file} | '
                f'prodigal -a {faa_file} -g {table} -c -m -q -o /dev/null')
     else:
         cmd = (f'prodigal -i {assembly_file} -a {faa_file} -g {table} '
                f'-c -m -q -o /dev/null')
-    
     if not os.path.isfile(faa_file):
         utils.run_command(cmd)
                     
-
-    # change gene id and extract coordinates
+    # rename gene id and extract coordinates
     gene_dictionary = {}
     rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
     count = 1
-    passed_genes = set()
     with open(faa_file, 'r') as in_fh, open(rewrite_faa_file, 'w') as out_fh:
         for record in SeqIO.parse(in_fh, "fasta"):
             contig = record.id.rsplit('_', 1)[0] 
@@ -189,14 +256,32 @@ def process_single_sample_fasta(sample, out_dir, table):
             new_record = SeqRecord(
                 record.seq, id = gene_id, description = desc)
             SeqIO.write(new_record, out_fh, 'fasta')
-            passed_genes.add(gene_id)
+
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, contig, length)
 
     return gene_dictionary
 
 
-def extract_proteins(samples, out_dir, args, timing_log):
+def extract_proteins(samples, out_dir, args):
+    """
+    Process samples in parallel. Combine gene_dictionary of all samples.
+
+    Parameters
+    ----------
+    samples : list of dict
+        list of samples
+    out_dir : path
+        output directory
+    args : object
+        Command-line input arguments
+
+    Returns
+    -------
+    gene dictionary : dict
+        contain information of each gene of all samples
+        {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+    """
     starttime = datetime.now()
 
     with multiprocessing.Pool(processes=args.threads) as pool:
@@ -227,6 +312,25 @@ def extract_proteins(samples, out_dir, args, timing_log):
 
 
 def combine_proteins(collection_dir, out_dir, samples, timing_log):
+    """
+    Combine protein sequences of all samples into one file.
+
+    Parameters
+    ----------
+    collection_dir : path
+        collection directory
+    out_dir : path
+        directory of output file
+    samples : list of dict
+        information of each sample
+    timing_log : path
+        path to time.log
+    
+    Returns
+    -------
+    path
+        path of output file
+    """
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'combined.faa')

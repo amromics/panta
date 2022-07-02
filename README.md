@@ -19,7 +19,7 @@ Panta is written in python, it includes the followings dependencies:
 ## Installation
 The simplest method is installed via conda:
 
-1. Download and install the appropriate conda, such as miniconda from [hear](https://docs.conda.io/en/latest/miniconda.html)
+1. Download and install the appropriate conda, such as miniconda from [here](https://docs.conda.io/en/latest/miniconda.html)
    
    
 2. Create a conda environment with all the necessary dependencies: From the repository directory run

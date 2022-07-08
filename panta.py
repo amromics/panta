@@ -27,8 +27,8 @@ def collect_sample(args, previous_sample_id=None):
     Collect sample from command-line input.
 
     There are three ways to input data: tsv file (-f/--tsv), gff files 
-    (-g/--gff) and fasta files (-b/--fasta). Samples is extracted by 
-    only one of these ways, followed the mentioned order.
+    (-g/--gff) and fasta files (-b/--fasta). Samples is collected from 
+    only one of these, followed the mentioned order.
 
     Parameters
     ----------
@@ -37,6 +37,7 @@ def collect_sample(args, previous_sample_id=None):
     previous_sample_id : list of str, default 'None'
         Existing sample ID from the previous collection. 
         It is None if we run the init pipeline.
+    
     Returns
     -------
     list 
@@ -52,16 +53,19 @@ def collect_sample(args, previous_sample_id=None):
         with open(args.tsv,'r') as fh:
             csv_reader = csv.reader(fh, delimiter='\t')
             for row in csv_reader:
-                gff = row[1]
                 sample_id = row[0]
                 if sample_id in previous_sample_id:
                     logging.info(f'{sample_id} already exists -- skip')
                     continue
                 else:
                     previous_sample_id.append(sample_id)
+                gff = row[1]
+                check_dir_exist(gff)
                 assembly = row[2]
-                if row[2] == '':
-                    assembly = None
+                if assembly == '':
+                    assembly = None # then the GFF file must contain assembly data
+                else:
+                    check_dir_exist(assembly)
                 samples.append(
                     {'id':sample_id, 'gff_file':gff, 'assembly':assembly}) 
     elif args.gff != None:
@@ -77,6 +81,7 @@ def collect_sample(args, previous_sample_id=None):
                 continue
             else:
                 previous_sample_id.append(sample_id)
+            check_dir_exist(gff)
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
     elif args.fasta != None:
             fasta_list = args.fasta
@@ -91,6 +96,7 @@ def collect_sample(args, previous_sample_id=None):
                     continue
                 else:
                     previous_sample_id.append(sample_id)
+                check_dir_exist(fasta)
                 samples.append(
                     {'id':sample_id, 'gff_file':None, 'assembly':fasta})    
     else:
@@ -234,7 +240,7 @@ def main():
     """Setup command-line interface"""
     parser = argparse.ArgumentParser()
     pipeline_help = """
-        Select the pipeline: 
+        Analysis pipeline: 
         run initial pan-genome analysis (init), 
         add new samples to previous collection (add)
         """
@@ -242,16 +248,21 @@ def main():
         '-p', '--pipeline', help = pipeline_help,
         action='store', choices=['init', 'add'], required=True)
     parser.add_argument(
-        '-g', '--gff', help='gff input files',
+        '-g', '--gff', help='genome annotation input files (e.g. from Prokka)',
         default=None, nargs='*', type=str)
     parser.add_argument(
-        '-b', '--fasta', help='assembly input files',
+        '-b', '--fasta', help='genome assembly input files',
         default=None, nargs='*', type=str)
+    tsv_help = """
+        when GFF file and FASTA file are seperated (e.g. produced by tools 
+        other than Prokka), they could be input through a tsv file. It should
+        have 3 columns (without header): Sample ID, path to GFF, path to FASTA.  
+        """
     parser.add_argument(
-        '-f', '--tsv', help='tsv input file', default=None, type=str)
+        '-f', '--tsv', help=tsv_help, default=None, type=str)
     parser.add_argument(
         '-o', '--outdir', 
-        help='output directory/previous collection directory', 
+        help='output directory or directory of previous collection ', 
         required=True, type=str) 
     parser.add_argument(
         '-d', '--diamond', 

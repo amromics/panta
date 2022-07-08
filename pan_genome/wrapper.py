@@ -84,8 +84,12 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
 
+    ## TODO: split paralogs from orthologs???
+
     # annotate clusters, create gene alignment and output
-    if args.fasta == None:
+    ## TODO: create msa from nucleotide seqeunces.
+    ## TODO: call variants from msa, output vcf file
+    if args.fasta == None: # if input data is annotated genomes
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
             gene_dictionary=gene_dictionary)
@@ -94,7 +98,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
             gene_dictionary, samples, collection_dir)
         representative_fasta = alignment.create_msa_init_pipeline(
             clusters, samples, collection_dir, baseDir, args.threads)
-    else:        
+    else: # if input data is genome assembly    
         representative_fasta = alignment.create_msa_init_pipeline(
             clusters, samples, collection_dir, baseDir, args.threads)
         clusters_annotation = annotate.annotate_cluster_fasta(
@@ -223,20 +227,27 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         mcl_file=mcl_file)
 
     # annotate clusters, create gene alignment and output
-    if args.fasta == None:
+    ## TODO: reannotate old clusters, which could be changed after 
+    # adding new sequences
+    if args.fasta == None: # if input data is annotated genome
+        # annotate new clusters only
         new_clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary)
+        # update result files
         output.update_output(previous_clusters, new_clusters, 
             new_clusters_annotation, gene_dictionary, 
             new_samples, temp_dir, collection_dir)
+        # add new seq to previous msa, create msa for new clusters
         new_representative_fasta = alignment.create_msa_add_pipeline(
             previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
-    else:
+    else: # if input data is genome assembly
+        # add new seq to previous msa, create msa for new clusters
         new_representative_fasta = alignment.create_msa_add_pipeline(
             previous_clusters, new_clusters, new_samples, 
             collection_dir, baseDir, args.threads)
+        # annotate new clusters only
         new_clusters_annotation = annotate.annotate_cluster_fasta(
             unlabeled_clusters=new_clusters,
             rep_fasta = new_representative_fasta,
@@ -244,6 +255,7 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
             baseDir = baseDir,
             timing_log = timing_log,
             threads = args.threads)
+        # update result files
         output.update_output(
             previous_clusters, new_clusters, new_clusters_annotation, 
             gene_dictionary, new_samples, temp_dir, collection_dir)

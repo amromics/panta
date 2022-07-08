@@ -195,8 +195,8 @@ def add_poa(cluster_id, collection_dir, baseDir):
     msa_file = os.path.join(cluster_dir, cluster_id + '.msa')
     matrix_file = os.path.join(baseDir, 'BLOSUM62.mtx')
     result_file = os.path.join(cluster_dir, cluster_id + '.result')
-    # if there is no new sequences. Do not run abPOA again.
-    # Parse the previous result file to get the consensus sequence.
+    # if there is no new sequences, not run abPOA again. Parse the 
+    # previous result file to get the consensus sequence.
     if os.path.isfile(seq_file):
         cmd = (f'abpoa {seq_file} -i {msa_file} -o {result_file} -r2 ' 
                f'-t {matrix_file} -O 11,0 -E 1,0 -p -c -m 1 2> /dev/null')
@@ -339,6 +339,7 @@ def create_msa_add_pipeline(previous_clusters, new_clusters, new_samples,
         for gene in cluster:
             gene_to_cluster_id[gene] = i
 
+    # get new gene sequences for each clusters
     create_pro_file_for_each_cluster(
         new_samples, gene_to_cluster_id, collection_dir)
 

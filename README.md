@@ -72,5 +72,5 @@ optional arguments:
 conda activate panta
 python panta.py -p init -g examples/test/init/*.gff.gz -o examples/test/output
 python panta.py -p add -b examples/test/add/*.fna.gz -o examples/test/output
-python panta.py -p add -b examples/test/add/*.gff.gz -o examples/test/output
+python panta.py -p add -g examples/test/add/*.gff.gz -o examples/test/output
 ```

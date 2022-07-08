@@ -270,16 +270,10 @@ def main():
         default=False, action='store_true')
     parser.add_argument(
         '-i', '--identity', 
-        help='minimum percentage identity', default=0.95, type=float)
+        help='minimum percentage identity (0..100)', default=95, type=float)
     parser.add_argument(
-        '--LD', help='length difference cutoff between two sequences', 
-        default=0, type=float)
-    parser.add_argument(
-        '--AL', help='alignment coverage for the longer sequence', 
-        default=0, type=float)
-    parser.add_argument(
-        '--AS', help='alignment coverage for the shorter sequence', 
-        default=0, type=float)
+        '-c', '--coverage', 
+        help='minimum percentage coverage (0..100)', default=0, type=float)
     parser.add_argument(
         '-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     parser.add_argument(

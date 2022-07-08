@@ -76,11 +76,10 @@ def add_gene_cd_hit_2d(previous_clusters, cd_hit_2d_clusters):
 
 
 def add_gene_blast(previous_clusters, cd_hit_clusters, blast_result, 
-                   fasta_file, out_dir, args):
+                   fasta_file, out_dir):
     """
-    Filter BLAST result to find matched sequences. There are 4 
-    criteria: identity, LD, AL, AS. Matched sequences are then add into
-    previous sequences, along with the corresponding CD-HIT sequences.
+    New sequences are added into previous clusters by its best hit 
+    (lowest e-value), along with the corresponding CD-HIT sequences. 
     The not-matched sequences are write into a new fasta file.
 
     Parameters
@@ -97,8 +96,6 @@ def add_gene_blast(previous_clusters, cd_hit_clusters, blast_result,
         It will be filtered out matched sequences
     out_dir : path
         directory of filtered fasta output
-    args : object
-        Command-line input arguments
     
     Returns
     -------
@@ -107,7 +104,7 @@ def add_gene_blast(previous_clusters, cd_hit_clusters, blast_result,
     """
     starttime = datetime.now()
     
-    # Filter blast result to find matched sequences
+    # Filter blast result to find best matched sequences
     csv_reader = csv.reader(open(blast_result, 'r'), delimiter='\t')
     match_dict = {}
     min_evalue = 1000
@@ -115,20 +112,6 @@ def add_gene_blast(previous_clusters, cd_hit_clusters, blast_result,
     for row in csv_reader:
         new = row[0]
         cluster_index = row[1]
-        qlen = int(row[12])
-        slen = int(row[13])
-        pident = float(row[2]) / 100
-        short_seq = min(qlen, slen)
-        long_seq = max(qlen, slen)
-        len_diff = short_seq / long_seq
-        alignment_length = int(row[3])
-        align_short = alignment_length / short_seq
-        align_long = alignment_length / long_seq
-        if (pident <= args.identity 
-            or len_diff <= args.LD 
-            or align_short <= args.AS 
-            or align_long <= args.AL):
-            continue
         evalue = float(row[10])
         if new != previous:
             min_evalue = 1000

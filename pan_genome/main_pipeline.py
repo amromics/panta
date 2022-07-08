@@ -48,7 +48,7 @@ def run_cd_hit(faa_file, out_dir, threads, timing_log):
 
 
 def run_blast(database_fasta, query_fasta, out_dir, timing_log, 
-              evalue=1E-6, max_target_seqs=2000, threads=4):
+        evalue, max_target_seqs, identity, query_coverage, threads):
     """
     Make blast database and then run BLASTP.
 
@@ -66,6 +66,11 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
         evalue threshold
     max_target_seq : int
         number of max target sequences
+    identity : float (0..100)
+        the minimum percentage of identity
+    query_coverage : float (0..100)
+        the minimum percentage of the query protein that has to form 
+        an alignment against the reference
     threads : int
         number of threads
     
@@ -85,14 +90,14 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
            f"prot -out {blast_db} -logfile /dev/null")
     utils.run_command(cmd, timing_log)
             
-    
     # run blast
     blast_result = os.path.join(out_dir, 'blast_results')
     cmd = (f'blastp -query {query_fasta} -db {blast_db} -evalue {evalue} '
            f'-num_threads {threads} -mt_mode 1 '
+           f'-outfmt 6 '
            f'-max_target_seqs {max_target_seqs} '
-           f'-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart '
-            'qend sstart send evalue bitscore qlen slen" '
+           f'-qcov_hsp_perc {query_coverage} '
+           "| awk '{ if ($3 > " + str(identity) + ") print $0;}' "
            f'2> /dev/null 1> {blast_result}')
     utils.run_command(cmd, timing_log)
             
@@ -102,7 +107,7 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
 
 
 def run_diamond(database_fasta, query_fasta, out_dir, timing_log, 
-                evalue=1E-6, max_target_seqs=2000, threads=4):
+        evalue, max_target_seqs, identity, query_coverage, threads):
     """
     Make DIAMOND database and then run DIAMOND.
 
@@ -120,6 +125,11 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
         evalue threshold
     max_target_seq : int
         number of max target sequences
+    identity : float (0..100)
+        the minimum percentage of identity
+    query_coverage : float (0..100)
+        the minimum percentage of the query protein that has to form 
+        an alignment against the reference
     threads : int
         number of threads
     
@@ -139,17 +149,16 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
           f'-p {threads} --quiet')
     utils.run_command(cmd, timing_log)
             
-    
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond_results')
     cmd = (f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} "
            f"--evalue {evalue} --max-target-seqs {max_target_seqs} "
-            '--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart '
-            'qend sstart send evalue bitscore qlen slen"'
+           f'-qcov_hsp_perc {query_coverage} '
+           f'--outfmt 6 '
+           "| awk '{ if ($3 > " + str(identity) + ") print $0;}' "
            f" 2> /dev/null 1> {diamond_result}")
     utils.run_command(cmd, timing_log)
             
-
     elapsed = datetime.now() - starttime
     logging.info(f'Run Diamond -- time taken {str(elapsed)}')
     return diamond_result
@@ -157,7 +166,7 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
 
 def pairwise_alignment(
         diamond, database_fasta, query_fasta, out_dir, timing_log, 
-        evalue=1E-6, max_target_seqs=2000, threads=4):
+        evalue, max_target_seqs, identity, query_coverage, threads):
     """
     Make search tool, BLAST or DIAMOND.
 
@@ -177,6 +186,11 @@ def pairwise_alignment(
         evalue threshold
     max_target_seq : int
         number of max target sequences
+    identity : float (0..100)
+        the minimum percentage of identity
+    query_coverage : float (0..100)
+        the minimum percentage of the query protein that has to form 
+        an alignment against the reference
     threads : int
         number of threads
     
@@ -198,24 +212,12 @@ def pairwise_alignment(
 
     if diamond == False:
         blast_result = run_blast(
-            database_fasta = database_fasta,
-            query_fasta = query_fasta,
-            out_dir = out_dir,
-            timing_log=timing_log,
-            evalue = evalue,
-            max_target_seqs= max_target_seqs,
-            threads=threads
-            )
+            database_fasta, query_fasta, out_dir, timing_log, 
+            evalue, max_target_seqs, identity, query_coverage, threads)
     else:
         blast_result = run_diamond(
-            database_fasta = database_fasta,
-            query_fasta = query_fasta,
-            out_dir = out_dir,
-            timing_log=timing_log,
-            evalue = evalue,
-            max_target_seqs= max_target_seqs,
-            threads=threads
-            )
+            database_fasta, query_fasta, out_dir, timing_log,
+            evalue, max_target_seqs, identity, query_coverage, threads)
     return blast_result
 
 

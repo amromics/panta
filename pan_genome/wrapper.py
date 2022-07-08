@@ -68,16 +68,13 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         timing_log=timing_log,
         evalue = args.evalue,
         max_target_seqs=2000,
+        identity = args.identity,
+        query_coverage = args.coverage,
         threads=args.threads)
-
-    filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_result,
-        out_dir = temp_dir, 
-        args=args)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result,
+        blast_result = blast_result,
         timing_log=timing_log)
 
     clusters = main_pipeline.reinflate_clusters(
@@ -170,61 +167,59 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         f'grep ">" {notmatched_faa} | wc -l', 
         capture_output=True, text=True, shell=True)
     if int(num_seq.stdout.rstrip()) == 0:
-        return None, None
+        new_clusters = []
+    else:
+        notmatched_represent_faa, cd_hit_clusters = main_pipeline.run_cd_hit(
+            faa_file=notmatched_faa,
+            out_dir=temp_dir,
+            threads=args.threads,
+            timing_log=timing_log)
 
-    notmatched_represent_faa, cd_hit_clusters = main_pipeline.run_cd_hit(
-        faa_file=notmatched_faa,
-        out_dir=temp_dir,
-        threads=args.threads,
-        timing_log=timing_log)
+        blast_1_result = main_pipeline.pairwise_alignment(
+            diamond=args.diamond,
+            database_fasta = old_represent_faa,
+            query_fasta = notmatched_represent_faa,
+            out_dir = os.path.join(temp_dir, 'blast1'),
+            timing_log=timing_log,
+            evalue = args.evalue,
+            max_target_seqs=2000,
+            identity = args.identity,
+            query_coverage = args.coverage,
+            threads=args.threads)
 
-    blast_1_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
-        database_fasta = old_represent_faa,
-        query_fasta = notmatched_represent_faa,
-        out_dir = os.path.join(temp_dir, 'blast1'),
-        timing_log=timing_log,
-        evalue = args.evalue,
-        max_target_seqs=2000,
-        threads=args.threads)
+        remain_fasta = add_sample_pipeline.add_gene_blast(
+            previous_clusters=previous_clusters,
+            cd_hit_clusters = cd_hit_clusters,
+            blast_result=blast_1_result, 
+            fasta_file=notmatched_represent_faa, 
+            out_dir=temp_dir)
 
-    remain_fasta = add_sample_pipeline.add_gene_blast(
-        previous_clusters=previous_clusters,
-        cd_hit_clusters = cd_hit_clusters,
-        blast_result=blast_1_result, 
-        fasta_file=notmatched_represent_faa, 
-        out_dir=temp_dir,
-        args=args)
+        num_seq = subprocess.run(
+            f'grep ">" {remain_fasta} | wc -l', 
+            capture_output=True, text=True, shell=True)
+        if int(num_seq.stdout.rstrip()) == 0:
+            new_clusters = []
+        else:
+            blast_2_result = main_pipeline.pairwise_alignment(
+                diamond=args.diamond,
+                database_fasta = remain_fasta,
+                query_fasta = remain_fasta,
+                out_dir = os.path.join(temp_dir, 'blast2'),
+                timing_log=timing_log,
+                evalue = args.evalue,
+                max_target_seqs=2000,
+                identity = args.identity,
+                query_coverage = args.coverage,
+                threads=args.threads)
 
-    num_seq = subprocess.run(
-        f'grep ">" {remain_fasta} | wc -l', 
-        capture_output=True, text=True, shell=True)
-    if int(num_seq.stdout.rstrip()) == 0:
-        return None, None
-    
-    blast_2_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
-        database_fasta = remain_fasta,
-        query_fasta = remain_fasta,
-        out_dir = os.path.join(temp_dir, 'blast2'),
-        timing_log=timing_log,
-        evalue = args.evalue,
-        max_target_seqs=2000,
-        threads=args.threads)
+            mcl_file = main_pipeline.cluster_with_mcl(
+                out_dir = temp_dir,
+                blast_result = blast_2_result,
+                timing_log=timing_log)
 
-    filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_2_result,
-        out_dir = temp_dir, 
-        args=args)
-
-    mcl_file = main_pipeline.cluster_with_mcl(
-        out_dir = temp_dir,
-        blast_result = filtered_blast_result,
-        timing_log=timing_log)
-
-    new_clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters = cd_hit_clusters,
-        mcl_file=mcl_file)
+            new_clusters = main_pipeline.reinflate_clusters(
+                cd_hit_clusters = cd_hit_clusters,
+                mcl_file=mcl_file)
 
     # annotate clusters, create gene alignment and output
     ## TODO: reannotate old clusters, which could be changed after 

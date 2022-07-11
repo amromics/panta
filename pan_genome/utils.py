@@ -47,7 +47,7 @@ def run_command(cmd, timing_log=None):
     if timing_log == None:
         ret = os.system(cmd)
     else:
-        logger.info(f'Run: {cmd}')
+        # logger.info(f'Run: {cmd}')
         cmd = f'/usr/bin/time --append -v -o {timing_log} {cmd}'
         ret = os.system(cmd)
 

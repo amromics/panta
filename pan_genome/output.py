@@ -6,6 +6,8 @@ import logging
 import shutil
 from datetime import datetime
 
+from requests import get
+
 from Bio import SeqIO
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ def classify_cluster(num_sample, total, count):
     else:
         count[3] += 1 # cloud
 
-def write_summary(count, out_dir):
+def write_summary(count, out_dir, total_samples):
     """
     Write the summary file.
 
@@ -44,7 +46,9 @@ def write_summary(count, out_dir):
         a data structure to keep track the number of 
         core, softcore, shell and cloud gene.
     out_dir : path
-        directory of output file.    
+        directory of output file. 
+    total_samples : int
+        Number of samples in collection.   
     """
     total = sum(count)
     summary_file = os.path.join(out_dir, 'summary_statistics.txt')
@@ -58,14 +62,36 @@ def write_summary(count, out_dir):
         fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' 
                  + '\t'+ str(count[3]) + '\n')
         fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' 
-                 + '\t'+ str(total))
+                 + '\t'+ str(total) + '\n')
+        fh.write('Total number of samples:' + '\t' + str(total_samples))
+
+def get_number_of_samples(summary_file):
+    """
+    Get total number of samples in previous collection.
+
+    Parameters:
+    -----------
+    summary_file: path
+        path to summary_statistics.txt
+    
+    Returns:
+    --------
+    int
+        number of samples of previous collection
+    """
+    with open(summary_file, 'r') as fh:
+        for line in fh:
+            line = line.rstrip().split('\t')
+            if line[0] == 'Total number of samples:':
+                total_samples = line[1]
+                return int(total_samples)
+
 
 def create_output(clusters, clusters_annotation, 
                   gene_dictionary, samples, out_dir):
     """
-    Create 3 output file:
+    Create 2 output file:
         - cluster_info.csv
-        - gene_presence_absence.csv.gz
         - summary_statistics.txt
     
     Parameters
@@ -85,31 +111,21 @@ def create_output(clusters, clusters_annotation,
     starttime = datetime.now()
     # output files
     cluster_info_file = os.path.join(out_dir, 'cluster_info.csv')
-    presence_absence_file = os.path.join(
-        out_dir, 'gene_presence_absence.csv.gz')
+    total_sample = len(samples)
     
     # count: a data structure to keep track the number of 
     # core, softcore, shell and cloud gene.
     count = [0] * 4 
 
-    with open(cluster_info_file, 'w') as fh_1, \
-         gzip.open(presence_absence_file, 'wt') as fh_2:
+    with open(cluster_info_file, 'w') as fh_1:
         writer_1 = csv.writer(
             fh_1, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-        writer_2 = csv.writer(
-            fh_2, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 
         # write header
         header_1 = ['ID','Gene', 'Annotation', 'No. isolates', 'No. sequences', 
                     'Avg sequences per isolate', 'Min group size nuc', 
                     'Max group size nuc', 'Avg group size nuc' ]
         writer_1.writerow(header_1)
-        
-        header_2 = ['ID']
-        for sample in samples:
-            header_2.append(sample['id'])
-        writer_2.writerow(header_2)
-        total_sample = len(samples)
 
         # write row
         cluster_id = 0
@@ -148,21 +164,9 @@ def create_output(clusters, clusters_annotation,
 
             writer_1.writerow(row_1)
 
-            # samples
-            row_2 = []
-            row_2.append(cluster_id)
-            for sample in samples:
-                sample_id = sample['id']
-                if sample_id in sample_dict:
-                    gene_list = sample_dict[sample_id]
-                    row_2.append('\t'.join(gene_list))
-                else:
-                    row_2.append('')
-            writer_2.writerow(row_2)
-
             cluster_id += 1
     # write summary file
-    write_summary(count, out_dir)
+    write_summary(count, out_dir, total_sample)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create output -- time taken {str(elapsed)}')
@@ -172,10 +176,8 @@ def update_output(
         previous_clusters, new_clusters, new_clusters_annotation, 
         gene_dictionary, new_samples, temp_dir, collection_dir):
     """
-    Update 2 output file:
-        - cluster_info.csv
-        - gene_presence_absence.csv.gz
-    Write a new summary_statistics.txt file
+    Update cluster_info.csv
+    Write a new summary_statistics.txt
     
     Parameters
     ----------
@@ -199,149 +201,110 @@ def update_output(
     
     new_cluster_info_file = os.path.join(
         temp_dir, 'cluster_info.csv')
-    new_presence_absence_file = os.path.join(
-        temp_dir, 'gene_presence_absence.csv.gz')
     old_cluster_info_file = os.path.join(
         collection_dir, 'cluster_info.csv')
-    old_presence_absence_file = os.path.join(
-        collection_dir, 'gene_presence_absence.csv.gz')
-    
+    summary_file = os.path.join(collection_dir, 'summary_statistics.txt')
+    total_sample = get_number_of_samples(summary_file) + len(new_samples)
+
     # count: a data structure to keep track the number of 
     # core, softcore, shell and cloud gene.
     count = [0] * 4 
 
     with open(old_cluster_info_file, 'r') as in_fh_1, \
-         gzip.open(old_presence_absence_file, 'rt') as in_fh_2:
-        with open(new_cluster_info_file, 'w') as out_fh_1, \
-             gzip.open(new_presence_absence_file, 'wt') as out_fh_2:
-            csv.field_size_limit(sys.maxsize)
-            writer_1 = csv.writer(
-                out_fh_1, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-            writer_2 = csv.writer(
-                out_fh_2, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-            reader_1 = csv.reader(in_fh_1, delimiter=',')
-            reader_2 = csv.reader(in_fh_2, delimiter=',')
+        open(new_cluster_info_file, 'w') as out_fh_1:
+        csv.field_size_limit(sys.maxsize)
+        writer_1 = csv.writer(
+            out_fh_1, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+        reader_1 = csv.reader(in_fh_1, delimiter=',')
+        
+        # update header
+        header_1 = next(reader_1)
+        writer_1.writerow(header_1)
+        
+        # update row of previous clusters
+        cluster_id = 0
+        for row_1, cluster in zip(reader_1, previous_clusters):
+            num_seq = int(row_1[4])
+            num_iso = int(row_1[3])
+            min_len = int(row_1[6])
+            max_len = int(row_1[7])
+            new_sample_dict = {}
+            new_length_list = []
+            for new_gene in cluster:
+                sample_id = gene_dictionary[new_gene][0]
+                new_sample_dict.setdefault(sample_id, []).append(new_gene)
+                length = gene_dictionary[new_gene][2]
+                if length > max_len:
+                    max_len = length
+                if length < min_len:
+                    min_len = length
+                new_length_list.append(length)
             
-            # update header
-            header_1 = next(reader_1)
-            header_2 = next(reader_2)
-            num_old_samples = len(header_2[1:]) # dont count id column
-            for sample in new_samples:
-                header_2.append(sample['id'])
-            writer_1.writerow(header_1)
-            writer_2.writerow(header_2)
-            total_sample = len(header_2) - 1 # dont count id column
+            # No. isolates
+            num_sample = num_iso + len(new_sample_dict)
+            row_1[3] = num_sample
+            classify_cluster(num_sample, total_sample, count)
+            # No. sequences
+            row_1[4] = num_seq + len(cluster)
+            # Avg sequences per isolate
+            avg_seq = row_1[4] / row_1[3]
+            row_1[5] = round(avg_seq,2)
+            # Min group size nuc
+            row_1[6] = min_len
+            # Max group size nuc
+            row_1[7] = max_len
+            # Avg group size nuc
+            nuc_size = (
+                (float(row_1[8]) * num_seq + len(new_length_list)) 
+                / row_1[4])
+            row_1[8] = round(nuc_size,0)
             
-            # update row of previous clusters
-            cluster_id = 0
-            for row_1, row_2, cluster in zip(reader_1, reader_2, previous_clusters):
-                num_seq = int(row_1[4])
-                num_iso = int(row_1[3])
-                min_len = int(row_1[6])
-                max_len = int(row_1[7])
-                new_sample_dict = {}
-                new_length_list = []
-                for new_gene in cluster:
-                    sample_id = gene_dictionary[new_gene][0]
-                    new_sample_dict.setdefault(sample_id, []).append(new_gene)
-                    length = gene_dictionary[new_gene][2]
-                    if length > max_len:
-                        max_len = length
-                    if length < min_len:
-                        min_len = length
-                    new_length_list.append(length)
-                
-                # No. isolates
-                num_sample = num_iso + len(new_sample_dict)
-                row_1[3] = num_sample
-                classify_cluster(num_sample, total_sample, count)
-                # No. sequences
-                row_1[4] = num_seq + len(cluster)
-                # Avg sequences per isolate
-                avg_seq = row_1[4] / row_1[3]
-                row_1[5] = round(avg_seq,2)
-                # Min group size nuc
-                row_1[6] = min_len
-                # Max group size nuc
-                row_1[7] = max_len
-                # Avg group size nuc
-                nuc_size = (
-                    (float(row_1[8]) * num_seq + len(new_length_list)) 
-                    / row_1[4])
-                row_1[8] = round(nuc_size,0)
-                
-                writer_1.writerow(row_1)
-
-                for sample in new_samples:
-                    sample_id = sample['id']
-                    if sample_id in new_sample_dict:
-                        gene_list = new_sample_dict[sample_id]
-                        row_2.append('\t'.join(gene_list))
-                    else:
-                        row_2.append('')
-                
-                writer_2.writerow(row_2)
-                cluster_id += 1
+            writer_1.writerow(row_1)
+            cluster_id += 1
 
 
-            # write new row of new clusters
-            for cluster, cluster_annotation in zip(new_clusters, 
-                                                   new_clusters_annotation):
-                row_1 = []
-                sample_dict = {}
-                length_list = []
-                for gene in cluster:
-                    sample_id = gene_dictionary[gene][0]
-                    sample_dict.setdefault(sample_id, []).append(gene)
-                    length = gene_dictionary[gene][2]
-                    length_list.append(length)
-                
-                # ID
-                row_1.append(cluster_id)
-                cluster_id += 1
-                # Gene
-                row_1.append(cluster_annotation[0])
-                # Annotation
-                row_1.append(cluster_annotation[1])
-                # No. isolates
-                num_sample = len(sample_dict)
-                row_1.append(num_sample)
-                classify_cluster(num_sample, total_sample, count)
-                # No. sequences
-                row_1.append(len(cluster))
-                # Avg sequences per isolate
-                avg_seq = len(cluster) / len(sample_dict)
-                row_1.append(round(avg_seq,2))
-                # Min group size nuc
-                row_1.append(min(length_list))
-                # Max group size nuc
-                row_1.append(max(length_list))
-                # Avg group size nuc
-                nuc_size = sum(length_list) / len(length_list)
-                row_1.append(round(nuc_size,0))
-                
-                writer_1.writerow(row_1)
-                
-                # sample
-                row_2 = []
-                row_2.append(cluster_id)
-                for i in range(0, num_old_samples):
-                    row_2.append('')
-                for sample in new_samples:
-                    sample_id = sample['id']
-                    if sample_id in sample_dict:
-                        gene_list = sample_dict[sample_id]
-                        row_2.append('\t'.join(gene_list))
-                    else:
-                        row_2.append('')
-                
-                writer_2.writerow(row_2)
+        # write new row of new clusters
+        for cluster, cluster_annotation in zip(new_clusters, 
+                                                new_clusters_annotation):
+            row_1 = []
+            sample_dict = {}
+            length_list = []
+            for gene in cluster:
+                sample_id = gene_dictionary[gene][0]
+                sample_dict.setdefault(sample_id, []).append(gene)
+                length = gene_dictionary[gene][2]
+                length_list.append(length)
+            
+            # ID
+            row_1.append(cluster_id)
+            cluster_id += 1
+            # Gene
+            row_1.append(cluster_annotation[0])
+            # Annotation
+            row_1.append(cluster_annotation[1])
+            # No. isolates
+            num_sample = len(sample_dict)
+            row_1.append(num_sample)
+            classify_cluster(num_sample, total_sample, count)
+            # No. sequences
+            row_1.append(len(cluster))
+            # Avg sequences per isolate
+            avg_seq = len(cluster) / len(sample_dict)
+            row_1.append(round(avg_seq,2))
+            # Min group size nuc
+            row_1.append(min(length_list))
+            # Max group size nuc
+            row_1.append(max(length_list))
+            # Avg group size nuc
+            nuc_size = sum(length_list) / len(length_list)
+            row_1.append(round(nuc_size,0))
+            
+            writer_1.writerow(row_1)
     
     shutil.move(new_cluster_info_file, old_cluster_info_file)
-    shutil.move(new_presence_absence_file, old_presence_absence_file)
     
     # write new summary file
-    write_summary(count, collection_dir)
+    write_summary(count, collection_dir, total_sample)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Update output -- time taken {str(elapsed)}')

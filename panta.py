@@ -133,26 +133,48 @@ def get_previous_cluster(summary_file):
     return previous_clusters
 
 
-def get_previous_sample_id(presence_absence_file):
+def get_previous_sample_id(sample_file):
     """
     Get previous sample ID.
 
     Parameters
     ----------
-    presence_absence_file : path
-        Gene presence absence file of previous pan-genome.
+    sample_file : path
+        file contains samples id of previous pan-genome.
     
     Returns
     -------
     list
         a list of previous sample ID.
     """
-    with gzip.open(presence_absence_file, 'rt') as fh:
-        csv.field_size_limit(sys.maxsize)
-        reader = csv.reader(fh, delimiter=',')
-        header = next(reader)
-        previous_sample_id = header[1:] # exclude ID column
-        return previous_sample_id
+    previous_sample_id = []
+    with open(sample_file, 'r') as fh:
+        for line in fh:
+            sample_id = line.rstrip()
+            previous_sample_id.append(sample_id)
+    return previous_sample_id
+
+def write_sample_file(samples, collection_dir):
+    """
+    Write sample id to a samples.txt.
+
+    Parameters
+    ----------
+    samples : list 
+        List of sample from the command line. 
+        The list is sorted by sample ID. 
+        Each sample is a dictionary {'id':, 'gff_file':, 'assembly':}
+    
+    collection_dir : path
+        directory of the collection.
+
+    """
+    sample_file = os.path.join(collection_dir, 'samples.txt')
+    with open(sample_file, 'a') as fh:
+        for sample in samples:
+            sample_id = sample['id']
+            fh.write(sample_id + '\n')
+
 
 
 def init_function(args):
@@ -189,7 +211,9 @@ def init_function(args):
     wrapper.run_init_pipeline(
         samples, collection_dir, temp_dir, baseDir, args, timing_log, resume)
 
-    shutil.rmtree(temp_dir)    
+    write_sample_file(samples, collection_dir)
+    shutil.rmtree(temp_dir)
+    shutil.rmtree(os.path.join(collection_dir, 'samples'))
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
@@ -223,20 +247,16 @@ def add_function(args):
     old_representative_fasta = os.path.join(
         collection_dir, 'reference_pangenome.fasta')
     clusters_dir = os.path.join(collection_dir, 'clusters')
-    samples_dir = os.path.join(collection_dir, 'samples')
-    old_presence_absence_file = os.path.join(
-        collection_dir, 'gene_presence_absence.csv.gz')
     old_cluster_info_file = os.path.join(collection_dir, 'cluster_info.csv')
     summary_file = os.path.join(collection_dir, 'summary_statistics.txt')
+    sample_file = os.path.join(collection_dir, 'samples.txt')
     check_dir_exist(old_representative_fasta)
     check_dir_exist(clusters_dir)
-    check_dir_exist(samples_dir)
-    check_dir_exist(old_presence_absence_file)
     check_dir_exist(old_cluster_info_file)
     check_dir_exist(summary_file)
     previous_clusters = get_previous_cluster(summary_file)
     # collect new samples
-    previous_sample_id = get_previous_sample_id(old_presence_absence_file)
+    previous_sample_id = get_previous_sample_id(sample_file)
     new_samples = collect_sample(args, previous_sample_id)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
@@ -246,7 +266,10 @@ def add_function(args):
         new_samples, old_representative_fasta, previous_clusters, 
         collection_dir, temp_dir, baseDir, args, timing_log, resume)
     
+    write_sample_file(new_samples, collection_dir)
+
     shutil.rmtree(temp_dir)
+    shutil.rmtree(os.path.join(collection_dir, 'samples'))
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 

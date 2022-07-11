@@ -169,6 +169,8 @@ def process_single_sample_gff(sample, out_dir, table):
     # translate nucleotide to protein
     utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
 
+    if sample['assembly'] == None:
+        os.remove(assembly_file)
     os.remove(bed_file)
     os.remove(assembly_file + '.fai')
     os.remove(fna_file)

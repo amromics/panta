@@ -314,6 +314,7 @@ def create_msa_init_pipeline(clusters, samples, collection_dir, baseDir, threads
     if os.path.exists(finished):
         representative_fasta = os.path.join(
             collection_dir, 'reference_pangenome.fasta')
+        logging.info('Skip alignment')
         return representative_fasta
     
     clusters_dir = os.path.join(collection_dir, 'clusters')
@@ -374,6 +375,7 @@ def create_msa_add_pipeline(previous_clusters, new_clusters, new_samples,
     if os.path.exists(finished):
         representative_fasta = os.path.join(
             collection_dir, 'reference_pangenome.fasta')
+        logging.info('Skip alignment')
         return representative_fasta
     # find the cluster id for a specific gene
     gene_to_cluster_id = {} 

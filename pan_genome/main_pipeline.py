@@ -1,5 +1,6 @@
 import os
 import logging
+import shutil
 import subprocess
 from datetime import datetime
 
@@ -8,7 +9,7 @@ import pan_genome.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def run_cd_hit(faa_file, out_dir, threads, timing_log):
+def run_cd_hit(faa_file, out_dir, threads, timing_log, resume):
     """
     Cluster by CD-HIT and parse the resulting cluster file.
 
@@ -22,7 +23,10 @@ def run_cd_hit(faa_file, out_dir, threads, timing_log):
         number of threads
     timing_log : path
         path of time.log
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     cd_hit_represent_fasta : path
@@ -37,7 +41,13 @@ def run_cd_hit(faa_file, out_dir, threads, timing_log):
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = (f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 '
            f'-T {threads} -M 0 -g 1 -d 256 > /dev/null')
-    utils.run_command(cmd, timing_log)
+    
+    statement = (os.path.isfile(cd_hit_represent_fasta) and 
+            os.path.isfile(cd_hit_cluster_file) and 
+            resume[0] == True)
+    if not statement:
+        utils.run_command(cmd, timing_log)
+        resume[0] == False 
 
     # Parse cluster result
     cd_hit_clusters = utils.parse_cluster_file(cd_hit_cluster_file)
@@ -47,8 +57,8 @@ def run_cd_hit(faa_file, out_dir, threads, timing_log):
     return cd_hit_represent_fasta, cd_hit_clusters
 
 
-def run_blast(database_fasta, query_fasta, out_dir, timing_log, 
-        evalue, max_target_seqs, identity, query_coverage, threads):
+def run_blast(database_fasta, query_fasta, out_dir, timing_log, evalue, 
+              max_target_seqs, identity, query_coverage, threads, resume):
     """
     Make blast database and then run BLASTP.
 
@@ -73,17 +83,25 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
         an alignment against the reference
     threads : int
         number of threads
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     path
         path of blast result file
     """
     starttime = datetime.now()
+    blast_result = os.path.join(out_dir, 'blast_results')
+    if os.path.isfile(blast_result) and resume[0] == True:
+        logging.info(f'Resume - Run BLASTP')
+        return blast_result
+    else:
+        resume[0] = False
 
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-
     # make blast database
     blast_db = os.path.join(out_dir, 'blast_db')
     cmd = (f"makeblastdb -in {database_fasta} -dbtype "
@@ -91,23 +109,24 @@ def run_blast(database_fasta, query_fasta, out_dir, timing_log,
     utils.run_command(cmd, timing_log)
             
     # run blast
-    blast_result = os.path.join(out_dir, 'blast_results')
+    blast_result_temp = os.path.join(out_dir, 'blast_results.tmp')
     cmd = (f'blastp -query {query_fasta} -db {blast_db} -evalue {evalue} '
            f'-num_threads {threads} -mt_mode 1 '
            f'-outfmt 6 '
            f'-max_target_seqs {max_target_seqs} '
            f'-qcov_hsp_perc {query_coverage} '
            "| awk '{ if ($3 > " + str(identity) + ") print $0;}' "
-           f'2> /dev/null 1> {blast_result}')
+           f'2> /dev/null 1> {blast_result_temp}')
     utils.run_command(cmd, timing_log)
+    shutil.move(blast_result_temp, blast_result) # confirm finish
             
     elapsed = datetime.now() - starttime
     logging.info(f'Run BLASTP -- time taken {str(elapsed)}')
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, timing_log, 
-        evalue, max_target_seqs, identity, query_coverage, threads):
+def run_diamond(database_fasta, query_fasta, out_dir, timing_log, evalue, 
+                max_target_seqs, identity, query_coverage, threads, resume):
     """
     Make DIAMOND database and then run DIAMOND.
 
@@ -132,17 +151,25 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
         an alignment against the reference
     threads : int
         number of threads
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     path
         path of DIAMOND result file
     """    
     starttime = datetime.now()
-    
+    diamond_result = os.path.join(out_dir, 'diamond_results')
+    if os.path.isfile(diamond_result) and resume[0] == True:
+        logging.info(f'Resume - Run BLASTP')
+        return diamond_result
+    else:
+        resume[0] = False
+
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = (f'diamond makedb --in {database_fasta} -d {diamond_db} '
@@ -150,14 +177,15 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
     utils.run_command(cmd, timing_log)
             
     # run diamond blastp
-    diamond_result = os.path.join(out_dir, 'diamond_results')
+    diamond_result_tmp = os.path.join(out_dir, 'diamond_results.tmp')
     cmd = (f"diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} "
            f"--evalue {evalue} --max-target-seqs {max_target_seqs} "
            f'-qcov_hsp_perc {query_coverage} '
            f'--outfmt 6 '
            "| awk '{ if ($3 > " + str(identity) + ") print $0;}' "
-           f" 2> /dev/null 1> {diamond_result}")
+           f" 2> /dev/null 1> {diamond_result_tmp}")
     utils.run_command(cmd, timing_log)
+    shutil.move(diamond_result_tmp, diamond_result) # confirm finish
             
     elapsed = datetime.now() - starttime
     logging.info(f'Run Diamond -- time taken {str(elapsed)}')
@@ -165,8 +193,8 @@ def run_diamond(database_fasta, query_fasta, out_dir, timing_log,
 
 
 def pairwise_alignment(
-        diamond, database_fasta, query_fasta, out_dir, timing_log, 
-        evalue, max_target_seqs, identity, query_coverage, threads):
+        diamond, database_fasta, query_fasta, out_dir, timing_log, evalue, 
+        max_target_seqs, identity, query_coverage, threads, resume):
     """
     Make search tool, BLAST or DIAMOND.
 
@@ -193,7 +221,10 @@ def pairwise_alignment(
         an alignment against the reference
     threads : int
         number of threads
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     path
@@ -211,63 +242,17 @@ def pairwise_alignment(
         f'with {database_result.stdout.rstrip()} sequences')
 
     if diamond == False:
-        blast_result = run_blast(
-            database_fasta, query_fasta, out_dir, timing_log, 
-            evalue, max_target_seqs, identity, query_coverage, threads)
+        result = run_blast(
+            database_fasta, query_fasta, out_dir, timing_log, evalue, 
+            max_target_seqs, identity, query_coverage, threads, resume)
     else:
-        blast_result = run_diamond(
-            database_fasta, query_fasta, out_dir, timing_log,
-            evalue, max_target_seqs, identity, query_coverage, threads)
-    return blast_result
-
-
-def filter_blast_result(blast_result, out_dir, args):
-    """
-    Filter BLAST result to find matched sequences. There are 4 
-    criteria: identity, LD, AL, AS. Output the filtered blast file.
-
-    Parameters
-    ----------
-    blast_result : path
-        blast 1 result file
-    out_dir : path
-        directory of filtered fasta output
-    args : object
-        Command-line input arguments
-    
-    Returns
-    -------
-    filtered_blast_result : path
-        BLAST result file after filtering
-    """    
-    filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
-
-    with open(filtered_blast_result, 'w') as fh:
-        for line in open(blast_result, 'r'):
-            cells = line.rstrip().split('\t')
-            qlen = int(cells[12])
-            slen = int(cells[13])
-            pident = float(cells[2]) / 100
-            alignment_length = int(cells[3])
-
-            short_seq = min(qlen, slen)
-            long_seq = max(qlen, slen)
-            len_diff = short_seq / long_seq
-            align_short = alignment_length / short_seq
-            align_long = alignment_length / long_seq
-            
-            if (pident <= args.identity 
-                    or len_diff <= args.LD 
-                    or align_short <= args.AS 
-                    or align_long <= args.AL):
-                continue
-
-            fh.write(line)
-
-    return filtered_blast_result
+        result = run_diamond(
+            database_fasta, query_fasta, out_dir, timing_log, evalue, 
+            max_target_seqs, identity, query_coverage, threads, resume)
+    return result
 
             
-def cluster_with_mcl(blast_result, out_dir, timing_log):
+def cluster_with_mcl(blast_result, out_dir, timing_log, resume):
     """
     Run MCL to cluster sequences
 
@@ -279,14 +264,23 @@ def cluster_with_mcl(blast_result, out_dir, timing_log):
         directory for MCL output file
     timing_log : path
         path of time.log
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
+    -------
     path
         path of MCL result file
-    -------
     """
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
+    if os.path.isfile(mcl_file) and resume[0] == True:
+        logging.info(f'Resume - Run MCL')
+        return mcl_file
+    else:
+        resume[0] = False
+    
     cmd = (f"mcxdeblast --m9 --score r --line-mode=abc {blast_result} "
            f"2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1")
     utils.run_command(cmd, timing_log)

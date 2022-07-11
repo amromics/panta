@@ -167,10 +167,17 @@ def init_function(args):
     starttime = datetime.now()
 
     # parse arguments
+    resume = [args.resume]
+
     collection_dir = args.outdir
-    temp_dir = os.path.join(collection_dir, 'temp')
     check_create_folder(collection_dir)
-    check_create_folder(temp_dir)
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        if resume[0] == False:
+            shutil.rmtree(temp_dir)
+            os.makedirs(temp_dir)
+    else:
+        os.makedirs(temp_dir)
     timing_log = os.path.join(collection_dir, 'time.log')
     baseDir = os.path.dirname(os.path.realpath(__file__))
     # collect samples
@@ -180,9 +187,9 @@ def init_function(args):
     
     # call Init pipeline
     wrapper.run_init_pipeline(
-        samples, collection_dir, temp_dir, baseDir, args, timing_log)
+        samples, collection_dir, temp_dir, baseDir, args, timing_log, resume)
 
-    # shutil.rmtree(temp_dir)    
+    shutil.rmtree(temp_dir)    
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
@@ -199,10 +206,17 @@ def add_function(args):
     starttime = datetime.now()
 
     # parse arguments
+    resume = [args.resume]
+
     collection_dir = args.outdir
-    temp_dir = os.path.join(collection_dir, 'temp')
     check_dir_exist(collection_dir)
-    check_create_folder(temp_dir)
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        if resume[0] == False:
+            shutil.rmtree(temp_dir)
+            os.makedirs(temp_dir)
+    else:
+        os.makedirs(temp_dir)
     timing_log = os.path.join(collection_dir, 'time.log')
     baseDir = os.path.dirname(os.path.realpath(__file__))
     # Check required files
@@ -230,9 +244,9 @@ def add_function(args):
     # call Add pipeline
     wrapper.run_add_pipeline(
         new_samples, old_representative_fasta, previous_clusters, 
-        collection_dir, temp_dir, baseDir, args, timing_log)
+        collection_dir, temp_dir, baseDir, args, timing_log, resume)
     
-    # shutil.rmtree(temp_dir)
+    shutil.rmtree(temp_dir)
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
 
@@ -251,7 +265,7 @@ def main():
         '-g', '--gff', help='genome annotation input files (e.g. from Prokka)',
         default=None, nargs='*', type=str)
     parser.add_argument(
-        '-b', '--fasta', help='genome assembly input files',
+        '-a', '--fasta', help='genome assembly input files',
         default=None, nargs='*', type=str)
     tsv_help = """
         when GFF file and FASTA file are seperated (e.g. produced by tools 
@@ -281,7 +295,10 @@ def main():
         default=0, type=int)
     parser.add_argument(
         '--table', help='codon table', default=11, type=int)
-
+    parser.add_argument(
+        '-r', '--resume', 
+        help='Resume the analysis from interuption', 
+        default=False, action='store_true')
     # Execute parse_args()
     args = parser.parse_args()
     if args.threads <= 0:

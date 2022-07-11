@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_init_pipeline(samples, collection_dir, temp_dir, baseDir, 
-                      args, timing_log):
+                      args, timing_log, resume):
     """
     Run initial pan-genome analysis.
 
@@ -44,6 +44,9 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         Command-line input arguments
     timing_log : path
         path of time.log
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
     """
     gene_dictionary = data_preparation.extract_proteins(
         samples,collection_dir,args)
@@ -52,13 +55,15 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         collection_dir= collection_dir, 
         out_dir=temp_dir,
         samples=samples,
-        timing_log=timing_log)
+        timing_log=timing_log,
+        resume = resume)
 
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
         faa_file=combined_faa,
         out_dir=temp_dir,
         threads=args.threads,
-        timing_log=timing_log)
+        timing_log=timing_log,
+        resume = resume)
 
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
@@ -70,12 +75,14 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         max_target_seqs=2000,
         identity = args.identity,
         query_coverage = args.coverage,
-        threads=args.threads)
+        threads=args.threads,
+        resume=resume)
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
         blast_result = blast_result,
-        timing_log=timing_log)
+        timing_log=timing_log,
+        resume = resume)
 
     clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -111,7 +118,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
 
 
 def run_add_pipeline(new_samples, old_represent_faa, previous_clusters, 
-                     collection_dir, temp_dir, baseDir, args, timing_log):
+        collection_dir, temp_dir, baseDir, args, timing_log, resume):
     """
     Add new samples to previous collection.
 
@@ -144,6 +151,9 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         Command-line input arguments
     timing_log : path
         path of time.log
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
     """
     gene_dictionary = data_preparation.extract_proteins(
         new_samples,collection_dir,args)
@@ -152,14 +162,16 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
         collection_dir= collection_dir, 
         out_dir=temp_dir,
         samples=new_samples,
-        timing_log=timing_log)
+        timing_log=timing_log,
+        resume = resume)
 
     notmatched_faa, cd_hit_2d_clusters = add_sample_pipeline.run_cd_hit_2d(
         database_1 = old_represent_faa,
         database_2 = new_combined_faa,
         out_dir = temp_dir,
-        threads=args.threads,
-        timing_log=timing_log)
+        threads= args.threads,
+        timing_log= timing_log,
+        resume=resume)
 
     add_sample_pipeline.add_gene_cd_hit_2d(previous_clusters, cd_hit_2d_clusters)
 
@@ -173,7 +185,8 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
             faa_file=notmatched_faa,
             out_dir=temp_dir,
             threads=args.threads,
-            timing_log=timing_log)
+            timing_log=timing_log,
+            resume = resume)
 
         blast_1_result = main_pipeline.pairwise_alignment(
             diamond=args.diamond,
@@ -185,7 +198,8 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
             max_target_seqs=2000,
             identity = args.identity,
             query_coverage = args.coverage,
-            threads=args.threads)
+            threads=args.threads,
+            resume=resume)
 
         remain_fasta = add_sample_pipeline.add_gene_blast(
             previous_clusters=previous_clusters,
@@ -210,12 +224,14 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
                 max_target_seqs=2000,
                 identity = args.identity,
                 query_coverage = args.coverage,
-                threads=args.threads)
+                threads=args.threads,
+                resume=resume)
 
             mcl_file = main_pipeline.cluster_with_mcl(
                 out_dir = temp_dir,
                 blast_result = blast_2_result,
-                timing_log=timing_log)
+                timing_log=timing_log,
+                resume=resume)
 
             new_clusters = main_pipeline.reinflate_clusters(
                 cd_hit_clusters = cd_hit_clusters,

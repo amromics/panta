@@ -150,8 +150,15 @@ def process_single_sample_gff(sample, out_dir, table):
         sample_dir = sample_dir, 
         sample_id = sample_id
         )
+    # if input has a separated genome assembly, use it.
     if sample['assembly'] != None:
+        os.remove(assembly_file) # remove an empty file
         assembly_file = sample['assembly']
+    
+    # if result file exists, skip
+    faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    if os.path.isfile(faa_file):
+        return gene_dictionary
     
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
@@ -160,11 +167,8 @@ def process_single_sample_gff(sample, out_dir, table):
     utils.run_command(cmd)
 
     # translate nucleotide to protein
-    faa_file = os.path.join(sample_dir, sample_id +'.faa')
     utils.translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
 
-    if sample['assembly'] == None: # not remove, if it is input assembly
-        os.remove(assembly_file)
     os.remove(bed_file)
     os.remove(assembly_file + '.fai')
     os.remove(fna_file)
@@ -211,6 +215,7 @@ def process_single_sample_fasta(sample, out_dir, table):
     else:
         cmd = (f'prodigal -i {assembly_file} -a {faa_file} -g {table} '
                f'-c -m -q -o /dev/null')
+    # if result files exists, skip Prodigal
     if not os.path.isfile(faa_file):
         utils.run_command(cmd)
                     
@@ -311,7 +316,7 @@ def extract_proteins(samples, out_dir, args):
     return gene_dictionary
 
 
-def combine_proteins(collection_dir, out_dir, samples, timing_log):
+def combine_proteins(collection_dir, out_dir, samples, timing_log, resume):
     """
     Combine protein sequences of all samples into one file.
 
@@ -325,15 +330,23 @@ def combine_proteins(collection_dir, out_dir, samples, timing_log):
         information of each sample
     timing_log : path
         path to time.log
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     path
         path of output file
     """
     # starttime = datetime.now()
-
     combined_faa_file = os.path.join(out_dir, 'combined.faa')
+    if os.path.isfile(combined_faa_file) and resume[0] == True:
+        logging.info(f'Resume - Combine protein')
+        return combined_faa_file
+    else:
+        resume[0] = False
+
     protein_files = os.path.join(out_dir, 'protein.txt')
     with open(protein_files, 'w') as fh:
         for sample in samples:

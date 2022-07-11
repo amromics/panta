@@ -53,7 +53,7 @@ def run_command(cmd, timing_log=None):
 
     if ret != 0:
         logger.error(f'Error running {cmd}')
-        # raise Exception(f'Error running {cmd}')
+        raise Exception(f'Error running {cmd}')
 
 def parse_cluster_file(cd_hit_cluster_file):
     """

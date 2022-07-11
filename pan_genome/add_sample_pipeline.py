@@ -7,7 +7,7 @@ import pan_genome.utils as utils
 
 logger = logging.getLogger(__name__)
 
-def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
+def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log,resume):
     """
     Run CD-HIT-2D to compare new sequences from new samples with the 
     representative sequences of previous clusters. Then, parse the 
@@ -25,7 +25,10 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
         number of threads
     timing_log : path
         path of time.log
-    
+    resume : list
+        A boolean inside a list
+        If True, resume previous analysis
+
     Returns
     -------
     notmatch_faa : path
@@ -41,7 +44,13 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads, timing_log):
     cd_hit_cluster_file = notmatch_faa + '.clstr'
     cmd=(f'cd-hit-2d -i {database_1} -i2 {database_2} -o {notmatch_faa} '
          f'-s 0.98 -s2 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null')
-    utils.run_command(cmd, timing_log)
+    
+    statement = (os.path.isfile(notmatch_faa) and 
+            os.path.isfile(cd_hit_cluster_file) and 
+            resume[0] == True)
+    if not statement:
+        utils.run_command(cmd, timing_log)
+        resume[0] = False
 
     # parse the cluster file
     clusters = utils.parse_cluster_file(cd_hit_cluster_file)

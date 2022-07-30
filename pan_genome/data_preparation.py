@@ -5,11 +5,13 @@ import multiprocessing
 from functools import partial
 from datetime import datetime
 import gzip
+import json
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 import pan_genome.utils as utils
+import pan_genome.output as output
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_dictionary = {}
+    gene_position = {}
     found_fasta = False
     suffix = 1
 
@@ -72,7 +75,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             length = end - start + 1
             if length < 120: # filter out gene less 120 nu
                 continue
-            seq_id = cells[0]
+            contig = cells[0]
             trand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
@@ -106,15 +109,16 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 suffix += 1
             
             # create bed file
-            row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
+            row = [contig, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (
-                sample_id, seq_id, length, gene_name, gene_product)
+                sample_id, contig, length, gene_name, gene_product)
+            gene_position.setdefault(contig, []).append(gene_id)
     
     in_fh.close()
     
-    return bed_file, assembly_file, gene_dictionary
+    return bed_file, assembly_file, gene_dictionary, gene_position
     
 
 def process_single_sample_gff(sample, out_dir, table):
@@ -145,7 +149,7 @@ def process_single_sample_gff(sample, out_dir, table):
         os.makedirs(sample_dir)
     
     # parse gff file
-    bed_file, assembly_file, gene_dictionary = parse_gff_file(
+    bed_file, assembly_file, gene_dictionary, gene_position = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
         sample_id = sample_id
@@ -175,7 +179,7 @@ def process_single_sample_gff(sample, out_dir, table):
     os.remove(assembly_file + '.fai')
     os.remove(fna_file)
 
-    return gene_dictionary
+    return gene_dictionary, gene_position
 
 
 def process_single_sample_fasta(sample, out_dir, table):
@@ -223,6 +227,7 @@ def process_single_sample_fasta(sample, out_dir, table):
                     
     # rename gene id and extract coordinates
     gene_dictionary = {}
+    gene_position = {}
     rewrite_faa_file = os.path.join(sample_dir, sample_id +'.faa')
     count = 1
     with open(faa_file, 'r') as in_fh, open(rewrite_faa_file, 'w') as out_fh:
@@ -266,8 +271,9 @@ def process_single_sample_fasta(sample, out_dir, table):
 
             # add to gene_dictionary           
             gene_dictionary[gene_id] = (sample_id, contig, length)
+            gene_position.setdefault(contig, []).append(gene_id)
 
-    return gene_dictionary
+    return gene_dictionary, gene_position
 
 
 def extract_proteins(samples, out_dir, args):
@@ -304,14 +310,18 @@ def extract_proteins(samples, out_dir, args):
                 samples)
     
     gene_dictionary = {}
+    gene_position = {}
     for sample, result in zip(samples, results):
         # gene_dictionary.update(result[0])
-        for k, v in result.items():
+        for k, v in result[0].items():
             if k in gene_dictionary:
                 logging.info(f'{k} already exists -- add prefix')
                 k = sample['id'] + '_' + k
             gene_dictionary[k] = v
-        
+        gene_position[sample['id']] = result[1]
+    
+    output.write_gene_position(gene_position, out_dir)
+    
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 

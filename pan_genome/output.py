@@ -6,10 +6,6 @@ import logging
 import shutil
 from datetime import datetime
 
-from requests import get
-
-from Bio import SeqIO
-
 logger = logging.getLogger(__name__)
 
 def classify_cluster(num_sample, total, count):
@@ -87,7 +83,7 @@ def get_number_of_samples(summary_file):
                 return int(total_samples)
 
 
-def create_output(clusters, clusters_annotation, 
+def output_cluster_info(clusters, clusters_annotation, 
                   gene_dictionary, samples, out_dir):
     """
     Create 2 output file:
@@ -169,10 +165,10 @@ def create_output(clusters, clusters_annotation,
     write_summary(count, out_dir, total_sample)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Create output -- time taken {str(elapsed)}')
+    logging.info(f'Output cluster info -- time taken {str(elapsed)}')
 
 
-def update_output(
+def update_cluster_info(
         previous_clusters, new_clusters, new_clusters_annotation, 
         gene_dictionary, new_samples, temp_dir, collection_dir):
     """
@@ -307,7 +303,37 @@ def update_output(
     write_summary(count, collection_dir, total_sample)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Update output -- time taken {str(elapsed)}')
+    logging.info(f'Update cluster info output -- time taken {str(elapsed)}')
+
+
+def output_gene_info(clusters, gene_dictionary, out_dir):
+    """
+        Output gene_info.tsv file
+        
+        Parameters
+        ----------
+        clusters : list of list
+            list of sequence IDs of each cluster
+        gene dictionary : dict
+            contain information of each gene
+            {gene_id: (sample_id, contig, length, gene_name, gene_product)}
+        out_dir : path
+            output directory
+        """    
+    starttime = datetime.now()
+    gene_file = os.path.join(out_dir, 'gene_info.tsv')
+    with  open(gene_file, 'a') as fh:
+        writer = csv.writer(fh, delimiter='\t')
+        for i, cluster in enumerate(clusters):
+            for gene_id in cluster:
+                sample_id = gene_dictionary[gene_id][0]
+                row = []
+                row.append(gene_id)
+                row.append(sample_id)
+                row.append(i)
+                writer.writerow(row)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Output gene info -- time taken {str(elapsed)}')
 
 
 def create_rtab(clusters, gene_dictionary, samples, out_dir):
@@ -429,10 +455,10 @@ def read_gene_dictionary(annotation_file):
     # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
     return gene_dictionary
 
-def write_gene_position(gene_position, out_dir, mode='w'):
+def write_gene_position(gene_position, out_dir):
     # starttime = datetime.now()
     
-    with open(os.path.join(out_dir, 'gene_position.tsv'),mode) as fh:
+    with open(os.path.join(out_dir, 'gene_position.tsv'), 'a') as fh:
         writer = csv.writer(fh, delimiter='\t')
         for sample in gene_position:
             for seq in gene_position[sample]:

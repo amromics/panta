@@ -47,6 +47,26 @@ def run_add_pipeline(gff_list, out_dir, n):
 
 	return out_dir
 
+
+def run_add_pipeline_iteratively(gff_list, out_dir, n):
+	if not os.path.exists(out_dir):
+		os.makedirs(out_dir)
+
+	chunks = [gff_list[x:x+n] for x in range(0, len(gff_list), n)]
+
+	cmd = ('/usr/bin/time -v python panta.py -p init '
+		   f'-o {out_dir} -t {threads} -g ')
+	cmd += ' '.join(chunks[0])
+	cmd += f' 1>> {out_dir}/test.log 2>&1'
+	os.system(cmd)
+	
+	for chuck in chunks[1:]:
+		cmd = ('/usr/bin/time -v python panta.py -p add '
+			f'-o {out_dir} -t {threads} -g ')
+		cmd += ' '.join(chuck)
+		cmd += f' 1>> {out_dir}/test.log 2>&1'
+		os.system(cmd)
+
 def run_roary(input_dir, out_dir):
 	if os.path.exists(out_dir):
 		shutil.rmtree(out_dir)
@@ -153,7 +173,7 @@ if __name__ == "__main__":
 	panta_dir = f'{base_dir}/amromics/amromics/pan-genome'
 
 	global threads
-	threads = 8
+	threads = 4
 	
 	gff_dir = f'{base_dir}/{collection_name}/gff'
 	
@@ -178,6 +198,9 @@ if __name__ == "__main__":
 
 	gff_list = get_gff(gff_dir + '/*.gff')
 	os.chdir(panta_dir)
-	for n in [2, 25, 50, 75, 99]:
-		run_add_pipeline(
-			gff_list, f'{base_dir}/{collection_name}/out/panta_add', n)
+	# for n in [2, 25, 50, 75, 99]:
+	# 	run_add_pipeline(
+	# 		gff_list, f'{base_dir}/{collection_name}/out/panta_add', n)
+
+	run_add_pipeline_iteratively(
+		gff_list, f'{base_dir}/{collection_name}/out/panta_iter_3', 10)

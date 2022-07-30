@@ -22,7 +22,7 @@ logging.basicConfig(
     datefmt='%I:%M:%S')
 logger = logging.getLogger(__name__)
 
-def collect_sample(args, previous_sample_id=None):
+def collect_sample(args, previous_samples=None):
     """
     Collect sample from command-line input.
 
@@ -34,8 +34,8 @@ def collect_sample(args, previous_sample_id=None):
     ----------
     args : object
         Command-line input arguments.
-    previous_sample_id : list of str, default 'None'
-        Existing sample ID from the previous collection. 
+    previous_samples : list of str, default 'None'
+        Existing samples from the previous collection. 
         It is None if we run the init pipeline.
     
     Returns
@@ -43,22 +43,23 @@ def collect_sample(args, previous_sample_id=None):
     list 
         List of sample from the command line. 
         The list is sorted by sample ID. 
-        Each sample is a dictionary {'id':, 'gff_file':, 'assembly':} 
+        Each sample is a dictionary {'id':, 'name':, gff_file':, 'assembly':} 
     """
     ## TODO Accept both gff and fasta file at the same time.
     samples = []
-    if previous_sample_id == None:
-        previous_sample_id = []
+    if previous_samples == None:
+        previous_samples = []
+    sample_id = len(previous_samples) # continue previous id
     if args.tsv != None:
         with open(args.tsv,'r') as fh:
             csv_reader = csv.reader(fh, delimiter='\t')
             for row in csv_reader:
-                sample_id = row[0]
-                if sample_id in previous_sample_id:
-                    logging.info(f'{sample_id} already exists -- skip')
+                sample_name = row[0]
+                if sample_name in previous_samples:
+                    logging.info(f'{sample_name} already exists -- skip')
                     continue
                 else:
-                    previous_sample_id.append(sample_id)
+                    previous_samples.append(sample_name)
                 gff = row[1]
                 check_dir_exist(gff)
                 assembly = row[2]
@@ -66,43 +67,47 @@ def collect_sample(args, previous_sample_id=None):
                     assembly = None # then the GFF file must contain assembly data
                 else:
                     check_dir_exist(assembly)
-                samples.append(
-                    {'id':sample_id, 'gff_file':gff, 'assembly':assembly}) 
+                samples.append({'id':str(sample_id), 'name':sample_name, 
+                    'gff_file':gff, 'assembly':assembly})
+                sample_id += 1
     elif args.gff != None:
         gff_list = args.gff
         for gff in gff_list:
             base_name = os.path.basename(gff)
             if base_name.endswith('.gz'):
-                sample_id = base_name.rsplit('.', 2)[0]
+                sample_name = base_name.rsplit('.', 2)[0]
             else:
-                sample_id = base_name.rsplit('.', 1)[0]
-            if sample_id in previous_sample_id:
-                logging.info(f'{sample_id} already exists -- skip')
+                sample_name = base_name.rsplit('.', 1)[0]
+            if sample_name in previous_samples:
+                logging.info(f'{sample_name} already exists -- skip')
                 continue
             else:
-                previous_sample_id.append(sample_id)
+                previous_samples.append(sample_name)
             check_dir_exist(gff)
-            samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
+            samples.append({'id':str(sample_id), 'name':sample_name, 
+                'gff_file':gff, 'assembly':None})
+            sample_id += 1
     elif args.fasta != None:
-            fasta_list = args.fasta
-            for fasta in fasta_list:
-                base_name = os.path.basename(fasta)
-                if base_name.endswith('.gz'):
-                    sample_id = base_name.rsplit('.', 2)[0]
-                else:
-                    sample_id = base_name.rsplit('.', 1)[0]
-                if sample_id in previous_sample_id:
-                    logging.info(f'{sample_id} already exists -- skip')
-                    continue
-                else:
-                    previous_sample_id.append(sample_id)
-                check_dir_exist(fasta)
-                samples.append(
-                    {'id':sample_id, 'gff_file':None, 'assembly':fasta})    
+        fasta_list = args.fasta
+        for fasta in fasta_list:
+            base_name = os.path.basename(fasta)
+            if base_name.endswith('.gz'):
+                sample_name = base_name.rsplit('.', 2)[0]
+            else:
+                sample_name = base_name.rsplit('.', 1)[0]
+            if sample_name in previous_samples:
+                logging.info(f'{sample_name} already exists -- skip')
+                continue
+            else:
+                previous_samples.append(sample_name)
+            check_dir_exist(fasta)
+            samples.append({'id':str(sample_id), 'name':sample_name, 
+                'gff_file':None, 'assembly':fasta})
+            sample_id += 1   
     else:
         raise Exception(f'There is no input file')
     
-    samples.sort(key= lambda x:x['id'])
+    samples.sort(key= lambda x:x['name'])
     return samples
 
 
@@ -133,47 +138,49 @@ def get_previous_cluster(summary_file):
     return previous_clusters
 
 
-def get_previous_sample_id(sample_file):
+def get_previous_samples(sample_file):
     """
     Get previous sample ID.
 
     Parameters
     ----------
     sample_file : path
-        file contains samples id of previous pan-genome.
+        file contains samples of previous pan-genome.
     
     Returns
     -------
     list
-        a list of previous sample ID.
+        a list of previous sample.
     """
-    previous_sample_id = []
+    previous_samples = []
     with open(sample_file, 'r') as fh:
         for line in fh:
-            sample_id = line.rstrip()
-            previous_sample_id.append(sample_id)
-    return previous_sample_id
+            line = line.rstrip()
+            sample_name = line.split('\t')[0]
+            previous_samples.append(sample_name)
+    return previous_samples
 
 def write_sample_file(samples, collection_dir):
     """
-    Write sample id to a samples.txt.
+    Write sample id to a samples.tsv.
 
     Parameters
     ----------
     samples : list 
         List of sample from the command line. 
-        The list is sorted by sample ID. 
-        Each sample is a dictionary {'id':, 'gff_file':, 'assembly':}
+        The list is sorted by sample name. 
+        Each sample is a dictionary {'id':, 'name':, 'gff_file':, 'assembly':}
     
     collection_dir : path
         directory of the collection.
 
     """
-    sample_file = os.path.join(collection_dir, 'samples.txt')
+    sample_file = os.path.join(collection_dir, 'samples.tsv')
     with open(sample_file, 'a') as fh:
         for sample in samples:
             sample_id = sample['id']
-            fh.write(sample_id + '\n')
+            sample_name = sample['name']
+            fh.write(sample_name + '\t' + sample_id + '\n')
 
 
 
@@ -192,7 +199,9 @@ def init_function(args):
     resume = [args.resume]
 
     collection_dir = args.outdir
-    check_create_folder(collection_dir)
+    if os.path.exists(collection_dir):
+        shutil.rmtree(collection_dir)
+        os.makedirs(collection_dir)
     temp_dir = os.path.join(collection_dir, 'temp')
     if os.path.exists(temp_dir):
         if resume[0] == False:
@@ -211,7 +220,12 @@ def init_function(args):
     wrapper.run_init_pipeline(
         samples, collection_dir, temp_dir, baseDir, args, timing_log, resume)
 
+    # write sample file
+    sample_file = os.path.join(collection_dir, 'samples.tsv')
+    if os.path.exists(sample_file):
+        os.remove(sample_file) # remove existing file
     write_sample_file(samples, collection_dir)
+
     shutil.rmtree(temp_dir)
     shutil.rmtree(os.path.join(collection_dir, 'samples'))
     elapsed = datetime.now() - starttime
@@ -249,15 +263,15 @@ def add_function(args):
     clusters_dir = os.path.join(collection_dir, 'clusters')
     old_cluster_info_file = os.path.join(collection_dir, 'cluster_info.csv')
     summary_file = os.path.join(collection_dir, 'summary_statistics.txt')
-    sample_file = os.path.join(collection_dir, 'samples.txt')
+    sample_file = os.path.join(collection_dir, 'samples.tsv')
     check_dir_exist(old_representative_fasta)
     check_dir_exist(clusters_dir)
     check_dir_exist(old_cluster_info_file)
     check_dir_exist(summary_file)
     previous_clusters = get_previous_cluster(summary_file)
     # collect new samples
-    previous_sample_id = get_previous_sample_id(sample_file)
-    new_samples = collect_sample(args, previous_sample_id)
+    previous_samples = get_previous_samples(sample_file)
+    new_samples = collect_sample(args, previous_samples)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
     

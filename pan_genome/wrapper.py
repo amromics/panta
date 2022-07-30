@@ -97,7 +97,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         clusters_annotation = annotate.annotate_cluster_gff(
             unlabeled_clusters=clusters, 
             gene_dictionary=gene_dictionary)
-        output.create_output(
+        output.output_cluster_info(
             clusters, clusters_annotation, 
             gene_dictionary, samples, collection_dir)
         representative_fasta = alignment.create_msa_init_pipeline(
@@ -112,9 +112,15 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
             baseDir = baseDir,
             timing_log=timing_log,
             threads = args.threads)
-        output.create_output(
+        output.output_cluster_info(
             clusters, clusters_annotation, 
             gene_dictionary, samples, collection_dir)
+    
+    # create a new gene info file
+    gene_file = os.path.join(collection_dir, 'gene_info.tsv')
+    if os.path.exists(gene_file):
+        os.remove(gene_file) # remove existing file to create a new one
+    output.output_gene_info(clusters, gene_dictionary, collection_dir)
 
 
 def run_add_pipeline(new_samples, old_represent_faa, previous_clusters, 
@@ -246,7 +252,7 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
             unlabeled_clusters=new_clusters, 
             gene_dictionary=gene_dictionary)
         # update result files
-        output.update_output(previous_clusters, new_clusters, 
+        output.update_cluster_info(previous_clusters, new_clusters, 
             new_clusters_annotation, gene_dictionary, 
             new_samples, temp_dir, collection_dir)
         # add new seq to previous msa, create msa for new clusters
@@ -267,6 +273,11 @@ def run_add_pipeline(new_samples, old_represent_faa, previous_clusters,
             timing_log = timing_log,
             threads = args.threads)
         # update result files
-        output.update_output(
+        output.update_cluster_info(
             previous_clusters, new_clusters, new_clusters_annotation, 
             gene_dictionary, new_samples, temp_dir, collection_dir)
+
+    # append new gene to previous gene info file
+    previous_clusters.extend(new_clusters)
+    output.output_gene_info(
+        previous_clusters, gene_dictionary, collection_dir)

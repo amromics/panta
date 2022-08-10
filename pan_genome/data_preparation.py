@@ -325,7 +325,7 @@ def extract_proteins(samples, out_dir, args):
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
-    return gene_dictionary
+    return gene_dictionary, gene_position
 
 
 def combine_proteins(collection_dir, out_dir, samples, timing_log, resume):

@@ -123,7 +123,7 @@ def split_paralogs(gene_dictionary, gene_position, unsplit_clusters, split):
     clusters_not_paralogs = set()
     # run iteratively
     out_clusters = unsplit_clusters
-    for i in range(5):
+    for i in range(100000):
         stime = datetime.now()
         in_clusters = out_clusters
         out_clusters = []

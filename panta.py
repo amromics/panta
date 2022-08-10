@@ -333,6 +333,10 @@ def main():
     parser.add_argument(
         '--table', help='codon table', default=11, type=int)
     parser.add_argument(
+        '-s', '--split', 
+        help='Split paralogs from ortholog', 
+        default=False, action='store_true')
+    parser.add_argument(
         '-r', '--resume', 
         help='Resume the analysis from interuption', 
         default=False, action='store_true')

@@ -12,6 +12,7 @@ from pan_genome import add_sample_pipeline
 from pan_genome import annotate
 from pan_genome import alignment
 from pan_genome import output
+from pan_genome import post_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         A boolean inside a list
         If True, resume previous analysis
     """
-    gene_dictionary = data_preparation.extract_proteins(
+    gene_dictionary, gene_position = data_preparation.extract_proteins(
         samples,collection_dir,args)
 
     combined_faa = data_preparation.combine_proteins(
@@ -84,11 +85,12 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
         timing_log=timing_log,
         resume = resume)
 
-    clusters = main_pipeline.reinflate_clusters(
+    unsplit_clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
 
-    ## TODO: split paralogs from orthologs???
+    clusters = post_analysis.split_paralogs(
+        gene_dictionary, gene_position, unsplit_clusters, args.split)
 
     # annotate clusters, create gene alignment and output
     ## TODO: create msa from nucleotide seqeunces.

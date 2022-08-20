@@ -189,7 +189,7 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 seq_id = result.group(1)
             else:
                 dna = Seq(line)
-                pro = dna.translate(table=table)
+                pro = dna.translate(table=table, stop_symbol='')
                 pro = str(pro)
                 
                 # # filter seq with premature codon

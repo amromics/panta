@@ -76,6 +76,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             # if length < 120: # filter out gene less 120 nu
             #     print('short')
             #     continue
+            if length % 3 != 0:
+                continue
             contig = cells[0]
             trand = cells[6]
             tags = cells[8].split(';')
@@ -241,7 +243,8 @@ def process_single_sample_fasta(sample, out_dir, table):
             # if length < 120:
             #     # logger.info('Short gene')
             #     continue
-
+            if length % 3 != 0:
+                continue
             # filter seq with premature codon
             results = re.findall(r'\*', pro)
             if len(results) > 1:

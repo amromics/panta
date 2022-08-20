@@ -33,7 +33,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             start = int(cells[3])
             end = int(cells[4])
             length = end - start + 1
-            if length < 120:
+            # if length < 120:
+            #     continue
+            if length % 3 != 0:
                 continue
             seq_id = cells[0]
             trand = cells[6]
@@ -60,13 +62,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue
             
-            # if re.match(sample_id, gene_id) == None:
-            #     gene_id = sample_id + '_' + gene_id
-            if gene_id in gene_annotation:
-                # raise Exception(f'{gene_id} of {sample_id} appear the second time. Please fix gff files')
-                logging.info(f'{gene_id} already exists -- add suffix')
-                gene_id += '_{:05d}'.format(suffix)
-                suffix += 1
+            gene_id += f'_{sample_id}_{str(suffix)}'
+            suffix += 1
             
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
@@ -125,12 +122,7 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
     
     for sample, result in zip(samples, results):
-        # gene_annotation.update(result[0])
-        for k, v in result[0].items():
-            if k in gene_annotation:
-                logging.info(f'{k} already exists -- add prefix')
-                k = sample['id'] + '_' + k
-            gene_annotation[k] = v
+        gene_annotation.update(result[0])
         gene_position[sample['id']] = result[1]
         
     elapsed = datetime.now() - starttime

@@ -71,7 +71,7 @@ def chunk_fasta_file(fasta_file, out_dir):
 def create_fasta_exclude(fasta_file, exclude_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+)", line)
+            result = re.match(r"^>(\S+)", line)
             if result != None:
                 skip = False
                 seq_id = result.group(1)
@@ -89,7 +89,7 @@ def create_fasta_exclude(fasta_file, exclude_list, output_file):
 def create_fasta_include(fasta_file, include_list, output_file):
     with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
         for line in fh_in:
-            result = re.match(r"^>(\w+)", line)
+            result = re.match(r"^>(\S+)", line)
             if result != None:
                 skip = False
                 seq_id = result.group(1)
@@ -105,9 +105,6 @@ def create_fasta_include(fasta_file, include_list, output_file):
 
 
 def translate_protein(nu_fasta, pro_fasta, table):
-    premature = []
-    startstop = []
-    unknown = []
     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
         for line in fh_in:
             line = line.rstrip()
@@ -117,37 +114,9 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 seq_id = result.group(1)
             else:
                 dna = Seq(line)
-                pro = dna.translate(table=table)
+                pro = dna.translate(table=table, stop_symbol='')
                 pro = str(pro)
-                
-                # filter seq with premature codon
-                results = re.findall(r'\*', pro)
-                if len(results) > 1:
-                    premature.append(seq_id)
-                    continue
-                
-                # filter seq lacking start and stop codon
-                if pro[0] != 'M' and pro[-1] != '*':
-                    startstop.append(seq_id)
-                    continue
-
-                # filter seq which has more than 5% of unknown
-                results = re.findall(r'X', pro)
-                if len(results) / len (pro) > 0.05:
-                    unknown.append(seq_id)
-                    continue
-
-                
-                # line = translate_dna(line, seq_id)
-                # if line == None:
-                #     continue
                 
                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')
                 fh_out.write('\n'.join(ls) + '\n')
-    if len(premature)!= 0:
-        logger.info('Have premature codon - exclude {}'.format(', '.join(premature)))
-    if len(startstop)!= 0:
-        logger.info('Lack both start and stop codon - exclude {}'.format(', '.join(startstop)))
-    if len(unknown)!= 0:
-        logger.info('Too many unknowns - exclude {}'.format(', '.join(unknown)))

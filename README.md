@@ -8,10 +8,28 @@ Depencencies:
 - MCL
 - pandas
 - SeqIO
+
+The simplest method is installed via conda:
+
+1. Download and install the appropriate conda, such as miniconda from [here](https://docs.conda.io/en/latest/miniconda.html)
+   
+   
+2. Create a conda environment with all the necessary dependencies: From the repository directory run
+
+```bash
+
+conda create -y -c conda-forge -c defaults --name panta python=3.7 mamba
+
+conda activate panta
+
+mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requirements.txt
+
+```
+
 ## Usage
 Activate conda enviroment:
 ```
-source activate amromics-viz
+source activate panta
 ```
 ### Main pipeline: run pan-genome analysis for the first time
 ```
@@ -60,6 +78,6 @@ optional arguments:
 ## Example
 Basic:
 ```
-python3 pan-genome.py main -c tests/Kp26 -t 8 data/Kp26/main/*.gff
-python3 pan-genome.py add -c tests/Kp26 -t 8 data/Kp26/add/*.gff
+python pan-genome.py main -o examples/test/output -g examples/test/main/*.gff
+python pan-genome.py add -c examples/test/output -g examples/test/add/*.gff
 ```

@@ -1,0 +1,11 @@
+ python==3.7.10
+ biopython
+ bedtools==2.30.0
+ cd-hit==4.8.1
+ blast==2.12.0
+ diamond==2.0.14
+ mcl==14.137
+ mafft==7.490
+ parallel==20220222
+ sra-tools==2.11.0
+ pandas

@@ -73,8 +73,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             start = int(cells[3])
             end = int(cells[4])
             length = end - start + 1
-            if length < 120: # filter out gene less 120 nu
-                continue
+            # if length < 120: # filter out gene less 120 nu
+            #     print('short')
+            #     continue
             contig = cells[0]
             trand = cells[6]
             tags = cells[8].split(';')
@@ -101,12 +102,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue
             
-            # if re.match(sample_id, gene_id) == None:
-            #     gene_id = sample_id + '_' + gene_id
-            if gene_id in gene_dictionary:
-                logging.info(f'{gene_id} already exists -- add suffix')
-                gene_id += '_{:05d}'.format(suffix)
-                suffix += 1
+            gene_id += f'_{sample_id}_{str(suffix)}'
+            suffix += 1
             
             # create bed file
             row = [contig, str(start-1), str(end), gene_id, '1', trand]
@@ -241,9 +238,9 @@ def process_single_sample_fasta(sample, out_dir, table):
             end = int(cells[2])
             trand = cells[3]
             length = end - start + 1
-            if length < 120:
-                # logger.info('Short gene')
-                continue
+            # if length < 120:
+            #     # logger.info('Short gene')
+            #     continue
 
             # filter seq with premature codon
             results = re.findall(r'\*', pro)
@@ -262,7 +259,7 @@ def process_single_sample_fasta(sample, out_dir, table):
                 # logger.info('Too many unknowns')
                 continue
             
-            gene_id = sample_id + '_{:05d}'.format(count)
+            gene_id = sample_id + f'_{str(count)}'
             count += 1
             desc = '{}~~~{}~~~{}~~~{}'.format(contig, start, end, trand)
             new_record = SeqRecord(
@@ -312,12 +309,7 @@ def extract_proteins(samples, out_dir, args):
     gene_dictionary = {}
     gene_position = {}
     for sample, result in zip(samples, results):
-        # gene_dictionary.update(result[0])
-        for k, v in result[0].items():
-            if k in gene_dictionary:
-                logging.info(f'{k} already exists -- add prefix')
-                k = sample['id'] + '_' + k
-            gene_dictionary[k] = v
+        gene_dictionary.update(result[0])
         gene_position[sample['id']] = result[1]
     
     output.write_gene_position(gene_position, out_dir)

@@ -192,19 +192,22 @@ def translate_protein(nu_fasta, pro_fasta, table):
                 pro = dna.translate(table=table)
                 pro = str(pro)
                 
-                # filter seq with premature codon
-                results = re.findall(r'\*', pro)
-                if len(results) > 1:
-                    continue
+                # # filter seq with premature codon
+                # results = re.findall(r'\*', pro)
+                # if len(results) > 1:
+                #     print('premature')
+                #     continue
                 
-                # filter seq lacking start and stop codon
-                if pro[0] != 'M' and pro[-1] != '*':
-                    continue
+                # # filter seq lacking start and stop codon
+                # if pro[0] != 'M' and pro[-1] != '*':
+                #     print('lackcodon')
+                #     continue
 
-                # filter seq which has more than 5% of unknown
-                results = re.findall(r'X', pro)
-                if len(results) / len (pro) > 0.05:
-                    continue
+                # # filter seq which has more than 5% of unknown
+                # results = re.findall(r'X', pro)
+                # if len(results) / len (pro) > 0.05:
+                #     print('unknown')
+                #     continue
                 
                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
                 fh_out.write(seq_id + '\n')

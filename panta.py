@@ -340,6 +340,10 @@ def main():
         '-r', '--resume', 
         help='Resume the analysis from interuption', 
         default=False, action='store_true')
+    parser.add_argument(
+        '-as', '--addstrand2gene', 
+        help='Add strand direction (+, -) to gene name', 
+        default=False, action='store_true')
     # Execute parse_args()
     args = parser.parse_args()
     if args.threads <= 0:

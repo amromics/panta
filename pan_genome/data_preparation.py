@@ -15,7 +15,7 @@ import pan_genome.output as output
 
 logger = logging.getLogger(__name__)
 
-def parse_gff_file(ggf_file, sample_dir, sample_id):
+def parse_gff_file(ggf_file, sample_dir, sample_id, add_strand_2gene):
     """
     Parse gff file.
     - Filter out too short gene (less than 120 nucleotides).
@@ -107,6 +107,10 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             gene_id += f'_{sample_id}_{str(suffix)}'
             suffix += 1
             
+            # add strand information to gene name (default = False)
+            if add_strand_2gene:
+                gene_id += trand
+            
             # create bed file
             row = [contig, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
@@ -120,7 +124,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     return bed_file, assembly_file, gene_dictionary, gene_position
     
 
-def process_single_sample_gff(sample, out_dir, table):
+def process_single_sample_gff(sample, out_dir, table, add_strand_2gene):
     """
     Process sample if input data is genome annotation.
     
@@ -151,7 +155,8 @@ def process_single_sample_gff(sample, out_dir, table):
     bed_file, assembly_file, gene_dictionary, gene_position = parse_gff_file(
         ggf_file = sample['gff_file'], 
         sample_dir = sample_dir, 
-        sample_id = sample_id
+        sample_id = sample_id, 
+        add_strand_2gene = add_strand_2gene
         )
     # if input has a separated genome assembly, use it.
     if sample['assembly'] != None:
@@ -181,7 +186,7 @@ def process_single_sample_gff(sample, out_dir, table):
     return gene_dictionary, gene_position
 
 
-def process_single_sample_fasta(sample, out_dir, table):
+def process_single_sample_fasta(sample, out_dir, table, add_strand_2gene):
     """
     Process sample if input is genome assembly.
 
@@ -263,6 +268,10 @@ def process_single_sample_fasta(sample, out_dir, table):
                 continue
             
             gene_id = sample_id + f'_{str(count)}'
+            # add strand information to gene name (default = False)
+            if add_strand_2gene:
+                gene_id += trand
+                
             count += 1
             desc = '{}~~~{}~~~{}~~~{}'.format(contig, start, end, trand)
             new_record = SeqRecord(
@@ -301,12 +310,12 @@ def extract_proteins(samples, out_dir, args):
         if args.fasta == None:
             results = pool.map(
                 partial(process_single_sample_gff, 
-                        out_dir=out_dir, table=args.table), 
+                        out_dir=out_dir, table=args.table, add_strand_2gene = args.addstrand2gene), 
                 samples)
         else:
             results = pool.map(
                 partial(process_single_sample_fasta, 
-                        out_dir=out_dir, table=args.table), 
+                        out_dir=out_dir, table=args.table, add_strand_2gene = args.addstrand2gene), 
                 samples)
     
     gene_dictionary = {}

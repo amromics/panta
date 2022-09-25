@@ -37,7 +37,7 @@ mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requ
 ## Usage
 ```
 usage: panta.py [-h] -p {init,add} [-g [GFF [GFF ...]]]
-                [-b [FASTA [FASTA ...]]] [-f TSV] -o OUTDIR [-d] [-i IDENTITY]
+                [-a [FASTA [FASTA ...]]] [-f TSV] -o OUTDIR [-d] [-i IDENTITY]
                 [--LD LD] [--AL AL] [--AS AS] [-e EVALUE] [-t THREADS]
                 [--table TABLE]
 

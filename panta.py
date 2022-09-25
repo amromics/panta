@@ -27,7 +27,7 @@ def collect_sample(args, previous_samples=None):
     Collect sample from command-line input.
 
     There are three ways to input data: tsv file (-f/--tsv), gff files 
-    (-g/--gff) and fasta files (-b/--fasta). Samples is collected from 
+    (-g/--gff) and fasta files (-a/--fasta). Samples is collected from 
     only one of these, followed the mentioned order.
 
     Parameters

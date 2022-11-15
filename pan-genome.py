@@ -33,7 +33,7 @@ def collect_sample(sample_id_list, args):
                 if row[2] == '':
                     assembly = None
                 samples.append({'id':sample_id, 'gff_file':gff, 'assembly':assembly})
-                
+
     elif args.gff != None:
         gff_list = args.gff
         for gff in gff_list:
@@ -49,7 +49,7 @@ def collect_sample(sample_id_list, args):
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
     else:
         raise Exception(f'Please specify -t or -g')
-    
+
     samples.sort(key= lambda x:x['id'])
     return samples
 
@@ -58,19 +58,19 @@ def run_main_pipeline(args):
 
     out_dir = args.outdir
     threads = args.threads
-    
+
     temp_dir = os.path.join(out_dir, 'temp')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)    
+        os.makedirs(temp_dir)
 
     # collect samples
     sample_id_list = []
     samples = collect_sample(sample_id_list, args)
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
-    
+
     # data preparation
     gene_annotation = {}
     gene_position = {}
@@ -101,12 +101,12 @@ def run_main_pipeline(args):
         threads=threads)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=blast_result, 
-        gene_annotation=gene_annotation, 
-        out_dir = temp_dir, 
-        identity=args.identity, 
-        length_difference=args.LD, 
-        alignment_coverage_short=args.AS, 
+        blast_result=blast_result,
+        gene_annotation=gene_annotation,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
         alignment_coverage_long=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
@@ -116,7 +116,7 @@ def run_main_pipeline(args):
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
-    
+
     # post analysis
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
@@ -125,9 +125,9 @@ def run_main_pipeline(args):
         dontsplit=args.dont_split
         )
     annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
+        unlabeled_clusters=split_clusters,
         gene_annotation=gene_annotation)
-    
+
     output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
 
     if args.alignment != None:
@@ -142,11 +142,16 @@ def run_main_pipeline(args):
     shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
 
     # shutil.rmtree(temp_dir)
-        
+
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
+    # Open a file with access mode 'a'
+    file_object = open('log_time.txt', 'a')
+    # Append 'hello' at the end of file
+    file_object.write(f'Run main pipeline, outdir:{out_dir}. Done -- time taken {str(elapsed)}')
+    # Close the file
+    file_object.close()
 
-    
 
 def run_add_sample_pipeline(args):
     starttime = datetime.now()
@@ -166,13 +171,13 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     else:
         os.makedirs(temp_dir)
-    
+
     # Check required files
     gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
     if not os.path.isfile(gene_annotation_file):
         raise Exception(f'{gene_annotation_file} does not exist')
     gene_annotation = output.import_gene_annotation(gene_annotation_file)
-    
+
     gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
@@ -180,7 +185,7 @@ def run_add_sample_pipeline(args):
     old_represent_faa = os.path.join(collection_dir, 'representative.fasta')
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
-    
+
     old_blast_result = os.path.join(collection_dir, 'blast.tsv')
     if not os.path.isfile(old_blast_result):
         raise Exception(f'{old_blast_result} does not exist')
@@ -190,7 +195,7 @@ def run_add_sample_pipeline(args):
     new_samples = collect_sample(sample_id_list, args)
     if len(new_samples) == 0:
         raise Exception(f'There must be at least one new sample')
-    
+
     # data preparation
     data_preparation.extract_proteins(
         samples=new_samples,
@@ -234,18 +239,18 @@ def run_add_sample_pipeline(args):
         )
 
     combined_blast_result = add_sample_pipeline.combine_blast_results(
-        blast_1=old_blast_result, 
-        blast_2=blast_1_result, 
-        blast_3=blast_2_result, 
+        blast_1=old_blast_result,
+        blast_2=blast_1_result,
+        blast_3=blast_2_result,
         outdir=temp_dir)
 
     filtered_blast_result = main_pipeline.filter_blast_result(
-        blast_result=combined_blast_result, 
-        gene_annotation=gene_annotation, 
-        out_dir = temp_dir, 
-        identity=args.identity, 
-        length_difference=args.LD, 
-        alignment_coverage_short=args.AS, 
+        blast_result=combined_blast_result,
+        gene_annotation=gene_annotation,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
         alignment_coverage_long=args.AL)
 
     mcl_file = main_pipeline.cluster_with_mcl(
@@ -253,7 +258,7 @@ def run_add_sample_pipeline(args):
         blast_result = filtered_blast_result)
 
     inflated_clusters, new_clusters = add_sample_pipeline.reinflate_clusters(
-        old_clusters=old_clusters, 
+        old_clusters=old_clusters,
         cd_hit_2d_clusters=cd_hit_2d_clusters,
         not_match_clusters=not_match_clusters,
         mcl_file=mcl_file
@@ -262,7 +267,7 @@ def run_add_sample_pipeline(args):
     # post analysis
     new_samples.extend(old_samples)
     new_samples.sort(key= lambda x:x['id'])
-    
+
     split_clusters = post_analysis.split_paralogs(
         gene_annotation=gene_annotation,
         gene_position=gene_position,
@@ -270,7 +275,7 @@ def run_add_sample_pipeline(args):
         dontsplit=args.dont_split
         )
     annotated_clusters = post_analysis.annotate_cluster(
-        unlabeled_clusters=split_clusters, 
+        unlabeled_clusters=split_clusters,
         gene_annotation=gene_annotation)
 
     output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
@@ -279,7 +284,7 @@ def run_add_sample_pipeline(args):
         samples_dir = os.path.join(collection_dir, 'samples')
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
-        
+
         post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
@@ -294,11 +299,15 @@ def run_add_sample_pipeline(args):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
-
+    file_object = open('log_time.txt', 'a')
+    # Append 'hello' at the end of file
+    file_object.write(f'\n Run add pipeline, indir:{args.gff}. Done -- time taken {str(elapsed)}')
+    # Close the file
+    file_object.close()
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
-    
+
     main_cmd = subparsers.add_parser(
         'main',
         description='Main pipeline: run pan-genome analysis for the first time',

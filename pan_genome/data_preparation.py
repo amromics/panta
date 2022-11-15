@@ -26,10 +26,11 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if re.match(r"^#", line) != None:
                 continue
             line = line.rstrip('\n')
+            #print(line)
             cells = line.split('\t')
             if cells[2] != 'CDS':
                 continue
-            
+
             start = int(cells[3])
             end = int(cells[4])
             length = end - start + 1
@@ -55,52 +56,52 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                     gene_name = gene.group(1)
                     gene_name = re.sub(r'\W', '_', gene_name)
                     continue
-                
+
                 product = re.match(r"^product=(.+)", tag)
                 if product != None:
                     gene_product = product.group(1)
             if gene_id == None:
                 continue
-            
-            gene_id += f'_{sample_id}_{str(suffix)}'
+
+            #gene_id += f'_{sample_id}_{str(suffix)}'
             suffix += 1
-            
+
             # create bed file
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
-            # add to gene_annotation           
+            # add to gene_annotation
             gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 
     return bed_file, assembly_file, gene_annotation, gene_position
-    
+
 
 def process_single_sample(sample, out_dir, table):
     # starttime = datetime.now()
-    
+
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
     if not os.path.exists(sample_dir):
         os.makedirs(sample_dir)
-    
+
     # parse gff file
     bed_file, assembly_file, gene_annotation, gene_position = parse_gff_file(
-        ggf_file = sample['gff_file'], 
-        sample_dir = sample_dir, 
+        ggf_file = sample['gff_file'],
+        sample_dir = sample_dir,
         sample_id = sample_id
         )
     if sample['assembly'] != None:
         assembly_file = sample['assembly']
-    
+
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
     os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
-    
+
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
-    
+
     if sample['assembly'] == None:
         os.remove(assembly_file)
     os.remove(bed_file)
@@ -114,17 +115,17 @@ def process_single_sample(sample, out_dir, table):
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):
     starttime = datetime.now()
-    
+
     if threads == 0:
         threads = multiprocessing.cpu_count()
 
     with multiprocessing.Pool(processes=threads) as pool:
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
-    
+
     for sample, result in zip(samples, results):
         gene_annotation.update(result[0])
         gene_position[sample['id']] = result[1]
-        
+
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
@@ -145,7 +146,7 @@ def combine_proteins(out_dir, samples):
 
     cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
     os.system(cmd)
-    
+
     # elapsed = datetime.now() - starttime
     # logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file

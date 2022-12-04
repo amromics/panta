@@ -196,14 +196,20 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     else:
         os.makedirs(temp_dir)
+    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+
 
     # Check required files
-    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
-    if not os.path.isfile(gene_annotation_file):
-        raise Exception(f'{gene_annotation_file} does not exist')
-    gene_annotation = output.import_gene_annotation(gene_annotation_file)
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    if not os.path.isfile(existing_gene_annotation_fn):
+        raise Exception(f'{existing_gene_annotation_fn} does not exist')
+    #gene_annotation = output.import_gene_annotation(gene_annotation_file)
 
-    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+    #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
 
@@ -222,13 +228,15 @@ def run_add_sample_pipeline(args):
         raise Exception(f'There must be at least one new sample')
 
     # data preparation
-    data_preparation.extract_proteins(
+    data_preparation.extract_proteins_tofile(
         samples=new_samples,
         out_dir=collection_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
+        gene_annotation_fn = gene_annotation_fn,
+        gene_position_fn = gene_position_fn,
         table=args.table,
-        threads=threads
+        #threads=threads,
+        existing_gene_annotation_fn=existing_gene_annotation_fn,
+        existing_gene_position_fn=existing_gene_position_fn
         )
     new_combined_faa = data_preparation.combine_proteins(
         out_dir=collection_dir,
@@ -294,14 +302,15 @@ def run_add_sample_pipeline(args):
     new_samples.sort(key= lambda x:x['id'])
 
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
-        )
+        )    
+
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
-        gene_annotation_fn=gene_annotation)
+        gene_annotation_fn=gene_annotation_fn)
 
     output.create_outputs(gene_annotation_fn,annotated_clusters,new_samples,collection_dir)
 
@@ -310,11 +319,18 @@ def run_add_sample_pipeline(args):
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
 
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation_fn, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
-    output.export_gene_annotation(gene_annotation, collection_dir)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    #main_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz') 
+
+    #Replace the main existing files by the new ones
+    shutil.copy(gene_annotation_fn, existing_gene_annotation_fn)
+    shutil.copy(gene_position_fn, existing_gene_position_fn)
+
+    #output.export_gene_annotation(gene_annotation, collection_dir)
+    #json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)

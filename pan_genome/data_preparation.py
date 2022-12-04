@@ -133,14 +133,27 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
 
-def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_fn, table):
+def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_fn, table, existing_gene_annotation_fn=None, existing_gene_position_fn=None):
     """
     Extract annotations of all the samples, and store in the gene annotation and gene position files
     For now run in single thread, and will convert to asynchronous multi-threaded
     """
     starttime = datetime.now()    
-    with gzip.open(gene_annotation_fn,'wt') as ga_fp, gzip.open(gene_position_fn,'wt') as gp_fp:    
-        ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product\n')
+    with gzip.open(gene_annotation_fn,'wt') as ga_fp, gzip.open(gene_position_fn,'wt') as gp_fp:  
+
+        # If there are existing files then copy over
+        if existing_gene_annotation_fn:
+            with gzip.open(existing_gene_annotation_fn, 'rt') as ega_fp:
+                for line in ega_fp.readlines():
+                    ga_fp.write(line)
+        else:
+            ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product\n')
+
+        if existing_gene_position_fn:
+            with gzip.open(existing_gene_position_fn, 'rt') as egp_fp:
+                for line in egp_fp.readlines():
+                    gp_fp.write(line)
+            
         for sample in samples:            
             sample_gene_annotation, sample_gene_position = process_single_sample(sample, out_dir, table)
             for gene_id in sample_gene_annotation:

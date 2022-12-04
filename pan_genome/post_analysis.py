@@ -11,19 +11,12 @@ from pan_genome.utils import *
 logger = logging.getLogger(__name__)
 
 
-def find_paralogs(cluster, gene_annotation_fn):
+def find_paralogs(cluster, gene_annotation_df):
     samples = {}
-    cluster_set = set(cluster)
-    with gzip.open(gene_annotation_fn,'rt') as ga_fp:
-        ga_fp.readline() #header        
-        #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
-        for line in ga_fp.readlines():
-            toks = line.strip().split(',')
-            contig = toks[2]
-            sample_id = toks[1]                                 
-            gene_id = toks[0]
-            if gene_id in cluster_set:
-                samples.setdefault(sample_id, []).append(gene_id)                
+    df = gene_annotation_df[gene_annotation_df.gene_id.isin(cluster)]
+    for idx,row in df.iterrows():        
+        #if gene_id in cluster_set:
+        samples.setdefault(row['sample_id'], []).append(row['gene_id'])
     
     # pick paralogs with the smallest number of genes
     smallest_number = 1000000
@@ -38,7 +31,7 @@ def find_paralogs(cluster, gene_annotation_fn):
     return paralog_genes
 
 
-def get_neighbour_genes(gene_annotation_fn, gene_position_fn):    
+def get_neighbour_genes(gene_annotation_df, gene_position_fn):    
     gene_neighbour_dict = {}
 
     # Read in gene position
@@ -48,29 +41,27 @@ def get_neighbour_genes(gene_annotation_fn, gene_position_fn):
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]
 
-    with gzip.open(gene_annotation_fn, 'rt') as ga_fp:
-        ga_fp.readline() #header
-        #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
-        for line in ga_fp.readlines():
-            toks = line.strip().split(',')
-            contig = toks[2]
-            sample_id = toks[1]                                 
-            gene_id = toks[0]
-        #for gene_id in gene_annotation:
-            #contig = gene_annotation[gene_id][1]
-            #sample_id = gene_annotation[gene_id][0]
+    #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
+    #for line in ga_fp.readlines():
+    for idx,row in gene_annotation_df.iterrows():        
+        contig = row['seq_id']
+        sample_id = row['sample_id']                              
+        gene_id = row['gene_id']
+    #for gene_id in gene_annotation:
+        #contig = gene_annotation[gene_id][1]
+        #sample_id = gene_annotation[gene_id][0]
 
-            genes_of_contig = gene_position[(sample_id,contig)]
-            index = genes_of_contig.index(gene_id)
-            pre_index = index - 5
-            post_index = index + 6
-            if pre_index < 0:
-                pre_index = 0
-            length_of_contig = len(genes_of_contig)
-            if post_index >= length_of_contig:
-                post_index = length_of_contig
-            neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
-            gene_neighbour_dict[gene_id] = neighbour_genes
+        genes_of_contig = gene_position[(sample_id,contig)]
+        index = genes_of_contig.index(gene_id)
+        pre_index = index - 5
+        post_index = index + 6
+        if pre_index < 0:
+            pre_index = 0
+        length_of_contig = len(genes_of_contig)
+        if post_index >= length_of_contig:
+            post_index = length_of_contig
+        neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
+        gene_neighbour_dict[gene_id] = neighbour_genes
 
     return gene_neighbour_dict
 
@@ -134,8 +125,10 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
         return unsplit_clusters
 
     starttime = datetime.now()
-    
-    gene_neighbour_dict = get_neighbour_genes(gene_annotation_fn, gene_position_fn)
+
+    #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
+    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'sample_id','seq_id'], na_filter= False)     
+    gene_neighbour_dict = get_neighbour_genes(gene_annotation_df, gene_position_fn)
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -158,7 +151,7 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
                 continue
 
             # check paralogs                        
-            paralog_genes = find_paralogs(cluster, gene_annotation_fn)
+            paralog_genes = find_paralogs(cluster, gene_annotation_df)
 
             if paralog_genes == None:
                 clusters_not_paralogs.add(first_gene)

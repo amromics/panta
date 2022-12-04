@@ -5,6 +5,7 @@ import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from datetime import datetime
+import pandas as pd
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
@@ -182,13 +183,16 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
     return split_clusters
 
 
-def annotate_cluster(unlabeled_clusters, gene_annotation):
+def annotate_cluster(unlabeled_clusters, gene_annotation_fn):    
     starttime = datetime.now()
 
     clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
 
     annotated_clusters = {}
     suffix = 1
+    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'gene_name','gene_product'], na_filter= False)    
+    gene_annotation_df.set_index('gene_id', inplace=True)
+    gene_annotation_df['gene_name'] = gene_annotation_df['gene_name'].astype(str)
     for cluster_name in clusters:
         cluster_new_name = cluster_name
         cluster_product = None
@@ -196,21 +200,20 @@ def annotate_cluster(unlabeled_clusters, gene_annotation):
         max_number = 0
         gene_id_list = clusters[cluster_name]
         for gene_id in gene_id_list:
-            this_gene = gene_annotation[gene_id]
-            if this_gene[3] != '':
-                gene_name = this_gene[3]
+            gene_name, gene_product = gene_annotation_df.loc[gene_id ,['gene_name', 'gene_product']]
+            if gene_name:                
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
                     cluster_new_name = gene_name
                     max_number = gene_name_count[gene_name]
-                    if this_gene[4] != '':
-                        cluster_product = this_gene[4]
+                    if gene_product:
+                        cluster_product = gene_product
+
         if cluster_product == None:
             cluster_product =[]
             for gene_id in gene_id_list:
-                this_gene = gene_annotation[gene_id]
-                if this_gene[4] != '':
-                    gene_product = this_gene[4]
+                gene_name, gene_product = gene_annotation_df.loc[gene_id ,['gene_name', 'gene_product']]                
+                if gene_product:                    
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)
             if len(cluster_product) > 0:
@@ -390,7 +393,7 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
 
-def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir):
+def create_core_gene_alignment(annotated_clusters, gene_annotation_df, samples, out_dir):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -404,8 +407,8 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
         
         sample_list = set()
         skip = False
-        for gene in annotated_clusters[cluster_name]['gene_id']:
-            sample_id = gene_annotation[gene][0]
+        for gene_id in annotated_clusters[cluster_name]['gene_id']:
+            sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]
             if sample_id not in sample_list:
                 sample_list.add(sample_id)
             else:
@@ -424,7 +427,7 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
         cluster_dict = {}
         with gzip.open(nucleotide_aln_file, 'rt') as fh:
             for seq_record in SeqIO.parse(fh, 'fasta'):
-                sample_name = gene_annotation[seq_record.id][0]
+                sample_id, length = gene_annotation_df.loc[seq_record.id ,['sample_id', 'length']]                
                 cluster_dict[sample_name] = str(seq_record.seq)
         
         for sample_name in cluster_dict:
@@ -440,8 +443,7 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation, samples, out
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
 
 
-def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_dir, alignment, threads):
-    
+def run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, collection_dir, alignment, threads):
     gene_to_cluster_name = {}
     pan_ref_list = set()
 
@@ -452,17 +454,20 @@ def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_
     else:
         os.mkdir(clusters_dir)
 
+    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'sample_id','length'])    
+    gene_annotation_df.set_index('gene_id', inplace=True)
+
     for cluster_name in annotated_clusters:
         cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
         if not os.path.exists(cluster_dir):
             os.mkdir(cluster_dir)
         length_max = 0
         representative = None
-        for gene in annotated_clusters[cluster_name]['gene_id']:
-            gene_to_cluster_name[gene] = cluster_name
-            length = gene_annotation[gene][2]
+        for gene_id in annotated_clusters[cluster_name]['gene_id']:
+            gene_to_cluster_name[gene_id] = cluster_name
+            sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]            
             if length > length_max:
-                representative = gene
+                representative = gene_id
                 length_max = length
         pan_ref_list.add(representative)
 
@@ -475,5 +480,5 @@ def run_gene_alignment(annotated_clusters, gene_annotation, samples, collection_
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads)
     
-    create_core_gene_alignment(annotated_clusters, gene_annotation,samples,collection_dir)
+    create_core_gene_alignment(annotated_clusters, gene_annotation_df,samples,collection_dir)
 

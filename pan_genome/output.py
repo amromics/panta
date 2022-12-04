@@ -8,7 +8,7 @@ from pan_genome.utils import *
 logger = logging.getLogger(__name__)
 
 
-def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
+def create_spreadsheet(annotated_clusters, gene_annotation_df, samples, out_dir):
     starttime = datetime.now()
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
@@ -26,10 +26,9 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
             sample_dict = {}
             length_list = []
             this_cluster = annotated_clusters[cluster]
-            for gene in this_cluster['gene_id']:
-                sample_id = gene_annotation[gene][0]
-                sample_dict.setdefault(sample_id, []).append(gene)
-                length = gene_annotation[gene][2]
+            for gene_id in this_cluster['gene_id']:
+                sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]                
+                sample_dict.setdefault(sample_id, []).append(gene_id)                
                 length_list.append(length)
             
             # Gene
@@ -65,7 +64,7 @@ def create_spreadsheet(annotated_clusters, gene_annotation, samples, out_dir):
     return spreadsheet_file
 
 
-def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
+def create_rtab(annotated_clusters, gene_annotation_df, samples, out_dir):
     starttime = datetime.now()
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
     with open(rtab_file, 'w') as fh:
@@ -84,9 +83,9 @@ def create_rtab(annotated_clusters, gene_annotation, samples, out_dir):
             row.append(cluster)
             # Samples
             sample_dict = {}
-            for gene in annotated_clusters[cluster]['gene_id']:
-                sample_id = gene_annotation[gene][0]
-                sample_dict.setdefault(sample_id, []).append(gene)
+            for gene_id in annotated_clusters[cluster]['gene_id']:
+                sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]
+                sample_dict.setdefault(sample_id, []).append(gene_id)
             for sample in samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
@@ -189,17 +188,21 @@ def import_gene_annotation(annotation_file):
     return gene_annotation
 
 
-def create_outputs(gene_annotation,annotated_clusters,samples,out_dir):
+def create_outputs(gene_annotation_fn,annotated_clusters,samples,out_dir):
+    
+    #gene_id,sample_id,seq_id,length,gene_name,gene_product
+    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'sample_id','length'])    
+    gene_annotation_df.set_index('gene_id', inplace=True)
 
     spreadsheet_file = create_spreadsheet(
         annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
+        gene_annotation_df=gene_annotation_df,
         samples=samples,
         out_dir=out_dir
     )
     rtab_file = create_rtab(
         annotated_clusters=annotated_clusters, 
-        gene_annotation=gene_annotation,
+        gene_annotation_df=gene_annotation_df,
         samples=samples,
         out_dir=out_dir
     )

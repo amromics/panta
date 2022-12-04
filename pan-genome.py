@@ -102,6 +102,8 @@ def run_main_pipeline(args):
         faa_file=combined_faa,
         out_dir=temp_dir,
         threads=threads)
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')
+
 
     print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
@@ -128,6 +130,8 @@ def run_main_pipeline(args):
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
+    logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
+
 
     # post analysis
     split_clusters = post_analysis.split_paralogs(
@@ -136,18 +140,27 @@ def run_main_pipeline(args):
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
         )
+    logger.info(f'len split_clusters = {len(split_clusters)}')
+
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
-        gene_annotation=gene_annotation)
+        gene_annotation_fn=gene_annotation_fn)
 
-    output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
+    output.create_outputs(gene_annotation_fn,annotated_clusters,samples,out_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, out_dir, args.alignment, threads)
 
     # output for next run
-    output.export_gene_annotation(gene_annotation, out_dir)
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv.gz')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv.gz') 
+
+    shutil.copy(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.copy(gene_position_fn, main_gene_position_fn)
+
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -288,9 +301,9 @@ def run_add_sample_pipeline(args):
         )
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
-        gene_annotation=gene_annotation)
+        gene_annotation_fn=gene_annotation)
 
-    output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
+    output.create_outputs(gene_annotation_fn,annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
         samples_dir = os.path.join(collection_dir, 'samples')

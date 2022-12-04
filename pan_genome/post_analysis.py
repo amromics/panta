@@ -7,16 +7,16 @@ from Bio.SeqRecord import SeqRecord
 from datetime import datetime
 import pandas as pd
 from pan_genome.utils import *
+from pan_genome.output import read_csv_to_dict
 
 logger = logging.getLogger(__name__)
 
 
-def find_paralogs(cluster, gene_annotation_df):
+def find_paralogs(cluster, gene_annotation_dict):
     samples = {}
-    df = gene_annotation_df[gene_annotation_df.gene_id.isin(cluster)]
-    for idx,row in df.iterrows():        
-        #if gene_id in cluster_set:
-        samples.setdefault(row['sample_id'], []).append(row['gene_id'])
+    for gene_id in cluster:
+        sample_id = gene_annotation_dict[gene_id]['sample_id']         
+        samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
     smallest_number = 1000000
@@ -31,7 +31,7 @@ def find_paralogs(cluster, gene_annotation_df):
     return paralog_genes
 
 
-def get_neighbour_genes(gene_annotation_df, gene_position_fn):    
+def get_neighbour_genes(gene_annotation_dict, gene_position_fn):    
     gene_neighbour_dict = {}
 
     # Read in gene position
@@ -40,16 +40,10 @@ def get_neighbour_genes(gene_annotation_df, gene_position_fn):
         for line in gp_fp.readlines():
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]
-
-    #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
-    #for line in ga_fp.readlines():
-    for idx,row in gene_annotation_df.iterrows():        
-        contig = row['seq_id']
-        sample_id = row['sample_id']                              
-        gene_id = row['gene_id']
-    #for gene_id in gene_annotation:
-        #contig = gene_annotation[gene_id][1]
-        #sample_id = gene_annotation[gene_id][0]
+    
+    for gene_id in gene_annotation_dict:        
+        contig = gene_annotation_dict[gene_id]['seq_id']
+        sample_id = gene_annotation_dict[gene_id]['sample_id']    
 
         genes_of_contig = gene_position[(sample_id,contig)]
         index = genes_of_contig.index(gene_id)
@@ -124,11 +118,11 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
     if dontsplit == True:
         return unsplit_clusters
 
-    starttime = datetime.now()
+    starttime = datetime.now()    
+    gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','seq_id'])
+    #gene_annotation_dict {gene_id: {'samle_id':sample_id, 'seq_id':seq_id}}
 
-    #ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
-    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'sample_id','seq_id'], na_filter= False)     
-    gene_neighbour_dict = get_neighbour_genes(gene_annotation_df, gene_position_fn)
+    gene_neighbour_dict = get_neighbour_genes(gene_annotation_dict, gene_position_fn)
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -151,7 +145,7 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
                 continue
 
             # check paralogs                        
-            paralog_genes = find_paralogs(cluster, gene_annotation_df)
+            paralog_genes = find_paralogs(cluster, gene_annotation_dict)
 
             if paralog_genes == None:
                 clusters_not_paralogs.add(first_gene)
@@ -183,17 +177,17 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
 
     annotated_clusters = {}
     suffix = 1
-    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'gene_name','gene_product'], na_filter= False)    
-    gene_annotation_df.set_index('gene_id', inplace=True)
-    gene_annotation_df['gene_name'] = gene_annotation_df['gene_name'].astype(str)
+    gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['gene_name','gene_product'])
+    
     for cluster_name in clusters:
         cluster_new_name = cluster_name
         cluster_product = None
         gene_name_count = {}
         max_number = 0
-        gene_id_list = clusters[cluster_name]
+        gene_id_list = clusters[cluster_name] #TODO: check if set is better than list
         for gene_id in gene_id_list:
-            gene_name, gene_product = gene_annotation_df.loc[gene_id ,['gene_name', 'gene_product']]
+            gene_name = gene_annotation_dict[gene_id]['gene_name']
+            gene_product = gene_annotation_dict[gene_id]['gene_product']            
             if gene_name:                
                 gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
                 if gene_name_count[gene_name] > max_number:
@@ -203,9 +197,11 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
                         cluster_product = gene_product
 
         if cluster_product == None:
-            cluster_product =[]
+            cluster_product =[] #TODO: check if set is better than list
             for gene_id in gene_id_list:
-                gene_name, gene_product = gene_annotation_df.loc[gene_id ,['gene_name', 'gene_product']]                
+                gene_name = gene_annotation_dict[gene_id]['gene_name']
+                gene_product = gene_annotation_dict[gene_id]['gene_product']        
+                
                 if gene_product:                    
                     if gene_product not in cluster_product:
                         cluster_product.append(gene_product)
@@ -386,7 +382,7 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
 
-def create_core_gene_alignment(annotated_clusters, gene_annotation_df, samples, out_dir):
+def create_core_gene_alignment(annotated_clusters, gene_annotation_dict, samples, out_dir):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -401,7 +397,8 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation_df, samples, 
         sample_list = set()
         skip = False
         for gene_id in annotated_clusters[cluster_name]['gene_id']:
-            sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]
+            sample_id = gene_annotation_dict[gene_id]['sample_id']
+            #length = gene_annotation_dict[gene_id]['length']
             if sample_id not in sample_list:
                 sample_list.add(sample_id)
             else:
@@ -420,7 +417,7 @@ def create_core_gene_alignment(annotated_clusters, gene_annotation_df, samples, 
         cluster_dict = {}
         with gzip.open(nucleotide_aln_file, 'rt') as fh:
             for seq_record in SeqIO.parse(fh, 'fasta'):
-                sample_id, length = gene_annotation_df.loc[seq_record.id ,['sample_id', 'length']]                
+                sample_id = gene_annotation_dict[seq_record.id]['sample_id']
                 cluster_dict[sample_name] = str(seq_record.seq)
         
         for sample_name in cluster_dict:
@@ -446,10 +443,8 @@ def run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, collecti
         os.mkdir(clusters_dir)
     else:
         os.mkdir(clusters_dir)
-
-    gene_annotation_df = pd.read_csv(gene_annotation_fn, usecols=['gene_id', 'sample_id','length'])    
-    gene_annotation_df.set_index('gene_id', inplace=True)
-
+    
+    gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])    
     for cluster_name in annotated_clusters:
         cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
         if not os.path.exists(cluster_dir):
@@ -458,7 +453,8 @@ def run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, collecti
         representative = None
         for gene_id in annotated_clusters[cluster_name]['gene_id']:
             gene_to_cluster_name[gene_id] = cluster_name
-            sample_id, length = gene_annotation_df.loc[gene_id ,['sample_id', 'length']]            
+            #sample_id = gene_annotation_dict[gene_id]['sample_id']
+            length = gene_annotation_dict[gene_id]['length']
             if length > length_max:
                 representative = gene_id
                 length_max = length
@@ -473,5 +469,5 @@ def run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, collecti
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads)
     
-    create_core_gene_alignment(annotated_clusters, gene_annotation_df,samples,collection_dir)
+    create_core_gene_alignment(annotated_clusters, gene_annotation_dict,samples,collection_dir)
 

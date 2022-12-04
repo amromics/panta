@@ -54,6 +54,7 @@ def collect_sample(sample_id_list, args):
     return samples
 
 def run_main_pipeline(args):
+
     starttime = datetime.now()
 
     out_dir = args.outdir
@@ -64,6 +65,9 @@ def run_main_pipeline(args):
         os.makedirs(out_dir)
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
+    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
 
     # collect samples
     sample_id_list = []
@@ -72,15 +76,22 @@ def run_main_pipeline(args):
         raise Exception(f'There must be at least 2 samples')
 
     # data preparation
-    gene_annotation = {}
-    gene_position = {}
-    data_preparation.extract_proteins(
-        samples=samples,
-        out_dir=out_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
-        table=args.table,
-        threads=threads)
+    #gene_annotation = {}
+    #gene_position = {}
+    # data_preparation.extract_proteins(
+    #     samples=samples,
+    #     out_dir=out_dir,
+    #     gene_annotation = gene_annotation,
+    #     gene_position = gene_position,
+    #     table=args.table,
+    #     threads=threads)
+
+    data_preparation.extract_proteins_tofile(
+        samples=samples, 
+        out_dir=out_dir, 
+        gene_annotation_fn=gene_annotation_fn, 
+        gene_position_fn=gene_position_fn, 
+        table=args.table)
 
     combined_faa = data_preparation.combine_proteins(
         out_dir=out_dir,
@@ -92,6 +103,7 @@ def run_main_pipeline(args):
         out_dir=temp_dir,
         threads=threads)
 
+    print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
@@ -102,7 +114,7 @@ def run_main_pipeline(args):
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
-        gene_annotation=gene_annotation,
+        #gene_annotation=gene_annotation,
         out_dir = temp_dir,
         identity=args.identity,
         length_difference=args.LD,
@@ -119,8 +131,8 @@ def run_main_pipeline(args):
 
     # post analysis
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
         )
@@ -246,7 +258,7 @@ def run_add_sample_pipeline(args):
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=combined_blast_result,
-        gene_annotation=gene_annotation,
+        #gene_annotation=gene_annotation,
         out_dir = temp_dir,
         identity=args.identity,
         length_difference=args.LD,

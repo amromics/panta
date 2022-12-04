@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 from functools import partial
 from datetime import datetime
+import gzip
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
@@ -102,10 +103,12 @@ def process_single_sample(sample, out_dir, table):
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
 
-    if sample['assembly'] == None:
+    if sample['assembly'] is None and os.path.isfile(assembly_file):
         os.remove(assembly_file)
-    os.remove(bed_file)
-    os.remove(assembly_file + '.fai')
+    if os.path.isfile(bed_file):
+        os.remove(bed_file)
+    if os.path.isfile(assembly_file + '.fai'):
+        os.remove(assembly_file + '.fai')
 
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')
@@ -126,6 +129,31 @@ def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, th
         gene_annotation.update(result[0])
         gene_position[sample['id']] = result[1]
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Extract protein -- time taken {str(elapsed)}')
+
+
+def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_fn, table):
+    """
+    Extract annotations of all the samples, and store in the gene annotation and gene position files
+    For now run in single thread, and will convert to asynchronous multi-threaded
+    """
+    starttime = datetime.now()    
+    with gzip.open(gene_annotation_fn,'wt') as ga_fp, gzip.open(gene_position_fn,'wt') as gp_fp:    
+        ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product\n')
+        for sample in samples:            
+            sample_gene_annotation, sample_gene_position = process_single_sample(sample, out_dir, table)
+            for gene_id in sample_gene_annotation:
+                (sample_id, seq_id, length, gene_name, gene_product) = sample_gene_annotation[gene_id]
+                ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
+                
+            # add to gene_position
+            sample_id = sample['id']
+            for seq_id in sample_gene_position:                
+                gp_fp.write(f'{sample_id},{seq_id}')
+                for gene_id in sample_gene_position[seq_id]:
+                    gp_fp.write(f',{gene_id}')
+                gp_fp.write('\n')    
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 

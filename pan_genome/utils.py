@@ -8,6 +8,13 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
+def get_seq_ids(gene_id):
+    toks = gene_id.split('-',2)
+    #sample_id, contig_id, gene_id
+    if len(toks) < 2:
+        logger.error(f'See {gene_id}')
+    return toks[0], toks[1]
+
 def parse_cluster_file(cd_hit_cluster_file): 
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:

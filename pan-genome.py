@@ -146,10 +146,10 @@ def run_main_pipeline(args):
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
 
-    output.create_outputs(gene_annotation_fn,annotated_clusters,samples,out_dir)
+    output.create_outputs(annotated_clusters,samples,out_dir)
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation_fn, samples, out_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -319,7 +319,7 @@ def run_add_sample_pipeline(args):
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
 
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation_fn, new_samples, collection_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
     #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')

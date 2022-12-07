@@ -7,6 +7,7 @@ from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
 
+
 def read_csv_to_dict(fn, index_col, value_cols, chunksize=100000):
     """
     Read the value from a csv file into a dictionary
@@ -18,8 +19,18 @@ def read_csv_to_dict(fn, index_col, value_cols, chunksize=100000):
     return dict_out
     
 
+def read_csv_to_dict_it(fn, index_col, value_cols, chunksize=100000):
+    """
+    Read the value from a csv file into a dictionary
+    """    
+    df_it = pd.read_csv(fn, na_filter= False, index_col=index_col, usecols=[index_col] + value_cols, chunksize=chunksize)
+    for chunk_df in df_it:        
+        yield chunk_df.to_dict('index')
 
-def create_spreadsheet(annotated_clusters, gene_annotation_dict, samples, out_dir):
+
+
+
+def create_spreadsheet(annotated_clusters, samples, out_dir):
     starttime = datetime.now()
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
@@ -35,13 +46,14 @@ def create_spreadsheet(annotated_clusters, gene_annotation_dict, samples, out_di
         for cluster in annotated_clusters:
             row = []
             sample_dict = {}
-            length_list = []
+            #length_list = []
             this_cluster = annotated_clusters[cluster]
-            for gene_id in this_cluster['gene_id']:                
-                sample_id = gene_annotation_dict[gene_id]['sample_id']
-                length = gene_annotation_dict[gene_id]['length']
+            for gene_id in this_cluster['gene_id']:  
+                sample_id, seq_id = get_seq_ids(gene_id)              
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                #length = gene_annotation_dict[gene_id]['length']
                 sample_dict.setdefault(sample_id, []).append(gene_id)                
-                length_list.append(length)
+                #length_list.append(length)
             
             # Gene
             row.append(cluster)
@@ -50,18 +62,18 @@ def create_spreadsheet(annotated_clusters, gene_annotation_dict, samples, out_di
             # No. isolates
             row.append(len(sample_dict))
             # No. sequences
-            row.append(len(this_cluster['gene_id']))
+            row.append(this_cluster['size']) # row.append(len(this_cluster['gene_id']))
             # Avg sequences per isolate
             avg_seq = len(this_cluster['gene_id']) / len(sample_dict)
             row.append(round(avg_seq,2))
-            # Min group size nuc
-            row.append(min(length_list))
+            # Min group size nuc            
+            row.append(this_cluster['min_length']) # row.append(min(length_list))
             # Max group size nuc
-            row.append(max(length_list))
+            row.append(this_cluster['max_length']) # row.append(max(length_list))
             # Avg group size nuc
-            nuc_size = sum(length_list) / len(length_list)
-            row.append(round(nuc_size,0))
-
+            row.append(round(this_cluster['mean_length'],0)) #nuc_size = sum(length_list) / len(length_list)
+            #row.append(round(nuc_size,0))
+             
             # sample columns
             for sample in samples:
                 sample_id = sample['id']
@@ -76,7 +88,7 @@ def create_spreadsheet(annotated_clusters, gene_annotation_dict, samples, out_di
     return spreadsheet_file
 
 
-def create_rtab(annotated_clusters, gene_annotation_dict, samples, out_dir):
+def create_rtab(annotated_clusters, samples, out_dir):
     starttime = datetime.now()
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
     with open(rtab_file, 'w') as fh:
@@ -96,8 +108,10 @@ def create_rtab(annotated_clusters, gene_annotation_dict, samples, out_dir):
             # Samples
             sample_dict = {}
             for gene_id in annotated_clusters[cluster]['gene_id']:
-                sample_id = gene_annotation_dict[gene_id]['sample_id']
-                length = gene_annotation_dict[gene_id]['length']                
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                sample_id, seq_id = get_seq_ids(gene_id)           
+
+                #length = gene_annotation_dict[gene_id]['length']                
                 sample_dict.setdefault(sample_id, []).append(gene_id)
             for sample in samples:
                 sample_id = sample['id']
@@ -201,18 +215,18 @@ def import_gene_annotation(annotation_file):
     return gene_annotation
 
 
-def create_outputs(gene_annotation_fn,annotated_clusters,samples,out_dir):
-    gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])
+def create_outputs(annotated_clusters,samples,out_dir):
+    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])
 
     spreadsheet_file = create_spreadsheet(
         annotated_clusters=annotated_clusters, 
-        gene_annotation_dict=gene_annotation_dict,
+        #gene_annotation_dict=gene_annotation_dict,
         samples=samples,
         out_dir=out_dir
     )
     rtab_file = create_rtab(
         annotated_clusters=annotated_clusters, 
-        gene_annotation_dict=gene_annotation_dict,
+        #gene_annotation_dict=gene_annotation_dict,
         samples=samples,
         out_dir=out_dir
     )

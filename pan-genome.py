@@ -5,6 +5,8 @@ import logging
 import json
 import csv
 from datetime import datetime
+
+#from memory_profiler import profile
 from pan_genome import *
 
 logging.basicConfig(
@@ -53,6 +55,7 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
+#@profile
 def run_main_pipeline(args):
 
     starttime = datetime.now()
@@ -113,6 +116,8 @@ def run_main_pipeline(args):
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
+    blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
+
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,

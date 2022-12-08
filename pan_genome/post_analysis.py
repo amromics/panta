@@ -1,4 +1,6 @@
 import os
+import psutil
+
 import re
 import logging
 import gzip
@@ -13,13 +15,23 @@ from pan_genome.output import read_csv_to_dict
 
 logger = logging.getLogger(__name__)
 
+def mem_report(value, point='POINT'):
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    mem_usage = mem_info.rss/1000000
+    logger.info(f'MEM at {point}: {mem_usage} {value} inc = {mem_usage-value}')
+    return mem_usage
+
 
 def find_paralogs(cluster):#, gene_annotation_dict):
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'FIND_PARALOGS_0')
     samples = {}
     for gene_id in cluster:        
         sample_id,_ =get_seq_ids(gene_id)# gene_annotation_dict[gene_id]['sample_id']         
         samples.setdefault(sample_id, []).append(gene_id)
-    
+
+    mem_usage = mem_report(mem_usage, 'FIND_PARALOGS_1')    
     # pick paralogs with the smallest number of genes
     smallest_number = 1000000
     paralog_genes = None
@@ -30,23 +42,30 @@ def find_paralogs(cluster):#, gene_annotation_dict):
             paralog_genes = genes
             smallest_number = count
 
+    mem_usage = mem_report(mem_usage, 'FIND_PARALOGS_2')
     return paralog_genes
 
 
-def get_neighbour_genes(gene_annotation_fn, gene_position_fn):    
+def get_neighbour_genes(gene_annotation_fn, gene_position_fn):       
+    mem_usage=0
+    mem_usage = mem_report(mem_usage, 'get_neighbour_genes0')
     gene_neighbour_dict = {}
     chunksize=50000
 
     # Read in gene position
     gene_position = {}
+
+    
     with gzip.open(gene_position_fn, 'rt') as gp_fp:
         for line in gp_fp.readlines():
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]
-    
+
+    mem_usage = mem_report(mem_usage, 'get_neighbour_genes1')
+
     df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_name','gene_product'], chunksize=chunksize)
     for chunk_df in df_it:
-        gene_anno_dict = chunk_df.to_dict('index')
+        gene_anno_dict = chunk_df.to_dict('index')        
         for gene_id in gene_anno_dict:
         # for gene_id in gene_annotation_dict:   
             sample_id, contig = get_seq_ids(gene_id)     
@@ -65,11 +84,15 @@ def get_neighbour_genes(gene_annotation_fn, gene_position_fn):
             neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
             gene_neighbour_dict[gene_id] = neighbour_genes
 
+        mem_usage = mem_report(mem_usage, 'get_neighbour_genes2')
+
     return gene_neighbour_dict
 
 
 def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index):
     # find cluster indices of all the neighbour genes of each paralog gene
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'create_orthologs0')
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
         neighbours_of_p = gene_neighbour_dict[p]
@@ -82,11 +105,14 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
                 continue
         cluster_indices_around_paralogs.append(cluster_indices_around_p)
 
+    mem_usage = mem_report(mem_usage, 'create_orthologs1')
     # create data structure to hold new clusters
     new_clusters = [[p] for p in paralog_genes]
     new_clusters.append([]) # extra "leftovers" list to gather genes that don't share CGN with any paralog gene
 
     # add other members of the cluster to their closest match
+    mem_usage = mem_report(mem_usage, 'create_orthologs2')
+
     for g in cluster:
         if g in paralog_genes:
             continue
@@ -116,6 +142,7 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
 
         new_clusters[best_score_index].append(g)
 
+    mem_usage = mem_report(mem_usage, 'create_orthologs3')
     # check for "leftovers", remove if absent
     if len(new_clusters[-1]) == 0:
         del new_clusters[-1]
@@ -123,6 +150,9 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
     return new_clusters
 
 def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, dontsplit):
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'split_paralogs0')
+
     if dontsplit == True:
         return unsplit_clusters
 
@@ -170,6 +200,8 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
         # check if next iteration is required
         if any_paralogs == 0:
             break
+
+        mem_usage = mem_report(mem_usage, 'split_paralogs1')
         
     split_clusters = out_clusters
 
@@ -181,7 +213,12 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
 def annotate_cluster(unlabeled_clusters, gene_annotation_fn):    
     starttime = datetime.now()
 
-    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}    
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'annotate_cluster0')
+    
+    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)} 
+
+    mem_usage = mem_report(mem_usage, 'annotate_cluster1')
 
     chunksize = 50000
 
@@ -194,7 +231,8 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
         for gene_id in clusters[cluster_name]:
             geneid_2_cluster[gene_id] = cluster_name
     #TODO: we can swap clusters and geneid_2_cluser to save memory
-
+    
+    mem_usage = mem_report(mem_usage, 'annotate_cluster2')
     annotate_cluster_name = defaultdict(dict)
     annotate_cluster_product = defaultdict(set)
     annotate_cluster_rep = {}
@@ -227,10 +265,14 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
                         min(lens[0], gene_length),
                         max(lens[1], gene_length),
                         (lens[2] * lens[3] + gene_length) / (lens[3] + 1),
-                        (lens[3] + 1))     
+                        (lens[3] + 1))  
 
 
-    del geneid_2_cluster            
+    mem_usage = mem_report(mem_usage, 'annotate_cluster3')
+
+    del geneid_2_cluster  
+
+    mem_usage = mem_report(mem_usage, 'annotate_cluster4')    
 
     for cluster_name in clusters:
         gene_id_list = clusters[cluster_name]
@@ -257,6 +299,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
             'mean_length': lens[2],
             'size': lens[3]
             }
+    mem_usage = mem_report(mem_usage, 'annotate_cluster5') 
     ################    
     # for cluster_name in clusters:
     #     cluster_new_name = cluster_name
@@ -301,6 +344,8 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
 
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
     starttime = datetime.now()
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'create_nuc_file_for_each_cluster0')
 
     clusters_dir = os.path.join(out_dir, 'clusters')
     pan_ref_file = os.path.join(out_dir, 'pan_genome_reference.fna')
@@ -328,6 +373,7 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, 'create_nuc_file_for_each_cluster1')
 
 
 def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
@@ -417,6 +463,9 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
 
 
 def create_nucleotide_alignment(annotated_clusters, out_dir):
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'create_nucleotide_alignment0')
+
     starttime = datetime.now()
 
     for cluster_name in annotated_clusters:
@@ -460,11 +509,14 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, 'create_nucleotide_alignment1')
 
 def create_core_gene_alignment(annotated_clusters, 
                             #gene_annotation_dict, 
                             samples, out_dir):
     starttime = datetime.now()
+    mem_usage = 0
+    mem_usage = mem_report(mem_usage, 'create_core_gene_alignment0')
 
     clusters_dir = os.path.join(out_dir, 'clusters')
     seq_dict = {}
@@ -507,6 +559,7 @@ def create_core_gene_alignment(annotated_clusters,
         for sample_id in cluster_dict:
             seq_dict[sample_id] += cluster_dict[sample_id]
     
+    mem_usage = mem_report(mem_usage, 'create_core_gene_alignment1')
     core_gene_aln_file = os.path.join(out_dir, 'core_gene_alignment.aln.gz')
     with gzip.open(core_gene_aln_file, 'wt') as fh:
         for sample in seq_dict:
@@ -515,6 +568,7 @@ def create_core_gene_alignment(annotated_clusters,
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, 'create_core_gene_alignment2')
 
 
 def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, threads):

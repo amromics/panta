@@ -115,7 +115,6 @@ def run_main_pipeline(args):
         threads=threads)
     # blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
 
-
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
         #gene_annotation=gene_annotation,

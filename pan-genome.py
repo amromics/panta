@@ -75,23 +75,13 @@ def run_main_pipeline(args):
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
 
-    # data preparation
-    # gene_annotation = {}
-    # gene_position = {}
-    # data_preparation.extract_proteins(
-    #     samples=samples,
-    #     out_dir=out_dir,
-    #     gene_annotation = gene_annotation,
-    #     gene_position = gene_position,
-    #     table=args.table,
-    #     threads=threads)
-
     data_preparation.extract_proteins_tofile(
         samples=samples, 
         out_dir=out_dir, 
         gene_annotation_fn=gene_annotation_fn, 
         gene_position_fn=gene_position_fn, 
-        table=args.table)
+        table=args.table,
+        threads=threads)
 
     combined_faa = data_preparation.combine_proteins(
         out_dir=out_dir,
@@ -233,10 +223,10 @@ def run_add_sample_pipeline(args):
         out_dir=collection_dir,
         gene_annotation_fn = gene_annotation_fn,
         gene_position_fn = gene_position_fn,
-        table=args.table,
-        #threads=threads,
+        table=args.table,        
         existing_gene_annotation_fn=existing_gene_annotation_fn,
-        existing_gene_position_fn=existing_gene_position_fn
+        existing_gene_position_fn=existing_gene_position_fn,
+        threads=threads,
         )
     new_combined_faa = data_preparation.combine_proteins(
         out_dir=collection_dir,

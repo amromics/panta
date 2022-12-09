@@ -141,7 +141,10 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
     #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','seq_id'])
     #gene_annotation_dict {gene_id: {'samle_id':sample_id, 'seq_id':seq_id}}
 
+    mem_usage = mem_report(0, "split_paralog0")
     gene_neighbour_dict = get_neighbour_genes(gene_annotation_fn, gene_position_fn)
+    mem_usage = mem_report(mem_usage, "split_paralog0")
+
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -179,12 +182,16 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
         elapsed = datetime.now() - stime
         logging.info(f'Split paralogs iterate {i}-- time taken {str(elapsed)}')
         # check if next iteration is required
+        mem_usage = mem_report(mem_usage, "split_paralog2")
+
         if any_paralogs == 0:
             break        
     split_clusters = out_clusters
 
     elapsed = datetime.now() - starttime
     logging.info(f'Split paralogs -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, "split_paralog3")
+
     return split_clusters
 
 

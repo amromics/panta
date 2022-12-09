@@ -8,7 +8,6 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
-
 def mem_report(value, point='POINT'):
     process = psutil.Process(os.getpid())
     mem_info = process.memory_info()

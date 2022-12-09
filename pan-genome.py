@@ -76,15 +76,15 @@ def run_main_pipeline(args):
         raise Exception(f'There must be at least 2 samples')
 
     # data preparation
-    gene_annotation = {}
-    gene_position = {}
-    data_preparation.extract_proteins(
-        samples=samples,
-        out_dir=out_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
-        table=args.table,
-        threads=threads)
+    # gene_annotation = {}
+    # gene_position = {}
+    # data_preparation.extract_proteins(
+    #     samples=samples,
+    #     out_dir=out_dir,
+    #     gene_annotation = gene_annotation,
+    #     gene_position = gene_position,
+    #     table=args.table,
+    #     threads=threads)
 
     data_preparation.extract_proteins_tofile(
         samples=samples, 

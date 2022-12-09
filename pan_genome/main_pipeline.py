@@ -1,5 +1,4 @@
 import os
-import shutil
 import logging
 import subprocess
 from datetime import datetime
@@ -157,6 +156,12 @@ def cluster_with_mcl(blast_result, out_dir):
 
 
 def reinflate_clusters(cd_hit_clusters, mcl_file):
+    """
+    Return
+    ------
+        - inflated_clusters: list of list of genes
+        -clusters: dict(cluster_id->[gene_ids])
+    """    
     starttime = datetime.now()
     clusters = {}
     clusters.update(cd_hit_clusters)
@@ -174,14 +179,14 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
                     inflated_genes.extend(cd_hit_clusters[gene])
                     del cd_hit_clusters[gene]
             inflated_clusters.append(inflated_genes)
-
+    
     # Inflate any clusters that were in the clusters file but not sent to mcl
     for gene in cd_hit_clusters:
         inflated_genes = []
         inflated_genes.append(gene)
         inflated_genes.extend(cd_hit_clusters[gene])
         inflated_clusters.append(inflated_genes)
-
+    
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
     return inflated_clusters, clusters

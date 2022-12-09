@@ -1,12 +1,11 @@
 import argparse
 import os
 import shutil
+import psutil
 import logging
 import json
 import csv
 from datetime import datetime
-
-#from memory_profiler import profile
 from pan_genome import *
 
 logging.basicConfig(
@@ -55,9 +54,7 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
-#@profile
 def run_main_pipeline(args):
-
     starttime = datetime.now()
 
     out_dir = args.outdir
@@ -79,15 +76,15 @@ def run_main_pipeline(args):
         raise Exception(f'There must be at least 2 samples')
 
     # data preparation
-    #gene_annotation = {}
-    #gene_position = {}
-    # data_preparation.extract_proteins(
-    #     samples=samples,
-    #     out_dir=out_dir,
-    #     gene_annotation = gene_annotation,
-    #     gene_position = gene_position,
-    #     table=args.table,
-    #     threads=threads)
+    gene_annotation = {}
+    gene_position = {}
+    data_preparation.extract_proteins(
+        samples=samples,
+        out_dir=out_dir,
+        gene_annotation = gene_annotation,
+        gene_position = gene_position,
+        table=args.table,
+        threads=threads)
 
     data_preparation.extract_proteins_tofile(
         samples=samples, 
@@ -105,7 +102,7 @@ def run_main_pipeline(args):
         faa_file=combined_faa,
         out_dir=temp_dir,
         threads=threads)
-    logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')
+    # logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
 
 
     print(f'Diamond = {args.diamond}')    
@@ -116,7 +113,7 @@ def run_main_pipeline(args):
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
-    blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
+    # blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
 
 
     filtered_blast_result = main_pipeline.filter_blast_result(
@@ -151,7 +148,10 @@ def run_main_pipeline(args):
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
 
+    mem_usage = mem_report(0, 'POINT0')
     output.create_outputs(annotated_clusters,samples,out_dir)
+    mem_usage = mem_report(mem_usage, 'POINT1')
+
 
     if args.alignment != None:
         post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)

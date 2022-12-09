@@ -1,4 +1,5 @@
 import os
+import psutil
 import logging
 import re
 from Bio import SeqIO
@@ -8,6 +9,13 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
+def mem_report(value, point='POINT'):
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    mem_usage = mem_info.rss/1000000
+    logger.info(f'MEM at {point}: {mem_usage} {value} inc = {mem_usage-value}')
+    return mem_usage
+
 def get_seq_ids(gene_id):
     toks = gene_id.split('-',2)
     #sample_id, contig_id, gene_id
@@ -16,6 +24,11 @@ def get_seq_ids(gene_id):
     return toks[0], toks[1]
 
 def parse_cluster_file(cd_hit_cluster_file): 
+    """
+    Parse cdhit cluster file
+    Return:
+        a dictionary of clusters: dict (cluster_name > [gene_id])
+    """    
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:
         for line in fh:
@@ -34,7 +47,7 @@ def parse_cluster_file(cd_hit_cluster_file):
                     else:
                         percent = re.findall(r'([0-9\.]+)', identity)
                         percent = float(percent[0])
-                        clusters[cluster_name]['gene_names'].append(gene_name)
+                        clusters[cluster_name]['gene_names'].append(gene_name)    
     # convert to a simple dictionary
     clusters_new = {}
     for cluster_name in clusters:

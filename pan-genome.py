@@ -147,11 +147,7 @@ def run_main_pipeline(args):
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
-
-    mem_usage = mem_report(0, 'POINT0')
-    output.create_outputs(annotated_clusters,samples,out_dir)
-    mem_usage = mem_report(mem_usage, 'POINT1')
-
+    
 
     if args.alignment != None:
         post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)

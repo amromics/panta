@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import multiprocessing
 import logging
 import json
 import csv
@@ -58,12 +59,17 @@ def run_main_pipeline(args):
 
     out_dir = args.outdir
     threads = args.threads
-
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+    
     temp_dir = os.path.join(out_dir, 'temp')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
+    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
 
     # collect samples
     sample_id_list = []
@@ -71,14 +77,11 @@ def run_main_pipeline(args):
     if len(samples) < 2:
         raise Exception(f'There must be at least 2 samples')
 
-    # data preparation
-    gene_annotation = {}
-    gene_position = {}
-    data_preparation.extract_proteins(
-        samples=samples,
-        out_dir=out_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
+    data_preparation.extract_proteins_tofile(
+        samples=samples, 
+        out_dir=out_dir, 
+        gene_annotation_fn=gene_annotation_fn, 
+        gene_position_fn=gene_position_fn, 
         table=args.table,
         threads=threads)
 
@@ -91,7 +94,10 @@ def run_main_pipeline(args):
         faa_file=combined_faa,
         out_dir=temp_dir,
         threads=threads)
+    # logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
 
+
+    print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
@@ -99,10 +105,12 @@ def run_main_pipeline(args):
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
+    #blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
+    #TODO check here
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
-        gene_annotation=gene_annotation,
+        #gene_annotation=gene_annotation,
         out_dir = temp_dir,
         identity=args.identity,
         length_difference=args.LD,
@@ -116,26 +124,36 @@ def run_main_pipeline(args):
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
         mcl_file=mcl_file)
+    logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
+
 
     # post analysis
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
+        #gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
         )
+    logger.info(f'len split_clusters = {len(split_clusters)}')
+
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
-        gene_annotation=gene_annotation)
-
-    output.create_outputs(gene_annotation,annotated_clusters,samples,out_dir)
+        gene_annotation_fn=gene_annotation_fn)
+    
 
     if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, samples, out_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)
 
     # output for next run
-    output.export_gene_annotation(gene_annotation, out_dir)
-    json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv.gz')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv.gz') 
+
+    shutil.copy(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.copy(gene_position_fn, main_gene_position_fn)
+
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
@@ -160,6 +178,9 @@ def run_add_sample_pipeline(args):
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+        
     diamond = args.diamond
     identity = args.identity
     evalue = args.evalue
@@ -171,14 +192,20 @@ def run_add_sample_pipeline(args):
         os.makedirs(temp_dir)
     else:
         os.makedirs(temp_dir)
+    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+
 
     # Check required files
-    gene_annotation_file = os.path.join(collection_dir, 'gene_annotation.tsv')
-    if not os.path.isfile(gene_annotation_file):
-        raise Exception(f'{gene_annotation_file} does not exist')
-    gene_annotation = output.import_gene_annotation(gene_annotation_file)
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    if not os.path.isfile(existing_gene_annotation_fn):
+        raise Exception(f'{existing_gene_annotation_fn} does not exist')
+    #gene_annotation = output.import_gene_annotation(gene_annotation_file)
 
-    gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+    #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+    
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
 
@@ -197,13 +224,15 @@ def run_add_sample_pipeline(args):
         raise Exception(f'There must be at least one new sample')
 
     # data preparation
-    data_preparation.extract_proteins(
+    data_preparation.extract_proteins_tofile(
         samples=new_samples,
         out_dir=collection_dir,
-        gene_annotation = gene_annotation,
-        gene_position = gene_position,
-        table=args.table,
-        threads=threads
+        gene_annotation_fn = gene_annotation_fn,
+        gene_position_fn = gene_position_fn,
+        table=args.table,        
+        existing_gene_annotation_fn=existing_gene_annotation_fn,
+        existing_gene_position_fn=existing_gene_position_fn,
+        threads=threads,
         )
     new_combined_faa = data_preparation.combine_proteins(
         out_dir=collection_dir,
@@ -246,7 +275,7 @@ def run_add_sample_pipeline(args):
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=combined_blast_result,
-        gene_annotation=gene_annotation,
+        #gene_annotation=gene_annotation,
         out_dir = temp_dir,
         identity=args.identity,
         length_difference=args.LD,
@@ -269,27 +298,35 @@ def run_add_sample_pipeline(args):
     new_samples.sort(key= lambda x:x['id'])
 
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation=gene_annotation,
-        gene_position=gene_position,
+        #gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
-        )
+        )    
+
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
-        gene_annotation=gene_annotation)
+        gene_annotation_fn=gene_annotation_fn)
 
-    output.create_outputs(gene_annotation,annotated_clusters,new_samples,collection_dir)
+    output.create_outputs(annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
         samples_dir = os.path.join(collection_dir, 'samples')
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
 
-        post_analysis.run_gene_alignment(annotated_clusters, gene_annotation, new_samples, collection_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, threads)
 
     # output for next run
-    output.export_gene_annotation(gene_annotation, collection_dir)
-    json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    #main_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz') 
+
+    #Replace the main existing files by the new ones
+    shutil.copy(gene_annotation_fn, existing_gene_annotation_fn)
+    shutil.copy(gene_position_fn, existing_gene_position_fn)
+
+    #output.export_gene_annotation(gene_annotation, collection_dir)
+    #json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)

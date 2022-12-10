@@ -582,13 +582,13 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, t
             os.mkdir(cluster_dir)
         #length_max = 0
         #representative = None
-        # for gene_id in annotated_clusters[cluster_name]['gene_id']:
-        #     gene_to_cluster_name[gene_id] = cluster_name
-        #     #sample_id = gene_annotation_dict[gene_id]['sample_id']
-        #     length = gene_annotation_dict[gene_id]['length']
-        #     if length > length_max:
-        #         representative = gene_id
-        #         length_max = length
+        for gene_id in annotated_clusters[cluster_name]['gene_id']:
+            gene_to_cluster_name[gene_id] = cluster_name
+            #sample_id = gene_annotation_dict[gene_id]['sample_id']
+            #length = gene_annotation_dict[gene_id]['length']
+            #if length > length_max:
+            #    representative = gene_id
+            #    length_max = length
         pan_ref_list.add(annotated_clusters[cluster_name]['representative'])
 
     if alignment == 'protein':

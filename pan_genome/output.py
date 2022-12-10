@@ -215,18 +215,14 @@ def import_gene_annotation(annotation_file):
     return gene_annotation
 
 
-def create_outputs(annotated_clusters,samples,out_dir):
-    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])
-
+def create_outputs(annotated_clusters,samples,out_dir):    
     spreadsheet_file = create_spreadsheet(
-        annotated_clusters=annotated_clusters, 
-        #gene_annotation_dict=gene_annotation_dict,
+        annotated_clusters=annotated_clusters,         
         samples=samples,
         out_dir=out_dir
     )
     rtab_file = create_rtab(
-        annotated_clusters=annotated_clusters, 
-        #gene_annotation_dict=gene_annotation_dict,
+        annotated_clusters=annotated_clusters,         
         samples=samples,
         out_dir=out_dir
     )

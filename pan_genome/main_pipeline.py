@@ -14,20 +14,16 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    #cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    #ret = os.system(cmd)
+    cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, None)
     if ret != 0:
         raise Exception('Error running cd-hit')
-    #TODO: check here
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
     return cd_hit_represent_fasta, cd_hit_clusters
 
-
-   
 
 def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()

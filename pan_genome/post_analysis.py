@@ -1,6 +1,5 @@
 import os
-import psutil
-
+import multiprocessing
 import re
 import logging
 import gzip
@@ -403,22 +402,30 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads):
 
     clusters_dir = os.path.join(out_dir, 'clusters')
 
-    cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
-    with open(cmds_file,'w') as cmds:
-        for cluster_name in annotated_clusters:
-            cluster_dir = os.path.join(clusters_dir, cluster_name)
-            gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
-            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
-            if not os.path.isfile(gene_seq_file):
-                logger.info('{} does not exist'.format(gene_seq_file))
-                continue
-            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
-            cmds.write(cmd + '\n')
+    #cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    #with open(cmds_file,'w') as cmds:
+    for cluster_name in annotated_clusters:
+        cluster_dir = os.path.join(clusters_dir, cluster_name)
+        gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
+        gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
+        if not os.path.isfile(gene_seq_file):
+            logger.info('{} does not exist'.format(gene_seq_file))
+            continue
+        cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
+        #cmds.write(cmd + '\n')
+        results.append(pool.apply_async(run_command,(cmd, None)))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running maftt')
 
-    cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = os.system(cmd)
-    if ret != 0:
-        raise Exception('Error running mafft')
+    # cmd = f"parallel --progress -j {threads} -a {cmds_file}"
+    # ret = os.system(cmd)
+    # if ret != 0:
+    #     raise Exception('Error running mafft')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
@@ -429,23 +436,31 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
 
     clusters_dir = os.path.join(out_dir, 'clusters')
 
-    cmds_file = os.path.join(clusters_dir,"nu_align_cmds")
-    with open(cmds_file,'w') as cmds:
-        for cluster_name in annotated_clusters:
-            cluster_dir = os.path.join(clusters_dir, cluster_name)
-            gene_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
-            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.fna')
-            if not os.path.isfile(gene_seq_file):
-                logger.info('{} does not exist'.format(gene_aln_file))
-                continue
-            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
-            cmd += f' && rm {gene_seq_file}'
-            cmds.write(cmd + '\n')
+    #cmds_file = os.path.join(clusters_dir,"nu_align_cmds")
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    #with open(cmds_file,'w') as cmds:
+    for cluster_name in annotated_clusters:
+        cluster_dir = os.path.join(clusters_dir, cluster_name)
+        gene_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
+        gene_seq_file = os.path.join(cluster_dir, cluster_name + '.fna')
+        if not os.path.isfile(gene_seq_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
+            continue
+        cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} | gzip > {gene_aln_file}"
+        cmd += f' && rm {gene_seq_file}'
+        #cmds.write(cmd + '\n')
+        results.append(pool.apply_async(run_command,(cmd, None)))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running maftt 2')
 
-    cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    ret = os.system(cmd)
-    if ret != 0:
-        raise Exception('Error running mafft')
+    # cmd = f"parallel --progress -j {threads} -a {cmds_file}"
+    # ret = os.system(cmd)
+    # if ret != 0:
+    #     raise Exception('Error running mafft')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run nucleotide alignment -- time taken {str(elapsed)}')

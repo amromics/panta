@@ -8,7 +8,7 @@ from pan_genome.utils import *
 logger = logging.getLogger(__name__)
 
 
-def run_cd_hit(faa_file, out_dir, threads=4):
+def run_cd_hit(faa_file, out_dir, threads=4):        
     starttime = datetime.now()
     
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
@@ -50,7 +50,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     #blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")    
     blast_output_file_list = []
     pool = multiprocessing.Pool(processes=threads)
-    results = []       
+    results = []      
 
     #with open(blast_cmds_file,'w') as fh:
     for chunked_file in chunked_file_list:

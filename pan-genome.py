@@ -1,7 +1,7 @@
 import argparse
 import os
 import shutil
-import psutil
+import multiprocessing
 import logging
 import json
 import csv
@@ -59,7 +59,9 @@ def run_main_pipeline(args):
 
     out_dir = args.outdir
     threads = args.threads
-
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+    
     temp_dir = os.path.join(out_dir, 'temp')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -176,6 +178,9 @@ def run_add_sample_pipeline(args):
     if not os.path.exists(collection_dir):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+        
     diamond = args.diamond
     identity = args.identity
     evalue = args.evalue

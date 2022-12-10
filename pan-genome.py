@@ -308,7 +308,7 @@ def run_add_sample_pipeline(args):
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
 
-    output.create_outputs(gene_annotation_fn,annotated_clusters,new_samples,collection_dir)
+    output.create_outputs(annotated_clusters,new_samples,collection_dir)
 
     if args.alignment != None:
         samples_dir = os.path.join(collection_dir, 'samples')

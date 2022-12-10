@@ -18,6 +18,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     found_fasta = False
     suffix = 1
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
+        gene_index = 0
+        seq_id = None
         for line in in_fh:
             if found_fasta == True:
                 fna_fh.write(line)
@@ -40,7 +42,10 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             #     continue
             if length % 3 != 0:
                 continue
-            seq_id = cells[0]
+            if seq_id != cells[0]:
+                seq_id = cells[0]
+                gene_index = 0
+
             trand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
@@ -72,7 +77,8 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
             bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_annotation
-            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product)
+            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product, gene_index)
+            gene_index += 1
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 
@@ -115,8 +121,8 @@ def process_single_sample(sample, out_dir, table):
     with open(annotation_fn, 'w') as ga_fp:
         #no header
         for gene_id in gene_annotation:
-                (sample_id, seq_id, length, gene_name, gene_product) = gene_annotation[gene_id]
-                ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product}\n')
+                (sample_id, seq_id, length, gene_name, gene_product, gene_index) = gene_annotation[gene_id]
+                ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product},{gene_index}\n')
     
     gene_position_fn = os.path.join(sample_dir, sample_id +'.gene_position')
     with open(gene_position_fn, 'w') as gp_fp:
@@ -166,7 +172,7 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
                 for line in ega_fp.readlines():
                     ga_fp.write(line)
         else:
-            ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product\n')
+            ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product,gene_index\n')
 
         if existing_gene_position_fn:
             with gzip.open(existing_gene_position_fn, 'rt') as egp_fp:
@@ -174,14 +180,16 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
                     gp_fp.write(line)
     
         for result in results:
-            annotation_fn, gene_position_fn = result
-            with open(annotation_fn) as fn:
+            s_annotation_fn, s_gene_position_fn = result
+            with open(s_annotation_fn) as fn:
                 for line in fn.readlines():
                     ga_fp.write(line)
+            os.remove(s_annotation_fn)
             
-            with open(gene_position_fn) as fn:
+            with open(s_gene_position_fn) as fn:
                 for line in fn.readlines():
-                    gp_fp.write(line)    
+                    gp_fp.write(line) 
+            os.remove(s_gene_position_fn)   
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
 

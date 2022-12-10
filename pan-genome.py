@@ -103,7 +103,8 @@ def run_main_pipeline(args):
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
-    # blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
+    #blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
+    #TODO check here
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
@@ -126,7 +127,7 @@ def run_main_pipeline(args):
 
     # post analysis
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation_fn=gene_annotation_fn,
+        #gene_annotation_fn=gene_annotation_fn,
         gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
@@ -292,7 +293,7 @@ def run_add_sample_pipeline(args):
     new_samples.sort(key= lambda x:x['id'])
 
     split_clusters = post_analysis.split_paralogs(
-        gene_annotation_fn=gene_annotation_fn,
+        #gene_annotation_fn=gene_annotation_fn,
         gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split

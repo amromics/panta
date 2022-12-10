@@ -25,7 +25,7 @@ def find_paralogs(cluster):#, gene_annotation_dict):
     """    
     samples = {}
     for gene_id in cluster:        
-        sample_id,_ =get_seq_ids(gene_id)# gene_annotation_dict[gene_id]['sample_id']         
+        sample_id,_ = get_seq_ids(gene_id)# gene_annotation_dict[gene_id]['sample_id']         
         samples.setdefault(sample_id, []).append(gene_id)
     
     # pick paralogs with the smallest number of genes
@@ -37,55 +37,73 @@ def find_paralogs(cluster):#, gene_annotation_dict):
         if count > 1 and count < smallest_number:
             paralog_genes = genes
             smallest_number = count
-
     return paralog_genes
 
 
-def get_neighbour_genes(gene_annotation_fn, gene_position_fn):           
-    gene_neighbour_dict = {}
-    chunksize=50000
-
-    # Read in gene position
-    gene_position = {}
-
+# def get_neighbour_genes(gene_annotation_fn, gene_position_fn):           
+#     gene_neighbour_dict = {}
+#     chunksize=100000
+#     # Read in gene position
+#     # gene_position = {}
     
-    with gzip.open(gene_position_fn, 'rt') as gp_fp:
-        for line in gp_fp.readlines():
-            toks = line.strip().split(',')
-            gene_position[(toks[0], toks[1])] = toks[2:]    
+#     # with gzip.open(gene_position_fn, 'rt') as gp_fp:
+#     #     for line in gp_fp.readlines():
+#     #         toks = line.strip().split(',')
+#     #         gene_position[(toks[0], toks[1])] = toks[2:]    
 
-    df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_name','gene_product'], chunksize=chunksize)
-    for chunk_df in df_it:
-        gene_anno_dict = chunk_df.to_dict('index')        
-        for gene_id in gene_anno_dict:
-        # for gene_id in gene_annotation_dict:   
-            sample_id, contig = get_seq_ids(gene_id)     
-            #TODO: can get contig_id, sample_id, length, and even index from gene_annotation_fn
-            #contig = gene_annotation_dict[gene_id]['seq_id']
-            #sample_id = gene_annotation_dict[gene_id]['sample_id']   
-            genes_of_contig = gene_position[(sample_id,contig)]
-            index = genes_of_contig.index(gene_id)
-            pre_index = index - 5
-            post_index = index + 6
-            if pre_index < 0:
-                pre_index = 0
-            length_of_contig = len(genes_of_contig)
-            if post_index >= length_of_contig:
-                post_index = length_of_contig
-            neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
-            gene_neighbour_dict[gene_id] = neighbour_genes
-    #TODO check size
-    count_elements = sum([len(gene_neighbour_dict[gene_id]) for gene_id in gene_neighbour_dict])
-    logger.info(f'Size of gene_neighbour_dict = {len(gene_neighbour_dict)} no elements = {count_elements}')
+#     df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_index'], chunksize=chunksize)
+#     gene_index = 0
+#     seq_id = None
+#     genes_of_contig = []
 
-    return gene_neighbour_dict
+#     for chunk_df in df_it:
+#         gene_anno_dict = chunk_df.to_dict('index')        
+#         for gene_id in gene_anno_dict:
+#             sample_id, m_seq_id = get_seq_ids(gene_id)                        
+#             if m_seq_id != seq_id:
+#                 #when we see a new sequence                
+#                 for j, _gene_id in enumerate(genes_of_contig):
+#                     _start = max(0, j - 5)
+#                     gene_neighbour_dict[_gene_id] = genes_of_contig[_start:j] + genes_of_contig[j+1:j+6]
+#                 seq_id = m_seq_id
+#                 print(f"AAAAA {seq_id}")
+#                 gene_neighbour_dict = []                           
+#             genes_of_contig.append(gene_id)
+#     #The last sequence
+#     for j, _gene_id in enumerate(genes_of_contig):
+#         _start = max(0, j - 5)
+#         gene_neighbour_dict[_gene_id] = genes_of_contig[_start:j] + genes_of_contig[j+1:j+6]
+
+#             # genes_of_contig = gene_position[(sample_id,seq_id)]
+#             # index = genes_of_contig.index(gene_id)
+#             # if index != gene_anno_dict[gene_id]['gene_index']:
+#             #     gene_index = gene_anno_dict[gene_id]['gene_index']
+#             #     raise Exception(f'Index {index} vs {gene_index}')
+#             # pre_index = index - 5
+#             # post_index = index + 6
+#             # if pre_index < 0:
+#             #     pre_index = 0
+#             # length_of_contig = len(genes_of_contig)
+#             # if post_index >= length_of_contig:
+#             #     post_index = length_of_contig
+#             # neighbour_genes = genes_of_contig[pre_index:index] + genes_of_contig[index+1:post_index]
+#             # gene_neighbour_dict[gene_id] = neighbour_genes
+#     #TODO check size
+#     count_elements = sum([len(gene_neighbour_dict[gene_id]) for gene_id in gene_neighbour_dict])
+#     logger.info(f'Size of gene_neighbour_dict = {len(gene_neighbour_dict)} no elements = {count_elements}')
+
+#     return gene_neighbour_dict
 
 
-def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index):
+def create_orthologs(cluster, paralog_genes, gene_position, gene_to_cluster_index):
     # find cluster indices of all the neighbour genes of each paralog gene    
     cluster_indices_around_paralogs = []
     for p in paralog_genes:
-        neighbours_of_p = gene_neighbour_dict[p]
+        sample_id, seq_id = get_seq_ids(p)
+        genes_in_seq = gene_position[(sample_id, seq_id)]
+        gene_index = genes_in_seq.index(p)        
+        neighbours_of_p = genes_in_seq[max(0, gene_index - 5):gene_index] + genes_in_seq[gene_index+1:gene_index+6]
+        #neighbours_of_p = gene_neighbour_dict[p]
         cluster_indices_around_p = set()
         for neighbour_gene in neighbours_of_p:
             try:
@@ -103,7 +121,11 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
         if g in paralog_genes:
             continue
 
-        neighbour_genes_of_g = gene_neighbour_dict[g]
+        sample_id, seq_id = get_seq_ids(g)
+        genes_in_seq = gene_position[(sample_id, seq_id)]
+        gene_index = genes_in_seq.index(g)        
+        neighbour_genes_of_g = genes_in_seq[max(0, gene_index - 5):gene_index] + genes_in_seq[gene_index+1:gene_index+6]        
+        #neighbour_genes_of_g = gene_neighbour_dict[g]
         if len(neighbour_genes_of_g) == 0:
             new_clusters[-1].append(g)
             continue
@@ -133,16 +155,20 @@ def create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluste
     
     return new_clusters
 
-def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, dontsplit):
+def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
     if dontsplit == True:
         return unsplit_clusters
 
     starttime = datetime.now()    
-    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','seq_id'])
-    #gene_annotation_dict {gene_id: {'samle_id':sample_id, 'seq_id':seq_id}}
-
+    
     mem_usage = mem_report(0, "split_paralog0")
-    gene_neighbour_dict = get_neighbour_genes(gene_annotation_fn, gene_position_fn)
+    # Read in gene position
+    gene_position = {}    
+    with gzip.open(gene_position_fn, 'rt') as gp_fp:
+        for line in gp_fp.readlines():
+            toks = line.strip().split(',')
+            gene_position[(toks[0], toks[1])] = toks[2:]
+
     mem_usage = mem_report(mem_usage, "split_paralog0")
 
     
@@ -175,7 +201,7 @@ def split_paralogs(gene_annotation_fn, gene_position_fn, unsplit_clusters, donts
                 continue
 
             # split paralogs
-            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_neighbour_dict, gene_to_cluster_index)
+            orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_position, gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 

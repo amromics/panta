@@ -1,5 +1,6 @@
 import os
 import logging
+import multiprocessing
 import subprocess
 from datetime import datetime
 from pan_genome.utils import *
@@ -13,8 +14,9 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    ret = os.system(cmd)
+    #cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    #ret = os.system(cmd)
+    ret = run_command(cmd, None)
     if ret != 0:
         raise Exception('Error running cd-hit')
     #TODO: check here
@@ -24,6 +26,8 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
     return cd_hit_represent_fasta, cd_hit_clusters
 
+
+   
 
 def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()
@@ -43,18 +47,29 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     chunked_file_list = chunk_fasta_file(query_fasta, chunk_dir)
 
     # run parallel all-against-all blast
-    blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")
+    #blast_cmds_file = os.path.join(out_dir,"blast_cmds.txt")    
     blast_output_file_list = []
-    with open(blast_cmds_file,'w') as fh:
-        for chunked_file in chunked_file_list:
-            blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
-            blast_output_file_list.append(blast_output_file)
-            cmd = f'blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" -max_target_seqs 2000 2> /dev/null 1> {blast_output_file}'
-            fh.write(cmd + '\n')
-    cmd = f"parallel -j {threads} -a {blast_cmds_file}"
-    ret = os.system(cmd)
-    if ret != 0:
-        raise Exception('Error running parallel all-against-all blast')
+    pool = multiprocessing.Pool(processes=threads)
+    results = []       
+
+    #with open(blast_cmds_file,'w') as fh:
+    for chunked_file in chunked_file_list:
+        blast_output_file = os.path.splitext(chunked_file)[0] + '.out'
+        blast_output_file_list.append(blast_output_file)
+        cmd = f'blastp -query {chunked_file} -db {blast_db} -evalue {evalue} -num_threads 1 -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" -max_target_seqs 2000 2> /dev/null 1> {blast_output_file}'
+        results.append(pool.apply_async(run_command,(cmd, None)))
+    pool.close()
+    pool.join()
+    
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running all-against-all blast')        
+
+    #fh.write(cmd + '\n')
+    #cmd = f"parallel -j {threads} -a {blast_cmds_file}"
+    #ret = os.system(cmd)
+    #if ret != 0:
+    #    raise Exception('Error running parallel all-against-all blast')
 
     # combining blast results
     blast_result = os.path.join(out_dir, 'blast_results')

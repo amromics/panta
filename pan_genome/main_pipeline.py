@@ -14,7 +14,7 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     cd_hit_represent_fasta = os.path.join(out_dir, 'cd-hit.fasta')
     cd_hit_cluster_file = cd_hit_represent_fasta + '.clstr'
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
-    cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
+    #cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     ret = run_command(cmd, None)
     if ret != 0:
         raise Exception('Error running cd-hit')
@@ -60,13 +60,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     for result in results:
         if result.get() != 0:
             raise Exception('Error running all-against-all blast')        
-
-    #fh.write(cmd + '\n')
-    #cmd = f"parallel -j {threads} -a {blast_cmds_file}"
-    #ret = os.system(cmd)
-    #if ret != 0:
-    #    raise Exception('Error running parallel all-against-all blast')
-
+    
     # combining blast results
     blast_result = os.path.join(out_dir, 'blast_results')
     if os.path.isfile(blast_result):
@@ -129,12 +123,7 @@ def filter_blast_result(blast_result,
 
     with open(filtered_blast_result, 'w') as fh:
         for line in open(blast_result, 'r'):
-            cells = line.rstrip().split('\t')
-            # qseqid = cells[0]
-            # sseqid = cells[1]
-
-            # qlen = gene_annotation[qseqid][2]
-            # slen = gene_annotation[sseqid][2]
+            cells = line.rstrip().split('\t')            
 
             qlen = int(cells[12])# * 3 + 3
             slen = int(cells[13])# * 3 + 3

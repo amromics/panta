@@ -169,7 +169,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
             gene_position[(toks[0], toks[1])] = toks[2:]
 
     mem_usage = mem_report(mem_usage, "split_paralog0")
-
+    #TODO: gene_position is memory intensive
     
     clusters_not_paralogs = set()
     # run iteratively
@@ -343,23 +343,36 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
         for sample in samples:
             sample_id = sample['id']
             fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna')
-            with open(fna_file, 'r') as in_fh:
-                for line in in_fh:
-                    line = line.rstrip()
-                    if re.match(r"^>", line) != None:
-                        line = re.sub(r'\([-+]\)', '', line)
-                        result = re.match(r"^>([^:]+)", line)
-                        seq_id = result.group(1)
-                    else:
-                        ls = [line[i:i+60] for i in range(0,len(line), 60)]
-                        if seq_id in gene_to_cluster_name:
-                            cluster_name = gene_to_cluster_name[seq_id]
-                            with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
-                                out_fh.write('>'+ seq_id + '\n')
-                                out_fh.write('\n'.join(ls) + '\n')
-                        if seq_id in pan_ref_list:
-                                ref_fh.write('>'+ seq_id + '\n')
-                                ref_fh.write('\n'.join(ls) + '\n')
+            for seq in SeqIO.parse(fna_file, 'fasta'):
+                seq_id = seq.id
+                if seq_id in gene_to_cluster_name:
+                    cluster_name = gene_to_cluster_name[seq_id]
+                    seq_fasta = SeqIO.FastaIO.as_fasta(seq)                 
+                    with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
+                        out_fh.write(seq_fasta)
+                    if seq_id in pan_ref_list:
+                        ref_fh.write(seq_fasta)
+                else:                         
+                    logger.error(f'Gene {seq_id} not in clusters? why')
+                
+            # with open(fna_file, 'r') as in_fh:
+            #     for line in in_fh:
+            #         line = line.rstrip()
+            #         if re.match(r"^>", line) != None:
+            #             line = re.sub(r'\([-+]\)', '', line)
+            #             result = re.match(r"^>([^:]+)", line)
+            #             seq_id = result.group(1)
+            #         else:
+            #             ls = [line[i:i+60] for i in range(0,len(line), 60)]
+            #             seq_fasta = 
+            #             if seq_id in gene_to_cluster_name:
+            #                 cluster_name = gene_to_cluster_name[seq_id]
+            #                 with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
+            #                     out_fh.write('>'+ seq_id + '\n')
+            #                     out_fh.write('\n'.join(ls) + '\n')
+            #             if seq_id in pan_ref_list:
+            #                     ref_fh.write('>'+ seq_id + '\n')
+            #                     ref_fh.write('\n'.join(ls) + '\n')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
@@ -370,28 +383,35 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     for sample in samples:
         sample_id = sample['id']
         faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
-        with open(faa_file, 'r') as in_fh:
-            last_seq_id = None
-            line_list = []
-            for line in in_fh:
-                line = line.rstrip()
-                result = re.match(r"^>(.+)", line)
-                if result != None:
-                    seq_id = result.group(1)
-                    if last_seq_id != None:
-                        cluster_name = gene_to_cluster_name[last_seq_id]
-                        with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-                            out_fh.write('>'+ last_seq_id + '\n')
-                            out_fh.write('\n'.join(line_list) + '\n')
-                    last_seq_id = seq_id
-                    line_list = []
-                else:
-                    line_list.append(line)
-
-            cluster_name = gene_to_cluster_name[last_seq_id]
+        for seq in SeqIO.parse(faa_file, 'fasta'):
+            if seq.id not in gene_to_cluster_name:
+                logger.error(f'Gene {seq.id} not in clusters? why')
+                continue
+            cluster_name = gene_to_cluster_name[seq.id]
             with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-                out_fh.write('>'+ last_seq_id + '\n')
-                out_fh.write('\n'.join(line_list) + '\n')
+                out_fh.write(SeqIO.FastaIO.as_fasta(seq))
+        # with open(faa_file, 'r') as in_fh:
+        #     last_seq_id = None
+        #     line_list = []
+        #     for line in in_fh:
+        #         line = line.rstrip()
+        #         result = re.match(r"^>(.+)", line)
+        #         if result != None:
+        #             seq_id = result.group(1)
+        #             if last_seq_id != None:
+        #                 cluster_name = gene_to_cluster_name[last_seq_id]
+        #                 with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+        #                     out_fh.write('>'+ last_seq_id + '\n')
+        #                     out_fh.write('\n'.join(line_list) + '\n')
+        #             last_seq_id = seq_id
+        #             line_list = []
+        #         else:
+        #             line_list.append(line)
+
+        #     cluster_name = gene_to_cluster_name[last_seq_id]
+        #     with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+        #         out_fh.write('>'+ last_seq_id + '\n')
+        #         out_fh.write('\n'.join(line_list) + '\n')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')

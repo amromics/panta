@@ -102,54 +102,63 @@ def chunk_fasta_file(fasta_file, out_dir):
     return chunked_file_list
 
 def create_fasta_exclude(fasta_file, exclude_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id in exclude_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+    with open(output_file,'w') as fh_out:
+        for seq in SeqIO.parse(fasta_file, 'fasta'):
+            if seq.id not in exclude_list:
+                fh_out.write(SeqIO.FastaIO.as_fasta(seq))
+
+    # with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+    #     for line in fh_in:
+    #         result = re.match(r"^>(\S+)", line)
+    #         if result != None:
+    #             skip = False
+    #             seq_id = result.group(1)
+    #             if seq_id in exclude_list:
+    #                 skip = True
+    #                 continue
+    #             fh_out.write(line)
+    #         else:
+    #             if skip == True:
+    #                 continue
+    #             else:
+    #                 fh_out.write(line)
 
 
 def create_fasta_include(fasta_file, include_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id not in include_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+    with open(output_file,'w') as fh_out:
+        for seq in SeqIO.parse(fasta_file, 'fasta'):
+            if seq.id in include_list:
+                fh_out.write(SeqIO.FastaIO.as_fasta(seq))
 
+    # with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+    #     for line in fh_in:
+    #         result = re.match(r"^>(\S+)", line)
+    #         if result != None:
+    #             skip = False
+    #             seq_id = result.group(1)
+    #             if seq_id not in include_list:
+    #                 skip = True
+    #                 continue
+    #             fh_out.write(line)
+    #         else:
+    #             if skip == True:
+    #                 continue
+    #             else:
+    #                 fh_out.write(line)
 
-def translate_protein(nu_fasta, pro_fasta, table):
-    with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
-        for line in fh_in:
-            line = line.rstrip()
-            if re.match(r"^>", line) != None:  
-                line = re.sub(r'\([-+]\)', '', line)
-                result = re.match(r"^(>[^:]+)", line)
-                seq_id = result.group(1)
-            else:
-                dna = Seq(line)
-                pro = dna.translate(table=table, stop_symbol='')
-                pro = str(pro)
+# def translate_protein(nu_fasta, pro_fasta, table):
+#     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
+#         for line in fh_in:
+#             line = line.rstrip()
+#             if re.match(r"^>", line) != None:  
+#                 line = re.sub(r'\([-+]\)', '', line)
+#                 result = re.match(r"^(>[^:]+)", line)
+#                 seq_id = result.group(1)
+#             else:
+#                 dna = Seq(line)
+#                 pro = dna.translate(table=table, stop_symbol='')
+#                 pro = str(pro)
                 
-                ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
-                fh_out.write(seq_id + '\n')
-                fh_out.write('\n'.join(ls) + '\n')
+#                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
+#                 fh_out.write(seq_id + '\n')
+#                 fh_out.write('\n'.join(ls) + '\n')

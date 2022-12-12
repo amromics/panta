@@ -97,7 +97,7 @@ def run_main_pipeline(args):
     # logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
 
 
-    print(f'Diamond = {args.diamond}')    
+    #print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
         diamond=args.diamond,
         database_fasta = cd_hit_represent_fasta,
@@ -110,7 +110,6 @@ def run_main_pipeline(args):
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,
-        #gene_annotation=gene_annotation,
         out_dir = temp_dir,
         identity=args.identity,
         length_difference=args.LD,
@@ -129,7 +128,6 @@ def run_main_pipeline(args):
 
     # post analysis
     split_clusters = post_analysis.split_paralogs(
-        #gene_annotation_fn=gene_annotation_fn,
         gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
         dontsplit=args.dont_split
@@ -141,6 +139,7 @@ def run_main_pipeline(args):
         gene_annotation_fn=gene_annotation_fn)
     
 
+    output.create_outputs(annotated_clusters,samples,out_dir)
     if args.alignment != None:
         post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)
 
@@ -286,12 +285,15 @@ def run_add_sample_pipeline(args):
         out_dir = temp_dir,
         blast_result = filtered_blast_result)
 
+    
+    logger.info(f'len cd_hit_2d_clusters = {len(cd_hit_2d_clusters)} len not_match_clusters = {len(not_match_clusters)} len old_clusters = {len(old_clusters)}')
     inflated_clusters, new_clusters = add_sample_pipeline.reinflate_clusters(
         old_clusters=old_clusters,
         cd_hit_2d_clusters=cd_hit_2d_clusters,
         not_match_clusters=not_match_clusters,
         mcl_file=mcl_file
         )
+    logger.info(f'len inflated_clusters = {len(inflated_clusters)} len new clusters = {len(new_clusters)}')
 
     # post analysis
     new_samples.extend(old_samples)

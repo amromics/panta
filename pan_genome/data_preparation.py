@@ -5,19 +5,21 @@ import multiprocessing
 from functools import partial
 from datetime import datetime
 import gzip
+from Bio import SeqIO, Seq
 from pan_genome.utils import *
 from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
 def parse_gff_file(ggf_file, sample_dir, sample_id):
-    bed_file = os.path.join(sample_dir, sample_id + '.bed')
+    #bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_annotation = OrderedDict()
     gene_position = OrderedDict()
     found_fasta = False
     suffix = 1
-    with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
+    bed_records = []
+    with open(ggf_file,'r') as in_fh, open(assembly_file, 'w') as fna_fh:
         gene_index = 0
         seq_id = None
         for line in in_fh:
@@ -68,21 +70,28 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 if product != None:
                     gene_product = product.group(1)
             if gene_id == None:
-                continue
+                continue            
+
+            # if not gene_id.startswith(sample_id + '-'):
+            #     gene_id = sample_id + '-' + gene_id
+
+            # if not gene_id.startswith(sample_id + '-' + seq_id + '-'):
+            #     gene_id = sample_id + '_' + seq_id + '_' + gene_id[len(sample_id)+1:]                
 
             #gene_id += f'_{sample_id}_{str(suffix)}'
             suffix += 1
 
             # create bed file
-            row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
-            bed_fh.write('\t'.join(row)+ '\n')
+            #row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
+            bed_records.append((seq_id, start - 1, end, gene_id, trand))
+            #bed_fh.write('\t'.join(row)+ '\n')
             # add to gene_annotation
             gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product, gene_index)
             gene_index += 1
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
 
-    return bed_file, assembly_file, gene_annotation, gene_position
+    return assembly_file, gene_annotation, gene_position, bed_records
 
 
 def process_single_sample(sample, out_dir, table):
@@ -94,7 +103,7 @@ def process_single_sample(sample, out_dir, table):
         os.makedirs(sample_dir)
 
     # parse gff file
-    bed_file, assembly_file, gene_annotation, gene_position = parse_gff_file(
+    assembly_file, gene_annotation, gene_position, bed_records = parse_gff_file(
         ggf_file = sample['gff_file'],
         sample_dir = sample_dir,
         sample_id = sample_id
@@ -104,19 +113,38 @@ def process_single_sample(sample, out_dir, table):
 
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
+    faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    #os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
+    seqs = {}
+    for seq in SeqIO.parse(assembly_file, 'fasta'):
+        seqs[seq.id] = seq
+
+    gene_seqs = []
+    protein_seqs = []    
+    for bed_record in bed_records:
+        (seq_id, start, end, gene_id, trand) = bed_record
+        if seq_id not in seqs:
+            continue        
+        seq = seqs[seq_id]  
+        if end > len(seq):
+            continue
+        gene_seq = SeqIO.SeqRecord(Seq(str(seq.seq)[start:end]), gene_id)
+        gene_seqs.append(gene_seq)
+        protein_seq = gene_seq.translate(table=table, stop_symbol='') 
+        protein_seq.id = gene_id   
+        protein_seqs.append(protein_seq)
+    SeqIO.write(gene_seqs, fna_file, 'fasta')
+    SeqIO.write(protein_seqs, faa_file, 'fasta')
 
     # translate nucleotide to protein
-    faa_file = os.path.join(sample_dir, sample_id +'.faa')
-    translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
+    #translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
 
-    if sample['assembly'] is None and os.path.isfile(assembly_file):
-        os.remove(assembly_file)
-    if os.path.isfile(bed_file):
-        os.remove(bed_file)
-    if os.path.isfile(assembly_file + '.fai'):
-        os.remove(assembly_file + '.fai')
-    
+    # if sample['assembly'] is None and os.path.isfile(assembly_file):
+    #     os.remove(assembly_file)
+    # if os.path.isfile(bed_file):
+    #     os.remove(bed_file)
+    # if os.path.isfile(assembly_file + '.fai'):
+    #     os.remove(assembly_file + '.fai')
     annotation_fn = os.path.join(sample_dir, sample_id +'.annotation')    
     with open(annotation_fn, 'w') as ga_fp:
         #no header

@@ -15,6 +15,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
     gene_position = {}
     found_fasta = False
     suffix = 1
+
     with open(ggf_file,'r') as in_fh, open(bed_file, 'w') as bed_fh, open(assembly_file, 'w') as fna_fh:
         for line in in_fh:
             if found_fasta == True:
@@ -23,6 +24,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if re.match(r"^##FASTA", line) != None:
                 found_fasta = True
                 continue
+
             if re.match(r"^#", line) != None:
                 continue
             line = line.rstrip('\n')
@@ -96,16 +98,19 @@ def process_single_sample(sample, out_dir, table):
 
     # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
 
+    os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
+    #print(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file}")
     # translate nucleotide to protein
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
     translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
 
     if sample['assembly'] == None:
         os.remove(assembly_file)
-    os.remove(bed_file)
-    os.remove(assembly_file + '.fai')
+    if os.path.exists(bed_file):
+        os.remove(bed_file)
+    if os.path.exists(assembly_file + '.fai'):
+        os.remove(assembly_file + '.fai')
 
     # elapsed = datetime.now() - starttime
     # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')

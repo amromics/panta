@@ -22,9 +22,10 @@ def collect_sample(sample_id_list, args):
             csv_reader = csv.reader(fh, delimiter='\t')
             for row in csv_reader:
                 gff = row[1]
-                if not gff.endswith('gff'):
-                    raise Exception(f'{gff} should be a gff3 file')
-                sample_id = row[0]
+                if (not gff.endswith('.gff')) and (not gff.endswith('.gff.gz')):
+                    raise Exception(f'{gff} should be a gff3 file (file ending with .gff or .gff.gz')
+                sample_id = row[0].replace('-','_')#Make sure that - is not part of sample_id
+                
                 if sample_id in sample_id_list:
                     logging.info(f'{sample_id} already exists -- skip')
                     continue
@@ -32,21 +33,26 @@ def collect_sample(sample_id_list, args):
                     sample_id_list.append(sample_id)
                 assembly = row[2]
                 if row[2] == '':
-                    assembly = None
+                    assembly = None                
                 samples.append({'id':sample_id, 'gff_file':gff, 'assembly':assembly})
 
     elif args.gff != None:
         gff_list = args.gff
         for gff in gff_list:
-            if not gff.endswith('gff'):
-                raise Exception(f'{gff} should be a gff3 file')
             base_name = os.path.basename(gff)
-            sample_id = base_name.rsplit('.', 1)[0]
+            if gff.endswith('.gff'):
+                sample_id = base_name[:-4]
+            elif gff.endswith('.gff.gz'):
+                sample_id = base_name[:-7]                
+            else:    
+                raise Exception(f'{gff} should be a gff3 file')
+
+            sample_id = sample_id.replace('-','_')#Make sure that - is not part of sample_id
             if sample_id in sample_id_list:
                 logging.info(f'{sample_id} already exists -- skip')
                 continue
             else:
-                sample_id_list.append(sample_id)
+                sample_id_list.append(sample_id)            
             samples.append({'id':sample_id, 'gff_file':gff, 'assembly':None})
     else:
         raise Exception(f'Please specify -t or -g')

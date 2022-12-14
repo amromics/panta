@@ -12,14 +12,18 @@ from collections import OrderedDict
 logger = logging.getLogger(__name__)
 
 def parse_gff_file(ggf_file, sample_dir, sample_id):
-    #bed_file = os.path.join(sample_dir, sample_id + '.bed')
     assembly_file = os.path.join(sample_dir, sample_id + '.fasta')
     gene_annotation = OrderedDict()
     gene_position = OrderedDict()
     found_fasta = False
     suffix = 1
     bed_records = []
-    with open(ggf_file,'r') as in_fh, open(assembly_file, 'w') as fna_fh:
+    if ggf_file.endswith('gff.gz'):
+        in_fh = gzip.open(ggf_file,'rt')
+    else: #end with .gff
+        in_fh = open(ggf_file)
+
+    with open(assembly_file, 'w') as fna_fh:
         gene_index = 0
         seq_id = None
         for line in in_fh:
@@ -39,11 +43,12 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
 
             start = int(cells[3])
             end = int(cells[4])
-            length = end - start + 1
+            length = end - start + 1            
             # if length < 120:
             #     continue
             if length % 3 != 0:
                 continue
+            cells[0] = cells[0].replace('-','_') #make sure seq_id has no -
             if seq_id != cells[0]:
                 seq_id = cells[0]
                 gene_index = 0
@@ -56,8 +61,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             for tag in tags:
                 ID = re.match(r"^ID=(.+)", tag)
                 if ID != None:
-                    gene_id = ID.group(1)
-                    # gene_id = re.sub(r'\W', '_', gene_id)
+                    gene_id = ID.group(1)                    
                     continue
 
                 gene = re.match(r"^gene=(.+)", tag)
@@ -72,31 +76,25 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
             if gene_id == None:
                 continue            
 
-            # if not gene_id.startswith(sample_id + '-'):
-            #     gene_id = sample_id + '-' + gene_id
+            # Ensure gene_id is in the format of sample_id-seq_id-gene_tag
+            if not gene_id.startswith(sample_id + '-'):
+                gene_id = sample_id + '-' + gene_id
 
-            # if not gene_id.startswith(sample_id + '-' + seq_id + '-'):
-            #     gene_id = sample_id + '_' + seq_id + '_' + gene_id[len(sample_id)+1:]                
-
-            #gene_id += f'_{sample_id}_{str(suffix)}'
-            suffix += 1
-
-            # create bed file
-            #row = [seq_id, str(start-1), str(end), gene_id, '1', trand]
-            bed_records.append((seq_id, start - 1, end, gene_id, trand))
-            #bed_fh.write('\t'.join(row)+ '\n')
+            if not gene_id.startswith(sample_id + '-' + seq_id + '-'):
+                gene_id = sample_id + '-' + seq_id + '-' + gene_id[len(sample_id)+1:]
+            
+            suffix += 1            
+            bed_records.append((seq_id, start - 1, end, gene_id, trand))            
             # add to gene_annotation
             gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product, gene_index)
             gene_index += 1
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
-
+    in_fh.close()
     return assembly_file, gene_annotation, gene_position, bed_records
 
 
 def process_single_sample(sample, out_dir, table):
-    # starttime = datetime.now()
-
     sample_id = sample['id']
     sample_dir = os.path.join(out_dir, 'samples', sample_id)
     if not os.path.exists(sample_dir):
@@ -111,13 +109,11 @@ def process_single_sample(sample, out_dir, table):
     if sample['assembly'] != None:
         assembly_file = sample['assembly']
 
-    # extract nucleotide region
     fna_file = os.path.join(sample_dir, sample_id +'.fna')
     faa_file = os.path.join(sample_dir, sample_id +'.faa')
-    #os.system(f"bedtools getfasta -s -fi {assembly_file} -bed {bed_file} -fo {fna_file} -name > /dev/null 2>&1")
     seqs = {}
     for seq in SeqIO.parse(assembly_file, 'fasta'):
-        seqs[seq.id] = seq
+        seqs[seq.id.replace('-','_')] = seq
 
     gene_seqs = []
     protein_seqs = []    
@@ -128,23 +124,18 @@ def process_single_sample(sample, out_dir, table):
         seq = seqs[seq_id]  
         if end > len(seq):
             continue
-        gene_seq = SeqIO.SeqRecord(Seq(str(seq.seq)[start:end]), gene_id)
+
+        subseq = Seq(str(seq.seq)[start:end])
+        if trand == '-':
+            subseq = subseq.reverse_complement()        
+        gene_seq = SeqIO.SeqRecord(subseq, gene_id)
         gene_seqs.append(gene_seq)
         protein_seq = gene_seq.translate(table=table, stop_symbol='') 
         protein_seq.id = gene_id   
         protein_seqs.append(protein_seq)
     SeqIO.write(gene_seqs, fna_file, 'fasta')
     SeqIO.write(protein_seqs, faa_file, 'fasta')
-
-    # translate nucleotide to protein
-    #translate_protein(nu_fasta=fna_file, pro_fasta=faa_file, table=table)
-
-    # if sample['assembly'] is None and os.path.isfile(assembly_file):
-    #     os.remove(assembly_file)
-    # if os.path.isfile(bed_file):
-    #     os.remove(bed_file)
-    # if os.path.isfile(assembly_file + '.fai'):
-    #     os.remove(assembly_file + '.fai')
+    
     annotation_fn = os.path.join(sample_dir, sample_id +'.annotation')    
     with open(annotation_fn, 'w') as ga_fp:
         #no header
@@ -159,9 +150,7 @@ def process_single_sample(sample, out_dir, table):
                 for gene_id in gene_position[seq_id]:
                     gp_fp.write(f',{gene_id}')
                 gp_fp.write('\n')
-    # elapsed = datetime.now() - starttime
-    # logging.info(f'Extract protein of {sample_id} -- time taken {str(elapsed)}')    
-    return annotation_fn, gene_position_fn # None #gene_annotation, gene_position
+    return annotation_fn, gene_position_fn 
 
 
 def extract_proteins(samples, out_dir, gene_annotation, gene_position, table, threads):

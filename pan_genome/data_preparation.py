@@ -109,12 +109,13 @@ def process_single_sample(sample, out_dir, table):
     if sample['assembly'] != None:
         assembly_file = sample['assembly']
 
-    fna_file = os.path.join(sample_dir, sample_id +'.fna')
-    faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    fna_file = os.path.join(sample_dir, sample_id +'.fna.gz')
+    faa_file = os.path.join(sample_dir, sample_id +'.faa.gz')
     seqs = {}
     for seq in SeqIO.parse(assembly_file, 'fasta'):
         seqs[seq.id.replace('-','_')] = seq
-
+    os.remove(assembly_file)
+    
     gene_seqs = []
     protein_seqs = []    
     for bed_record in bed_records:
@@ -133,8 +134,10 @@ def process_single_sample(sample, out_dir, table):
         protein_seq = gene_seq.translate(table=table, stop_symbol='') 
         protein_seq.id = gene_id   
         protein_seqs.append(protein_seq)
-    SeqIO.write(gene_seqs, fna_file, 'fasta')
-    SeqIO.write(protein_seqs, faa_file, 'fasta')
+    with gzip.open(fna_file, 'wt') as fna_fh:
+        SeqIO.write(gene_seqs, fna_fh, 'fasta')
+    with gzip.open(faa_file, 'wt') as faa_fh:
+        SeqIO.write(protein_seqs, faa_fh, 'fasta')
     
     annotation_fn = os.path.join(sample_dir, sample_id +'.annotation')    
     with open(annotation_fn, 'w') as ga_fp:
@@ -215,18 +218,22 @@ def combine_proteins(out_dir, samples):
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
+    #TODO: gzip this?
     protein_files = os.path.join(out_dir, 'temp', 'protein.txt')
-    with open(protein_files, 'w') as fh:
+    with open(combined_faa_file, 'w') as fh:
+    #with open(protein_files, 'w') as fh:
         for sample in samples:
             sample_id = sample['id']
-            faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+            faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa.gz')            
             if os.path.isfile(faa_file):
-                fh.write(faa_file + '\n')
+                with gzip.open(faa_file, 'rt') as in_fn:
+                    seqs = list(SeqIO.parse(in_fn, 'fasta'))
+                    SeqIO.write(seqs, fh, 'fasta')
+                #fh.write(faa_file + '\n')
             else:
                 raise Exception(f'{faa_file} does not exist')
-
-    cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
-    os.system(cmd)
+    #cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
+    #os.system(cmd)
 
     # elapsed = datetime.now() - starttime
     # logging.info(f'Combine protein -- time taken {str(elapsed)}')

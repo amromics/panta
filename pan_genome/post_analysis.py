@@ -1,6 +1,5 @@
 import os
 import multiprocessing
-import re
 import logging
 import gzip
 from Bio import SeqIO
@@ -10,10 +9,8 @@ import pandas as pd
 from collections import defaultdict
 
 from pan_genome.utils import *
-from pan_genome.output import read_csv_to_dict
 
 logger = logging.getLogger(__name__)
-
 
 def find_paralogs(cluster):#, gene_annotation_dict):
     """
@@ -342,37 +339,19 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     with open(pan_ref_file, 'w') as ref_fh:
         for sample in samples:
             sample_id = sample['id']
-            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna')
-            for seq in SeqIO.parse(fna_file, 'fasta'):
-                seq_id = seq.id
-                if seq_id in gene_to_cluster_name:
-                    cluster_name = gene_to_cluster_name[seq_id]
-                    seq_fasta = SeqIO.FastaIO.as_fasta(seq)                 
-                    with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
-                        out_fh.write(seq_fasta)
-                    if seq_id in pan_ref_list:
-                        ref_fh.write(seq_fasta)
-                else:                         
-                    logger.error(f'Gene {seq_id} not in clusters? why')
-                
-            # with open(fna_file, 'r') as in_fh:
-            #     for line in in_fh:
-            #         line = line.rstrip()
-            #         if re.match(r"^>", line) != None:
-            #             line = re.sub(r'\([-+]\)', '', line)
-            #             result = re.match(r"^>([^:]+)", line)
-            #             seq_id = result.group(1)
-            #         else:
-            #             ls = [line[i:i+60] for i in range(0,len(line), 60)]
-            #             seq_fasta = 
-            #             if seq_id in gene_to_cluster_name:
-            #                 cluster_name = gene_to_cluster_name[seq_id]
-            #                 with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
-            #                     out_fh.write('>'+ seq_id + '\n')
-            #                     out_fh.write('\n'.join(ls) + '\n')
-            #             if seq_id in pan_ref_list:
-            #                     ref_fh.write('>'+ seq_id + '\n')
-            #                     ref_fh.write('\n'.join(ls) + '\n')
+            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna.gz')
+            with gzip.open(fna_file, 'rt') as fna_fh:
+                for seq in SeqIO.parse(fna_fh, 'fasta'):
+                    seq_id = seq.id
+                    if seq_id in gene_to_cluster_name:
+                        cluster_name = gene_to_cluster_name[seq_id]
+                        seq_fasta = SeqIO.FastaIO.as_fasta(seq)                 
+                        with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
+                            out_fh.write(seq_fasta)
+                        if seq_id in pan_ref_list:
+                            ref_fh.write(seq_fasta)
+                    else:                         
+                        logger.error(f'Gene {seq_id} not in clusters? why')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
@@ -382,36 +361,15 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     
     for sample in samples:
         sample_id = sample['id']
-        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
-        for seq in SeqIO.parse(faa_file, 'fasta'):
-            if seq.id not in gene_to_cluster_name:
-                logger.error(f'Gene {seq.id} not in clusters? why')
-                continue
-            cluster_name = gene_to_cluster_name[seq.id]
-            with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-                out_fh.write(SeqIO.FastaIO.as_fasta(seq))
-        # with open(faa_file, 'r') as in_fh:
-        #     last_seq_id = None
-        #     line_list = []
-        #     for line in in_fh:
-        #         line = line.rstrip()
-        #         result = re.match(r"^>(.+)", line)
-        #         if result != None:
-        #             seq_id = result.group(1)
-        #             if last_seq_id != None:
-        #                 cluster_name = gene_to_cluster_name[last_seq_id]
-        #                 with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-        #                     out_fh.write('>'+ last_seq_id + '\n')
-        #                     out_fh.write('\n'.join(line_list) + '\n')
-        #             last_seq_id = seq_id
-        #             line_list = []
-        #         else:
-        #             line_list.append(line)
-
-        #     cluster_name = gene_to_cluster_name[last_seq_id]
-        #     with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
-        #         out_fh.write('>'+ last_seq_id + '\n')
-        #         out_fh.write('\n'.join(line_list) + '\n')
+        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa.gz')
+        with gzip.open(faa_file, 'rt') as faa_fh:
+            for seq in SeqIO.parse(faa_fh, 'fasta'):
+                if seq.id not in gene_to_cluster_name:
+                    logger.error(f'Gene {seq.id} not in clusters? why')
+                    continue
+                cluster_name = gene_to_cluster_name[seq.id]
+                with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+                    out_fh.write(SeqIO.FastaIO.as_fasta(seq))
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create protein sequence file for each gene cluster -- time taken {str(elapsed)}')
@@ -442,11 +400,6 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads):
         if result.get() != 0:
             raise Exception('Error running maftt')
 
-    # cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    # ret = os.system(cmd)
-    # if ret != 0:
-    #     raise Exception('Error running mafft')
-
     elapsed = datetime.now() - starttime
     logging.info(f'Run protein alignment -- time taken {str(elapsed)}')
 
@@ -476,11 +429,6 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads):
     for result in results:
         if result.get() != 0:
             raise Exception('Error running maftt 2')
-
-    # cmd = f"parallel --progress -j {threads} -a {cmds_file}"
-    # ret = os.system(cmd)
-    # if ret != 0:
-    #     raise Exception('Error running mafft')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run nucleotide alignment -- time taken {str(elapsed)}')

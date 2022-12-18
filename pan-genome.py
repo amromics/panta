@@ -174,6 +174,9 @@ def run_main_pipeline(args):
     file_object.write(f'Run main pipeline, outdir:{out_dir}. Done -- time taken {str(elapsed)}')
     # Close the file
     file_object.close()
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+    
 
 
 def run_add_sample_pipeline(args):
@@ -349,6 +352,10 @@ def run_add_sample_pipeline(args):
     file_object.write(f'\n Run add pipeline, indir:{args.gff}. Done -- time taken {str(elapsed)}')
     # Close the file
     file_object.close()
+
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()

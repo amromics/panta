@@ -53,7 +53,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 seq_id = cells[0]
                 gene_index = 0
 
-            trand = cells[6]
+            strand = cells[6]
             tags = cells[8].split(';')
             gene_id = None
             gene_name = ''
@@ -84,9 +84,9 @@ def parse_gff_file(ggf_file, sample_dir, sample_id):
                 gene_id = sample_id + '-' + seq_id + '-' + gene_id[len(sample_id)+1:]
             
             suffix += 1            
-            bed_records.append((seq_id, start - 1, end, gene_id, trand))            
+            bed_records.append((seq_id, start - 1, end, gene_id, strand))            
             # add to gene_annotation
-            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product, gene_index)
+            gene_annotation[gene_id] = (sample_id, seq_id, length, gene_name, gene_product, gene_index, strand)
             gene_index += 1
             # add to gene_position
             gene_position.setdefault(seq_id, []).append(gene_id)
@@ -115,11 +115,11 @@ def process_single_sample(sample, out_dir, table):
     for seq in SeqIO.parse(assembly_file, 'fasta'):
         seqs[seq.id.replace('-','_')] = seq
     os.remove(assembly_file)
-    
+
     gene_seqs = []
     protein_seqs = []    
     for bed_record in bed_records:
-        (seq_id, start, end, gene_id, trand) = bed_record
+        (seq_id, start, end, gene_id, strand) = bed_record
         if seq_id not in seqs:
             continue        
         seq = seqs[seq_id]  
@@ -127,7 +127,7 @@ def process_single_sample(sample, out_dir, table):
             continue
 
         subseq = Seq(str(seq.seq)[start:end])
-        if trand == '-':
+        if strand == '-':
             subseq = subseq.reverse_complement()        
         gene_seq = SeqIO.SeqRecord(subseq, gene_id)
         gene_seqs.append(gene_seq)
@@ -143,8 +143,8 @@ def process_single_sample(sample, out_dir, table):
     with open(annotation_fn, 'w') as ga_fp:
         #no header
         for gene_id in gene_annotation:
-                (sample_id, seq_id, length, gene_name, gene_product, gene_index) = gene_annotation[gene_id]
-                ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product},{gene_index}\n')
+                (sample_id, seq_id, length, gene_name, gene_product, gene_index, strand) = gene_annotation[gene_id]
+                ga_fp.write(f'{gene_id},{sample_id},{seq_id},{length},{gene_name},{gene_product},{gene_index},{strand}\n')
     
     gene_position_fn = os.path.join(sample_dir, sample_id +'.gene_position')
     with open(gene_position_fn, 'w') as gp_fp:
@@ -192,7 +192,7 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
                 for line in ega_fp.readlines():
                     ga_fp.write(line)
         else:
-            ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product,gene_index\n')
+            ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product,gene_index,strand\n')
 
         if existing_gene_position_fn:
             with gzip.open(existing_gene_position_fn, 'rt') as egp_fp:

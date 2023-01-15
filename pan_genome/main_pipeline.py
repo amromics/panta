@@ -68,6 +68,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
         os.remove(blast_result)
     for blast_output_file in blast_output_file_list:
         os.system(f'cat {blast_output_file} >> {blast_result}')
+        os.remove(blast_output_file)
 
     elapsed = datetime.now() - starttime
     logging.info(f'All-against-all BLASTP -- time taken {str(elapsed)}')

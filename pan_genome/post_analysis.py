@@ -171,6 +171,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
     clusters_not_paralogs = set()
     # run iteratively
     out_clusters = unsplit_clusters
+    logger.info(f'Number of clusters before spliting {len(out_clusters)}')
     for i in range(100000):
         stime = datetime.now()
         in_clusters = out_clusters
@@ -179,6 +180,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
         # convert in_clusters so we can find the cluster index of gene
         gene_to_cluster_index = {gene:index for index, genes in enumerate(in_clusters) for gene in genes}
         
+        split_count = 0
         for cluster in in_clusters:
             if len(cluster) == 1:
                 out_clusters.append(cluster)
@@ -197,19 +199,20 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
                 continue
 
             # split paralogs
+            split_count += 1
             orthologs_clusters = create_orthologs(cluster, paralog_genes, gene_position, gene_to_cluster_index)
             out_clusters.extend(orthologs_clusters)
             any_paralogs = 1
 
         elapsed = datetime.now() - stime
-        logging.info(f'Split paralogs iterate {i}-- time taken {str(elapsed)}')
+        logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
         # check if next iteration is required
         mem_usage = mem_report(mem_usage, "split_paralog2")
 
         if any_paralogs == 0:
             break        
     split_clusters = out_clusters
-
+    logger.info(f'Number of clusters after spliting {len(out_clusters)}')
     elapsed = datetime.now() - starttime
     logging.info(f'Split paralogs -- time taken {str(elapsed)}')
     mem_usage = mem_report(mem_usage, "split_paralog3")

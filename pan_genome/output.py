@@ -3,6 +3,7 @@ import csv
 import logging
 from datetime import datetime
 import pandas as pd
+import gzip
 from pan_genome.utils import *
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,8 @@ def read_csv_to_dict_it(fn, index_col, value_cols, chunksize=100000):
 
 def create_spreadsheet(annotated_clusters, samples, out_dir):
     starttime = datetime.now()
-    spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
-    with open(spreadsheet_file, 'w') as fh:
+    spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv.gz')
+    with gzip.open(spreadsheet_file, 'wt') as fh:
         writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 
         # write header
@@ -90,8 +91,8 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
 
 def create_rtab(annotated_clusters, samples, out_dir):
     starttime = datetime.now()
-    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
-    with open(rtab_file, 'w') as fh:
+    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab.gz')
+    with gzip.open(rtab_file, 'wt') as fh:
         writer = csv.writer(fh, delimiter='\t')
 
         # write header
@@ -129,7 +130,7 @@ def create_summary(rtab_file, out_dir):
     num_soft_core = 0
     num_shell = 0
     num_cloud = 0
-    with open(rtab_file, 'r') as fh:
+    with gzip.open(rtab_file, 'rt') as fh:
         for line in fh:
             line = line.rstrip()
             cells = line.split('\t')

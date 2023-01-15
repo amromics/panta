@@ -162,7 +162,10 @@ def run_main_pipeline(args):
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    os.system(cmd)
+
 
     # shutil.rmtree(temp_dir)
 
@@ -221,7 +224,7 @@ def run_add_sample_pipeline(args):
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
 
-    old_blast_result = os.path.join(collection_dir, 'blast.tsv')
+    old_blast_result = os.path.join(collection_dir, 'blast.tsv.gz')
     if not os.path.isfile(old_blast_result):
         raise Exception(f'{old_blast_result} does not exist')
 
@@ -341,7 +344,9 @@ def run_add_sample_pipeline(args):
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    os.system(cmd)
 
     # shutil.rmtree(temp_dir)
 

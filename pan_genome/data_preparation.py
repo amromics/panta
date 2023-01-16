@@ -109,6 +109,7 @@ def parse_gff_file(ggf_file, sample_dir, sample_id, add_strand_2gene):
             
             # add strand information to gene name (default = False)
             if add_strand_2gene:
+                gene_id += '@' + str(length)  + '@'
                 gene_id += trand
             
             # create bed file
@@ -270,6 +271,7 @@ def process_single_sample_fasta(sample, out_dir, table, add_strand_2gene):
             gene_id = sample_id + f'_{str(count)}'
             # add strand information to gene name (default = False)
             if add_strand_2gene:
+                gene_id += '@' + str(length)  + '@'
                 gene_id += trand
                 
             count += 1

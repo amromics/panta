@@ -92,31 +92,30 @@ def run_init_pipeline(samples, collection_dir, temp_dir, baseDir,
     clusters = post_analysis.split_paralogs(
         gene_dictionary, gene_position, unsplit_clusters, args.split)
 
-    # annotate clusters, create gene alignment and output
-    ## TODO: create msa from nucleotide seqeunces.
-    ## TODO: call variants from msa, output vcf file
-    if args.fasta == None: # if input data is annotated genomes
-        clusters_annotation = annotate.annotate_cluster_gff(
-            unlabeled_clusters=clusters, 
-            gene_dictionary=gene_dictionary)
-        output.output_cluster_info(
-            clusters, clusters_annotation, 
-            gene_dictionary, samples, collection_dir)
-        representative_fasta = alignment.create_msa_init_pipeline(
-            clusters, samples, collection_dir, baseDir, args.threads)
-    else: # if input data is genome assembly    
-        representative_fasta = alignment.create_msa_init_pipeline(
-            clusters, samples, collection_dir, baseDir, args.threads)
-        clusters_annotation = annotate.annotate_cluster_fasta(
-            unlabeled_clusters=clusters,
-            rep_fasta = representative_fasta,
-            temp_dir=temp_dir,
-            baseDir = baseDir,
-            timing_log=timing_log,
-            threads = args.threads)
-        output.output_cluster_info(
-            clusters, clusters_annotation, 
-            gene_dictionary, samples, collection_dir)
+
+    # ## TODO: call variants from msa, output vcf file
+    # if args.fasta == None: # if input data is annotated genomes
+    #     clusters_annotation = annotate.annotate_cluster_gff(
+    #         unlabeled_clusters=clusters, 
+    #         gene_dictionary=gene_dictionary)
+    #     output.output_cluster_info(
+    #         clusters, clusters_annotation, 
+    #         gene_dictionary, samples, collection_dir)
+    #     representative_fasta = alignment.create_msa_init_pipeline(
+    #         clusters, samples, collection_dir, baseDir, args.threads)
+    # else: # if input data is genome assembly    
+    #     representative_fasta = alignment.create_msa_init_pipeline(
+    #         clusters, samples, collection_dir, baseDir, args.threads)
+    #     clusters_annotation = annotate.annotate_cluster_fasta(
+    #         unlabeled_clusters=clusters,
+    #         rep_fasta = representative_fasta,
+    #         temp_dir=temp_dir,
+    #         baseDir = baseDir,
+    #         timing_log=timing_log,
+    #         threads = args.threads)
+    #     output.output_cluster_info(
+    #         clusters, clusters_annotation, 
+    #         gene_dictionary, samples, collection_dir)
     
     # create a new gene info file
     gene_file = os.path.join(collection_dir, 'gene_info.tsv')

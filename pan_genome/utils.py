@@ -1,4 +1,5 @@
 import os
+import psutil
 import logging
 import re
 from Bio import SeqIO
@@ -8,7 +9,39 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
+def run_command(cmd, timing_log=None):
+    """
+    Run a command line, return the returning code of the command
+    :param cmd:
+    :param timing_log:
+    :return:
+    """
+    if timing_log is not None:
+        cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
+    #logger.info('Running "{}'.format(cmd))
+    ret = os.system(cmd)
+    return ret
+
+def mem_report(value, point='POINT'):
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    mem_usage = mem_info.rss/1000000
+    logger.info(f'MEM at {point}: {mem_usage} {value} inc = {mem_usage-value}')
+    return mem_usage
+
+def get_seq_ids(gene_id):
+    toks = gene_id.split('-',2)
+    #sample_id, contig_id, gene_id
+    if len(toks) < 2:
+        logger.error(f'See {gene_id}')
+    return toks[0], toks[1]
+
 def parse_cluster_file(cd_hit_cluster_file): 
+    """
+    Parse cdhit cluster file
+    Return:
+        a dictionary of clusters: dict (cluster_name > [gene_id])
+    """    
     clusters = {}
     with open(cd_hit_cluster_file, 'r') as fh:
         for line in fh:
@@ -27,7 +60,7 @@ def parse_cluster_file(cd_hit_cluster_file):
                     else:
                         percent = re.findall(r'([0-9\.]+)', identity)
                         percent = float(percent[0])
-                        clusters[cluster_name]['gene_names'].append(gene_name)
+                        clusters[cluster_name]['gene_names'].append(gene_name)    
     # convert to a simple dictionary
     clusters_new = {}
     for cluster_name in clusters:
@@ -69,54 +102,63 @@ def chunk_fasta_file(fasta_file, out_dir):
     return chunked_file_list
 
 def create_fasta_exclude(fasta_file, exclude_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id in exclude_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+    with open(output_file,'w') as fh_out:
+        for seq in SeqIO.parse(fasta_file, 'fasta'):
+            if seq.id not in exclude_list:
+                fh_out.write(SeqIO.FastaIO.as_fasta(seq))
+
+    # with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+    #     for line in fh_in:
+    #         result = re.match(r"^>(\S+)", line)
+    #         if result != None:
+    #             skip = False
+    #             seq_id = result.group(1)
+    #             if seq_id in exclude_list:
+    #                 skip = True
+    #                 continue
+    #             fh_out.write(line)
+    #         else:
+    #             if skip == True:
+    #                 continue
+    #             else:
+    #                 fh_out.write(line)
 
 
 def create_fasta_include(fasta_file, include_list, output_file):
-    with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
-        for line in fh_in:
-            result = re.match(r"^>(\S+)", line)
-            if result != None:
-                skip = False
-                seq_id = result.group(1)
-                if seq_id not in include_list:
-                    skip = True
-                    continue
-                fh_out.write(line)
-            else:
-                if skip == True:
-                    continue
-                else:
-                    fh_out.write(line)
+    with open(output_file,'w') as fh_out:
+        for seq in SeqIO.parse(fasta_file, 'fasta'):
+            if seq.id in include_list:
+                fh_out.write(SeqIO.FastaIO.as_fasta(seq))
 
+    # with open(fasta_file, 'r') as fh_in, open(output_file,'w') as fh_out:
+    #     for line in fh_in:
+    #         result = re.match(r"^>(\S+)", line)
+    #         if result != None:
+    #             skip = False
+    #             seq_id = result.group(1)
+    #             if seq_id not in include_list:
+    #                 skip = True
+    #                 continue
+    #             fh_out.write(line)
+    #         else:
+    #             if skip == True:
+    #                 continue
+    #             else:
+    #                 fh_out.write(line)
 
-def translate_protein(nu_fasta, pro_fasta, table):
-    with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
-        for line in fh_in:
-            line = line.rstrip()
-            if re.match(r"^>", line) != None:  
-                line = re.sub(r'\([-+]\)', '', line)
-                result = re.match(r"^(>[^:]+)", line)
-                seq_id = result.group(1)
-            else:
-                dna = Seq(line)
-                pro = dna.translate(table=table, stop_symbol='')
-                pro = str(pro)
+# def translate_protein(nu_fasta, pro_fasta, table):
+#     with open(nu_fasta, 'r') as fh_in, open(pro_fasta,'w') as fh_out:
+#         for line in fh_in:
+#             line = line.rstrip()
+#             if re.match(r"^>", line) != None:  
+#                 line = re.sub(r'\([-+]\)', '', line)
+#                 result = re.match(r"^(>[^:]+)", line)
+#                 seq_id = result.group(1)
+#             else:
+#                 dna = Seq(line)
+#                 pro = dna.translate(table=table, stop_symbol='')
+#                 pro = str(pro)
                 
-                ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
-                fh_out.write(seq_id + '\n')
-                fh_out.write('\n'.join(ls) + '\n')
+#                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
+#                 fh_out.write(seq_id + '\n')
+#                 fh_out.write('\n'.join(ls) + '\n')

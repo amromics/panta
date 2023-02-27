@@ -16,7 +16,8 @@ def run_cd_hit(faa_file, out_dir, threads=4):
     cmd = f'cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     #cmd = f'/usr/bin/time -v -o log_cdhit.err cd-hit -i {faa_file} -o {cd_hit_represent_fasta} -s 0.98 -c 0.98 -T {threads} -M 0 -g 1 -d 256 > /dev/null'
     cdhit_log = f'time_cdhit_{datetime.timestamp(starttime)}.log'
-    ret = run_command(cmd, cdhit_log)
+    #ret = run_command(cmd, cdhit_log)
+    ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running cd-hit')
     cd_hit_clusters = parse_cluster_file(cd_hit_cluster_file)
@@ -35,7 +36,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     # make blast database
     blast_db = os.path.join(out_dir, 'output_contigs')
     cmd = f"makeblastdb -in {database_fasta} -dbtype prot -out {blast_db} -logfile /dev/null"
-    ret = os.system(cmd)
+    ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running makeblastdb')
     
@@ -84,14 +85,20 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
     cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
-    ret = os.system(cmd)
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond makedb')
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f'diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
-    subprocess.call(cmd, shell=True)
+    cmd = f'diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
+    #subprocess.call(cmd, shell=True)
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+
 
     elapsed = datetime.now() - starttime
     logging.info(f'Protein alignment with Diamond -- time taken {str(elapsed)}')
@@ -151,7 +158,8 @@ def cluster_with_mcl(blast_result, out_dir):
     starttime = datetime.now()
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
     cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
-    ret = os.system(cmd)
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running mcl')
     elapsed = datetime.now() - starttime

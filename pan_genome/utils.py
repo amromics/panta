@@ -18,7 +18,7 @@ def run_command(cmd, timing_log=None):
     """
     if timing_log is not None:
         cmd = '/usr/bin/time --append -v -o {} bash -c "{}"'.format(timing_log, cmd)
-    #logger.info('Running "{}'.format(cmd))
+    logger.info('Running "{}'.format(cmd))
     ret = os.system(cmd)
     return ret
 

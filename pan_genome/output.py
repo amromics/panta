@@ -158,7 +158,7 @@ def create_summary(rtab_file, out_dir):
         fh.write('Soft core genes' + '\t' + '(95% <= strains < 99%)' + '\t'+ str(num_soft_core) + '\n')
         fh.write('Shell genes' + '\t' + '(15% <= strains < 95%)' + '\t' + str(num_shell) + '\n')
         fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' + '\t'+ str(num_cloud) + '\n')
-        fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' + '\t'+ str(total))
+        fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' + '\t'+ str(total) + '\n')
     elapsed = datetime.now() - starttime
     logging.info(f'Create summary -- time taken {str(elapsed)}')
     return summary_file

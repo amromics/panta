@@ -157,7 +157,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
 
     starttime = datetime.now()    
     
-    mem_usage = mem_report(0, "split_paralog0")
+    #mem_usage = mem_report(0, "split_paralog0")
     # Read in gene position
     gene_position = {}    
     with gzip.open(gene_position_fn, 'rt') as gp_fp:
@@ -165,7 +165,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]
 
-    mem_usage = mem_report(mem_usage, "split_paralog0")
+    #mem_usage = mem_report(mem_usage, "split_paralog0")
     #TODO: gene_position is memory intensive
     
     clusters_not_paralogs = set()
@@ -207,7 +207,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
         elapsed = datetime.now() - stime
         logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
         # check if next iteration is required
-        mem_usage = mem_report(mem_usage, "split_paralog2")
+        #mem_usage = mem_report(mem_usage, "split_paralog2")
 
         if any_paralogs == 0:
             break        
@@ -215,7 +215,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
     logger.info(f'Number of clusters after spliting {len(out_clusters)}')
     elapsed = datetime.now() - starttime
     logging.info(f'Split paralogs -- time taken {str(elapsed)}')
-    mem_usage = mem_report(mem_usage, "split_paralog3")
+    #mem_usage = mem_report(mem_usage, "split_paralog3")
 
     return split_clusters
 

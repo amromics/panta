@@ -60,7 +60,7 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
-def run_main_pipeline(args):
+def run_main_pipeline(args):    
     starttime = datetime.now()
 
     out_dir = args.outdir
@@ -105,7 +105,7 @@ def run_main_pipeline(args):
 
     #print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
+        diamond=(args.blast=='diamond'),
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
@@ -190,9 +190,10 @@ def run_add_sample_pipeline(args):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
     if threads == 0:
-        threads = multiprocessing.cpu_count()
-        
-    diamond = args.diamond
+        threads = multiprocessing.cpu_count()        
+    
+    diamond=(args.blast=='diamond')
+
     identity = args.identity
     evalue = args.evalue
 
@@ -375,7 +376,7 @@ def main():
     main_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
+    main_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
@@ -383,7 +384,7 @@ def main():
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])
 
 
     add_cmd = subparsers.add_parser(
@@ -396,7 +397,7 @@ def main():
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
+    add_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
     add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
@@ -404,7 +405,7 @@ def main():
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
+    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])    
 
     args = parser.parse_args()
     args.func(args)

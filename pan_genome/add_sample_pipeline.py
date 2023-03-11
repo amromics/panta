@@ -3,7 +3,7 @@ import logging
 import copy
 from datetime import datetime
 import pandas as pd
-from pan_genome.utils import *
+from pan_genome.utils import run_command, parse_cluster_file
 
 logger = logging.getLogger(__name__)
 

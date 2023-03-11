@@ -5,8 +5,9 @@ import multiprocessing
 from functools import partial
 from datetime import datetime
 import gzip
-from Bio import SeqIO, Seq
-from pan_genome.utils import *
+from Bio import SeqIO
+from Bio.Seq import Seq
+
 from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
@@ -231,8 +232,7 @@ def combine_proteins(out_dir, samples):
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
-    #TODO: gzip this?
-    protein_files = os.path.join(out_dir, 'temp', 'protein.txt')
+    #TODO: gzip this?    
     with open(combined_faa_file, 'w') as fh:    
         for sample in samples:
             sample_id = sample['id']
@@ -242,9 +242,6 @@ def combine_proteins(out_dir, samples):
                     seqs = list(SeqIO.parse(in_fn, 'fasta'))
                     SeqIO.write(seqs, fh, 'fasta')                
             else:
-                raise Exception(f'{faa_file} does not exist')
-    #cmd = f"cat {protein_files} | xargs cat > {combined_faa_file}"
-    #os.system(cmd)
-    # elapsed = datetime.now() - starttime
+                raise Exception(f'{faa_file} does not exist')    
     # logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file

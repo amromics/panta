@@ -205,7 +205,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
             any_paralogs = 1
 
         elapsed = datetime.now() - stime
-        logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
+        #logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
         # check if next iteration is required
         #mem_usage = mem_report(mem_usage, "split_paralog2")
 

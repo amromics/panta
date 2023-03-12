@@ -166,17 +166,8 @@ def run_main_pipeline(args):
     cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
     os.system(cmd)
 
-
-    # shutil.rmtree(temp_dir)
-
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
-    # Open a file with access mode 'a'
-    file_object = open('log_time.txt', 'a')
-    # Append 'hello' at the end of file
-    file_object.write(f'Run main pipeline, outdir:{out_dir}. Done -- time taken {str(elapsed)}')
-    # Close the file
-    file_object.close()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     
@@ -349,15 +340,8 @@ def run_add_sample_pipeline(args):
     cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
     os.system(cmd)
 
-    # shutil.rmtree(temp_dir)
-
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
-    file_object = open('log_time.txt', 'a')
-    # Append 'hello' at the end of file
-    file_object.write(f'\n Run add pipeline, indir:{args.gff}. Done -- time taken {str(elapsed)}')
-    # Close the file
-    file_object.close()
 
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)

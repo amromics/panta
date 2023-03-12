@@ -91,16 +91,26 @@ def run_main_pipeline(args):
         table=args.table,
         threads=threads)
 
-    combined_faa = data_preparation.combine_proteins(
-        out_dir=out_dir,
-        samples=samples)
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
 
     # main_pipeline
-    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=out_dir,
+        samples=samples)
+    
+    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit_with_map(
         faa_file=combined_faa,
+        map_file=combined_faa_map, 
         out_dir=temp_dir,
         threads=threads)
-    # logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
 
 
     #print(f'Diamond = {args.diamond}')    

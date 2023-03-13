@@ -27,13 +27,14 @@ def parse_fasta(fa_fh):
     if name:
         yield (name, desc, ''.join(seq))
 
-def parse_gff(gff_fh, sample_id):
+def parse_gff(gff_fh, sample_id, min_protein_len=40):
     gene_annotation = OrderedDict()
     gene_position = OrderedDict()    
     suffix = 1
     bed_records = []
     gene_index = 0
     seq_id = None
+    min_cds_len = 3 * min_protein_len
     
     for line in gff_fh:            
         if line.startswith('##FASTA'):
@@ -51,8 +52,8 @@ def parse_gff(gff_fh, sample_id):
         start = int(cells[3])
         end = int(cells[4])
         length = end - start + 1
-        # if length < 120:
-        #     continue
+        if length < min_cds_len:
+            continue
         if length % 3 != 0:
             continue
         cells[0] = cells[0].replace('-','_') #make sure seq_id has no -

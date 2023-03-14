@@ -130,7 +130,7 @@ def create_summary(rtab_file, out_dir):
     num_soft_core = 0
     num_shell = 0
     num_cloud = 0
-    with gzip.open(rtab_file, 'rt') as fh:
+    with open(rtab_file) as fh:
         for line in fh:
             line = line.rstrip()
             cells = line.split('\t')

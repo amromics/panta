@@ -134,7 +134,8 @@ def run_main_pipeline(args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -297,7 +298,8 @@ def run_add_sample_pipeline(args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        threads=threads)
 
     
     logger.info(f'len cd_hit_2d_clusters = {len(cd_hit_2d_clusters)} len not_match_clusters = {len(not_match_clusters)} len old_clusters = {len(old_clusters)}')

@@ -208,10 +208,13 @@ def filter_blast_result(blast_result,
     return filtered_blast_result
 
             
-def cluster_with_mcl(blast_result, out_dir):
+def cluster_with_mcl(blast_result, out_dir, threads=4):
     starttime = datetime.now()
+    if threads > 1:
+        threads = threads - 1
+    
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
-    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -o {mcl_file} > /dev/null 2>&1"
+    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -te {threads} -o {mcl_file} > /dev/null 2>&1"
     #ret = os.system(cmd)
     ret = run_command(cmd)
     if ret != 0:

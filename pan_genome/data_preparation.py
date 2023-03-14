@@ -200,6 +200,9 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
     with multiprocessing.Pool(processes=threads) as pool:
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Extract protein -- time taken {str(elapsed)}')
+    
     with gzip.open(gene_annotation_fn,'wt') as ga_fp, gzip.open(gene_position_fn,'wt') as gp_fp: 
         # If there are existing files then copy over
         if existing_gene_annotation_fn:

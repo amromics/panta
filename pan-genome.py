@@ -74,8 +74,8 @@ def run_main_pipeline(args):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
     
-    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
-    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')    
 
     # collect samples
     sample_id_list = []
@@ -164,18 +164,19 @@ def run_main_pipeline(args):
     #output.export_gene_annotation(gene_annotation, out_dir)
     #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
 
-    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv.gz')
-    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv.gz') 
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv') 
 
-    shutil.copy(gene_annotation_fn, main_gene_annotation_fn)
-    shutil.copy(gene_position_fn, main_gene_position_fn)
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
 
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
-    cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
-    os.system(cmd)
+    shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
@@ -207,17 +208,17 @@ def run_add_sample_pipeline(args):
     else:
         os.makedirs(temp_dir)
     
-    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
-    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')    
 
 
     # Check required files
-    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv')
     if not os.path.isfile(existing_gene_annotation_fn):
         raise Exception(f'{existing_gene_annotation_fn} does not exist')
     #gene_annotation = output.import_gene_annotation(gene_annotation_file)
 
-    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv')
     #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
@@ -227,7 +228,7 @@ def run_add_sample_pipeline(args):
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
 
-    old_blast_result = os.path.join(collection_dir, 'blast.tsv.gz')
+    old_blast_result = os.path.join(collection_dir, 'blast.tsv')
     if not os.path.isfile(old_blast_result):
         raise Exception(f'{old_blast_result} does not exist')
 
@@ -348,9 +349,11 @@ def run_add_sample_pipeline(args):
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    shutil.move(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
     #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
-    cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
-    os.system(cmd)
+    #cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    #cmd = f'mv {combined_blast_result}  ' + os.path.join(collection_dir, 'blast.tsv')
+    #os.system(cmd)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')

@@ -30,8 +30,8 @@ def run_cd_hit_2d(database_1, database_2, out_dir, threads=4):
 def combine_blast_results(blast_1, blast_2, blast_3, outdir):
     combined_blast_results = os.path.join(outdir, 'combined_blast_results')
 
-    os.system(f'zcat {blast_1}  > {combined_blast_results}')
-    os.system(f'cat {blast_2} {blast_3} >> {combined_blast_results}')
+    #os.system(f'cat {blast_1}  > {combined_blast_results}')
+    os.system(f'cat {blast_1} {blast_2} {blast_3} > {combined_blast_results}')
     os.remove(blast_2)
     os.remove(blast_3)
     

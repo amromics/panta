@@ -203,17 +203,17 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
     elapsed = datetime.now() - starttime
     logging.info(f'Extract protein -- time taken {str(elapsed)}')
     
-    with gzip.open(gene_annotation_fn,'wt') as ga_fp, gzip.open(gene_position_fn,'wt') as gp_fp: 
+    with open(gene_annotation_fn,'w') as ga_fp, open(gene_position_fn,'w') as gp_fp: 
         # If there are existing files then copy over
         if existing_gene_annotation_fn:
-            with gzip.open(existing_gene_annotation_fn, 'rt') as ega_fp:
+            with open(existing_gene_annotation_fn) as ega_fp:
                 for line in ega_fp.readlines():
                     ga_fp.write(line)
         else:
             ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product,gene_index,strand\n')
 
         if existing_gene_position_fn:
-            with gzip.open(existing_gene_position_fn, 'rt') as egp_fp:
+            with open(existing_gene_position_fn) as egp_fp:
                 for line in egp_fp.readlines():
                     gp_fp.write(line)
     
@@ -236,7 +236,6 @@ def combine_proteins(out_dir, samples):
     # starttime = datetime.now()
 
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
-    #TODO: gzip this?    
     with open(combined_faa_file, 'w') as fh:    
         for sample in samples:
             sample_id = sample['id']

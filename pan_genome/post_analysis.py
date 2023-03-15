@@ -160,7 +160,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
     #mem_usage = mem_report(0, "split_paralog0")
     # Read in gene position
     gene_position = {}    
-    with gzip.open(gene_position_fn, 'rt') as gp_fp:
+    with open(gene_position_fn) as gp_fp:
         for line in gp_fp.readlines():
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]

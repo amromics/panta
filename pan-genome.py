@@ -105,6 +105,10 @@ def run_main_pipeline(args):
         out_dir=out_dir,
         samples=samples)
     
+    #TODO
+    cmd = f'rm -f {out_dir}/samples/*/*.fna'
+    os.system(cmd)
+    
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit_with_map(
         faa_file=combined_faa,
         map_file=combined_faa_map, 
@@ -376,7 +380,7 @@ def main():
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
-    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
@@ -397,7 +401,7 @@ def main():
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
-    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
     add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)

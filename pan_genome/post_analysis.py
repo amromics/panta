@@ -160,7 +160,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
     #mem_usage = mem_report(0, "split_paralog0")
     # Read in gene position
     gene_position = {}    
-    with gzip.open(gene_position_fn, 'rt') as gp_fp:
+    with open(gene_position_fn) as gp_fp:
         for line in gp_fp.readlines():
             toks = line.strip().split(',')
             gene_position[(toks[0], toks[1])] = toks[2:]
@@ -205,7 +205,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
             any_paralogs = 1
 
         elapsed = datetime.now() - stime
-        logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
+        #logging.info(f'Split paralogs iterate {i} -- count = {split_count} time taken {str(elapsed)}')
         # check if next iteration is required
         #mem_usage = mem_report(mem_usage, "split_paralog2")
 
@@ -342,8 +342,8 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     with open(pan_ref_file, 'w') as ref_fh:
         for sample in samples:
             sample_id = sample['id']
-            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna.gz')
-            with gzip.open(fna_file, 'rt') as fna_fh:
+            fna_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.fna')
+            with open(fna_file) as fna_fh:
                 for seq in SeqIO.parse(fna_fh, 'fasta'):
                     seq_id = seq.id
                     if seq_id in gene_to_cluster_name:
@@ -364,8 +364,8 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
     
     for sample in samples:
         sample_id = sample['id']
-        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa.gz')
-        with gzip.open(faa_file, 'rt') as faa_fh:
+        faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+        with open(faa_file) as faa_fh:
             for seq in SeqIO.parse(faa_fh, 'fasta'):
                 if seq.id not in gene_to_cluster_name:
                     logger.error(f'Gene {seq.id} not in clusters? why')
@@ -536,7 +536,7 @@ def create_core_gene_alignment(annotated_clusters,
     elapsed = datetime.now() - starttime
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')  
 
-def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, threads):
+def run_gene_alignment(annotated_clusters, samples, collection_dir, alignments, threads):
     gene_to_cluster_name = {}
     pan_ref_list = set()
 
@@ -562,12 +562,12 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, t
             #    length_max = length
         pan_ref_list.add(annotated_clusters[cluster_name]['representative'])
 
-    if alignment == 'protein':
+    if 'protein' in alignments:
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)
         run_mafft_protein_alignment(annotated_clusters, collection_dir, threads)
         create_nucleotide_alignment(annotated_clusters, collection_dir)
-    if alignment == 'nucleotide':
+    if 'nucleotide' in alignments:
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         run_mafft_nucleotide_alignment(annotated_clusters, collection_dir, threads)
     

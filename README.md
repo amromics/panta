@@ -18,7 +18,7 @@ The simplest method is installed via conda:
 
 ```bash
 
-conda create -y -c conda-forge -c defaults --name panta python=3.7 mamba
+conda create -y -c conda-forge -c defaults --name panta python=3.10 mamba
 
 conda activate panta
 

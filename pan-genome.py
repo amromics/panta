@@ -60,7 +60,7 @@ def collect_sample(sample_id_list, args):
     samples.sort(key= lambda x:x['id'])
     return samples
 
-def run_main_pipeline(args):
+def run_main_pipeline(args):    
     starttime = datetime.now()
 
     out_dir = args.outdir
@@ -74,8 +74,8 @@ def run_main_pipeline(args):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
     
-    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
-    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')    
 
     # collect samples
     sample_id_list = []
@@ -91,21 +91,35 @@ def run_main_pipeline(args):
         table=args.table,
         threads=threads)
 
-    combined_faa = data_preparation.combine_proteins(
-        out_dir=out_dir,
-        samples=samples)
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
 
     # main_pipeline
-    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=out_dir,
+        samples=samples)
+    
+    #TODO
+    cmd = f'rm -f {out_dir}/samples/*/*.fna'
+    os.system(cmd)
+    
+    cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit_with_map(
         faa_file=combined_faa,
+        map_file=combined_faa_map, 
         out_dir=temp_dir,
         threads=threads)
-    # logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}')    
 
 
     #print(f'Diamond = {args.diamond}')    
     blast_result = main_pipeline.pairwise_alignment(
-        diamond=args.diamond,
+        diamond=(args.blast=='diamond'),
         database_fasta = cd_hit_represent_fasta,
         query_fasta = cd_hit_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
@@ -124,7 +138,8 @@ def run_main_pipeline(args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
         cd_hit_clusters=cd_hit_clusters,
@@ -153,30 +168,22 @@ def run_main_pipeline(args):
     #output.export_gene_annotation(gene_annotation, out_dir)
     #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
 
-    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv.gz')
-    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv.gz') 
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv') 
 
-    shutil.copy(gene_annotation_fn, main_gene_annotation_fn)
-    shutil.copy(gene_position_fn, main_gene_position_fn)
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
 
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    shutil.copy(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
-    cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
-    os.system(cmd)
-
-
-    # shutil.rmtree(temp_dir)
+    shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
-    # Open a file with access mode 'a'
-    file_object = open('log_time.txt', 'a')
-    # Append 'hello' at the end of file
-    file_object.write(f'Run main pipeline, outdir:{out_dir}. Done -- time taken {str(elapsed)}')
-    # Close the file
-    file_object.close()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     
@@ -190,9 +197,10 @@ def run_add_sample_pipeline(args):
         raise Exception(f'{collection_dir} does not exist')
     threads = args.threads
     if threads == 0:
-        threads = multiprocessing.cpu_count()
-        
-    diamond = args.diamond
+        threads = multiprocessing.cpu_count()        
+    
+    diamond=(args.blast=='diamond')
+
     identity = args.identity
     evalue = args.evalue
 
@@ -204,17 +212,17 @@ def run_add_sample_pipeline(args):
     else:
         os.makedirs(temp_dir)
     
-    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv.gz')
-    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv.gz')    
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')    
 
 
     # Check required files
-    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv')
     if not os.path.isfile(existing_gene_annotation_fn):
         raise Exception(f'{existing_gene_annotation_fn} does not exist')
     #gene_annotation = output.import_gene_annotation(gene_annotation_file)
 
-    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv')
     #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
     
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
@@ -224,7 +232,7 @@ def run_add_sample_pipeline(args):
     if not os.path.isfile(old_represent_faa):
         raise Exception(f'{old_represent_faa} does not exist')
 
-    old_blast_result = os.path.join(collection_dir, 'blast.tsv.gz')
+    old_blast_result = os.path.join(collection_dir, 'blast.tsv')
     if not os.path.isfile(old_blast_result):
         raise Exception(f'{old_blast_result} does not exist')
 
@@ -295,7 +303,8 @@ def run_add_sample_pipeline(args):
 
     mcl_file = main_pipeline.cluster_with_mcl(
         out_dir = temp_dir,
-        blast_result = filtered_blast_result)
+        blast_result = filtered_blast_result,
+        threads=threads)
 
     
     logger.info(f'len cd_hit_2d_clusters = {len(cd_hit_2d_clusters)} len not_match_clusters = {len(not_match_clusters)} len old_clusters = {len(old_clusters)}')
@@ -344,19 +353,14 @@ def run_add_sample_pipeline(args):
     json.dump(new_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
     add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
     json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    shutil.move(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
     #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
-    cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
-    os.system(cmd)
-
-    # shutil.rmtree(temp_dir)
+    #cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    #cmd = f'mv {combined_blast_result}  ' + os.path.join(collection_dir, 'blast.tsv')
+    #os.system(cmd)
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
-    file_object = open('log_time.txt', 'a')
-    # Append 'hello' at the end of file
-    file_object.write(f'\n Run add pipeline, indir:{args.gff}. Done -- time taken {str(elapsed)}')
-    # Close the file
-    file_object.close()
 
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -375,15 +379,15 @@ def main():
     main_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     main_cmd.add_argument('-o', '--outdir', help='output directory', required=True, type=str)
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    main_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    main_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
+    main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])
 
 
     add_cmd = subparsers.add_parser(
@@ -396,15 +400,15 @@ def main():
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
-    add_cmd.add_argument('-d', '--diamond', help='use Diamond for all-agaist-all alignment instead of Blastp', default=False, action='store_true')
-    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.95, type=float)
+    add_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])    
+    add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
     add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
     add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store', choices=['protein', 'nucleotide'])
+    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])    
 
     args = parser.parse_args()
     args.func(args)

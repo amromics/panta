@@ -33,47 +33,65 @@ source activate panta
 ```
 ### Main pipeline: run pan-genome analysis for the first time
 ```
-usage: pan-genome.py main [-h] -c COLLECTION_DIR [-s] [-d] [-i IDENTITY] [-f] [-t THREADS] gff_files [gff_files ...]
+usage: pan-genome.py main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
+                          [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Main pipeline: run pan-genome analysis for the first time
 
-positional arguments:
-  gff_files             a.gff b.gff ... (*.gff)
-
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  -c COLLECTION_DIR, --collection-dir COLLECTION_DIR
-                        collection directory (default: None)
+  -g [GFF ...], --gff [GFF ...]
+                        gff input files (default: None)
+  -f TSV, --tsv TSV     tsv input file (default: None)
+  -o OUTDIR, --outdir OUTDIR
+                        output directory (default: None)
   -s, --dont-split      dont split paralog clusters (default: False)
-  -d, --diamond         use Diamond for all-agaist-all alignment instead of Blastp (default: False)
+  -b {diamond,blast}, --blast {diamond,blast}
+                        method for all-against-all alignment (default: diamond)
   -i IDENTITY, --identity IDENTITY
-                        minimum percentage identity (default: 95)
-  -f, --fasta           fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff
-                        file, and have one of following extension: .fasta .fna .fnn) (default: False)
+                        minimum percentage identity (default: 0.7)
+  --LD LD               length difference cutoff between two sequences (default: 0)
+  --AL AL               alignment coverage for the longer sequence (default: 0)
+  --AS AS               alignment coverage for the shorter sequence (default: 0)
+  -e EVALUE, --evalue EVALUE
+                        Blast evalue (default: 1e-06)
   -t THREADS, --threads THREADS
                         number of threads to use, 0 for all (default: 0)
+  --table TABLE         codon table (default: 11)
+  -a [{nucleotide,protein} ...], --alignment [{nucleotide,protein} ...]
+                        run alignment for each gene cluster (default: None)
+
 ```
 ### Add pipeline: add sample into previous collection
 ```
-usage: pan-genome.py add [-h] -c COLLECTION_DIR [-s] [-d] [-i IDENTITY] [-f] [-t THREADS] gff_files [gff_files ...]
+usage: pan-genome.py add [-h] [-g [GFF ...]] [-f TSV] -c COLLECTION_DIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS]
+                         [-e EVALUE] [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Add pipeline: add sample into previous collection
 
-positional arguments:
-  gff_files             a.gff b.gff ... (*.gff)
-
-optional arguments:
+options:
   -h, --help            show this help message and exit
+  -g [GFF ...], --gff [GFF ...]
+                        gff input files (default: None)
+  -f TSV, --tsv TSV     tsv input file (default: None)
   -c COLLECTION_DIR, --collection-dir COLLECTION_DIR
                         previous collection directory (default: None)
   -s, --dont-split      dont split paralog clusters (default: False)
-  -d, --diamond         use Diamond for all-agaist-all alignment instead of Blastp (default: False)
+  -b {diamond,blast}, --blast {diamond,blast}
+                        method for all-against-all alignment (default: diamond)
   -i IDENTITY, --identity IDENTITY
-                        minimum percentage identity (default: 95)
-  -f, --fasta           fasta files are seperated from gff files. (fasta file must have the same name, be in the same folder of coresponding gff
-                        file, and have one of following extension: .fasta .fna .fnn) (default: False)
+                        minimum percentage identity (default: 0.7)
+  --LD LD               length difference cutoff between two sequences (default: 0)
+  --AL AL               alignment coverage for the longer sequence (default: 0)
+  --AS AS               alignment coverage for the shorter sequence (default: 0)
+  -e EVALUE, --evalue EVALUE
+                        Blast evalue (default: 1e-06)
   -t THREADS, --threads THREADS
                         number of threads to use, 0 for all (default: 0)
+  --table TABLE         codon table (default: 11)
+  -a [{nucleotide,protein} ...], --alignment [{nucleotide,protein} ...]
+                        run alignment for each gene cluster (default: None)
+
 ```
 ## Example
 Basic:

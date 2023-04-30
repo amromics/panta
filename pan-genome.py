@@ -105,10 +105,6 @@ def run_main_pipeline(args):
         out_dir=out_dir,
         samples=samples)
     
-    #TODO
-    cmd = f'rm -f {out_dir}/samples/*/*.fna'
-    os.system(cmd)
-    
     cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit_with_map(
         faa_file=combined_faa,
         map_file=combined_faa_map, 
@@ -125,8 +121,6 @@ def run_main_pipeline(args):
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
-    #blast_result = os.path.join(os.path.join(temp_dir, 'blast'), 'blast_results')
-    #TODO check here
 
     filtered_blast_result = main_pipeline.filter_blast_result(
         blast_result=blast_result,

@@ -6,7 +6,7 @@ import logging
 import json
 import csv
 from datetime import datetime
-from pan_genome import *
+from panta import *
 
 logging.basicConfig(
     level=logging.DEBUG,

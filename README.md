@@ -24,6 +24,8 @@ conda activate panta
 
 mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requirements.txt
 
+pip install .
+
 ```
 
 ## Usage
@@ -96,6 +98,6 @@ options:
 ## Example
 Basic:
 ```
-python pan-genome.py main -o examples/test/output -g examples/test/main/*.gff
-python pan-genome.py add -c examples/test/output -g examples/test/add/*.gff
+panta main -o examples/test/output -g examples/test/main/*.gff
+panta add -c examples/test/output -g examples/test/add/*.gff
 ```

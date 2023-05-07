@@ -35,7 +35,7 @@ source activate panta
 ```
 ### Main pipeline: run pan-genome analysis for the first time
 ```
-usage: pan-genome.py main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
+usage: panta main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
                           [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Main pipeline: run pan-genome analysis for the first time

@@ -66,7 +66,7 @@ options:
 ```
 ### Add pipeline: add sample into previous collection
 ```
-usage: pan-genome.py add [-h] [-g [GFF ...]] [-f TSV] -c COLLECTION_DIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS]
+usage: panta add [-h] [-g [GFF ...]] [-f TSV] -c COLLECTION_DIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS]
                          [-e EVALUE] [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Add pipeline: add sample into previous collection

@@ -24,6 +24,8 @@ conda activate panta
 
 mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requirements.txt
 
+pip install .
+
 ```
 
 ## Usage
@@ -33,7 +35,7 @@ source activate panta
 ```
 ### Main pipeline: run pan-genome analysis for the first time
 ```
-usage: pan-genome.py main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
+usage: panta main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
                           [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Main pipeline: run pan-genome analysis for the first time
@@ -64,7 +66,7 @@ options:
 ```
 ### Add pipeline: add sample into previous collection
 ```
-usage: pan-genome.py add [-h] [-g [GFF ...]] [-f TSV] -c COLLECTION_DIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS]
+usage: panta add [-h] [-g [GFF ...]] [-f TSV] -c COLLECTION_DIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS]
                          [-e EVALUE] [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Add pipeline: add sample into previous collection
@@ -96,6 +98,6 @@ options:
 ## Example
 Basic:
 ```
-python pan-genome.py main -o examples/test/output -g examples/test/main/*.gff
-python pan-genome.py add -c examples/test/output -g examples/test/add/*.gff
+panta main -o examples/test/output -g examples/test/main/*.gff
+panta add -c examples/test/output -g examples/test/add/*.gff
 ```

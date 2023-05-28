@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 import pandas as pd
 import gzip
-from pan_genome.utils import *
+from panta.utils import *
 
 logger = logging.getLogger(__name__)
 

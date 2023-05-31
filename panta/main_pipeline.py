@@ -2,7 +2,7 @@ import os
 import logging
 import multiprocessing
 from datetime import datetime
-from pan_genome.utils import run_command, parse_cluster_file, chunk_fasta_file
+from panta.utils import run_command, parse_cluster_file, chunk_fasta_file
 
 logger = logging.getLogger(__name__)
 

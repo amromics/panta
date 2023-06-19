@@ -155,6 +155,7 @@ def run_main_pipeline(args):
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
 
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
 
     output.create_outputs(annotated_clusters,samples,out_dir)
     if args.alignment != None:

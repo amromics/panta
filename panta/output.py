@@ -186,7 +186,62 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
     logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
     return representative_fasta
 
+def create_representative_nucl(annotated_clusters,out_dir):
+    starttime = datetime.now()
+    representative_nucl = os.path.join(out_dir, 'representative_clusters_nucl.fasta')
+    #create dict for representative
+    dict_rep={}
+    list_samples=set()
+    for cluster in annotated_clusters:
+        this_cluster = annotated_clusters[cluster]
+        gene_rep_id=this_cluster['representative']
+        sample_id=gene_rep_id.split('-')[0]
+        list_samples.add(sample_id)
+        dict_rep[gene_rep_id]={'size':this_cluster['size'],'gene':cluster,'iswrite':False}
+    with open(representative_nucl, 'w') as rep_fh:
 
+        for sample_id in list_samples:
+            file_fna=os.path.join(out_dir,'samples/'+sample_id+'/'+sample_id+'.fna')
+            for seq in SeqIO.parse(file_fna, 'fasta'):
+                if seq.id in dict_rep.keys() and not dict_rep[seq.id]['iswrite']:
+
+                    seq.description=seq.id+", "+str(dict_rep[seq.id]['size'])+" samples"
+                    seq.id=dict_rep[seq.id]['gene']
+                    seq_fasta = SeqIO.FastaIO.as_fasta(seq)
+                    rep_fh.write(seq_fasta)
+
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create representative fasta -- time taken {str(elapsed)}')
+    return representative_nucl
+def create_representative_prot(annotated_clusters,out_dir):
+    starttime = datetime.now()
+    representative_prot = os.path.join(out_dir, 'representative_clusters_prot.fasta')
+    #create dict for representative
+    dict_rep={}
+    list_samples=set()
+    for cluster in annotated_clusters:
+        this_cluster = annotated_clusters[cluster]
+        gene_rep_id=this_cluster['representative']
+        sample_id=gene_rep_id.split('-')[0]
+        list_samples.add(sample_id)
+        dict_rep[gene_rep_id]={'size':this_cluster['size'],'gene':cluster,'iswrite':False}
+    with open(representative_prot, 'w') as rep_fh:
+
+        for sample_id in list_samples:
+            file_fna=os.path.join(out_dir,'samples/'+sample_id+'/'+sample_id+'.faa')
+            for seq in SeqIO.parse(file_fna, 'fasta'):
+                if seq.id in dict_rep.keys() and not dict_rep[seq.id]['iswrite']:
+
+                    seq.description=seq.id+", "+str(dict_rep[seq.id]['size'])+" samples"
+                    seq.id=dict_rep[seq.id]['gene']
+                    seq_fasta = SeqIO.FastaIO.as_fasta(seq)
+                    rep_fh.write(seq_fasta)
+
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create representative protein fasta -- time taken {str(elapsed)}')
+    return representative_prot
 def export_gene_annotation(gene_annotation, out_dir):
     # starttime = datetime.now()
 
@@ -234,3 +289,9 @@ def create_outputs(annotated_clusters,samples,out_dir,t_core=0.99,t_soft=0.95,t_
         t_soft=t_soft,
         t_shell=t_shell
     )
+    representative_clusters_nucl=create_representative_nucl(
+    annotated_clusters=annotated_clusters,
+    out_dir=out_dir)
+    representative_clusters_prot=create_representative_prot(
+    annotated_clusters=annotated_clusters,
+    out_dir=out_dir)

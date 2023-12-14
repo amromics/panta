@@ -154,6 +154,11 @@ def run_main_pipeline(args):
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
+<<<<<<< HEAD
+=======
+
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+>>>>>>> 799cb767671bb9096577cbf5d820d3798065e8b7
 
     json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
 

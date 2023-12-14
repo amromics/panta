@@ -15,17 +15,17 @@ def read_csv_to_dict(fn, index_col, value_cols, chunksize=100000):
     """
     dict_out = {}
     df_it = pd.read_csv(fn, na_filter= False, index_col=index_col, usecols=[index_col] + value_cols, chunksize=chunksize)
-    for chunk_df in df_it:        
+    for chunk_df in df_it:
         dict_out.update(chunk_df.to_dict('index'))
     return dict_out
-    
+
 
 def read_csv_to_dict_it(fn, index_col, value_cols, chunksize=100000):
     """
     Read the value from a csv file into a dictionary
-    """    
+    """
     df_it = pd.read_csv(fn, na_filter= False, index_col=index_col, usecols=[index_col] + value_cols, chunksize=chunksize)
-    for chunk_df in df_it:        
+    for chunk_df in df_it:
         yield chunk_df.to_dict('index')
 
 
@@ -49,13 +49,13 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             sample_dict = {}
             #length_list = []
             this_cluster = annotated_clusters[cluster]
-            for gene_id in this_cluster['gene_id']:  
-                sample_id, seq_id = get_seq_ids(gene_id)              
+            for gene_id in this_cluster['gene_id']:
+                sample_id, seq_id = get_seq_ids(gene_id)
                 #sample_id = gene_annotation_dict[gene_id]['sample_id']
                 #length = gene_annotation_dict[gene_id]['length']
-                sample_dict.setdefault(sample_id, []).append(gene_id)                
+                sample_dict.setdefault(sample_id, []).append(gene_id)
                 #length_list.append(length)
-            
+
             # Gene
             row.append(cluster)
             # Annotation
@@ -67,14 +67,14 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             # Avg sequences per isolate
             avg_seq = len(this_cluster['gene_id']) / len(sample_dict)
             row.append(round(avg_seq,2))
-            # Min group size nuc            
+            # Min group size nuc
             row.append(this_cluster['min_length']) # row.append(min(length_list))
             # Max group size nuc
             row.append(this_cluster['max_length']) # row.append(max(length_list))
             # Avg group size nuc
             row.append(round(this_cluster['mean_length'],0)) #nuc_size = sum(length_list) / len(length_list)
             #row.append(round(nuc_size,0))
-             
+
             # sample columns
             for sample in samples:
                 sample_id = sample['id']
@@ -110,9 +110,9 @@ def create_rtab(annotated_clusters, samples, out_dir):
             sample_dict = {}
             for gene_id in annotated_clusters[cluster]['gene_id']:
                 #sample_id = gene_annotation_dict[gene_id]['sample_id']
-                sample_id, seq_id = get_seq_ids(gene_id)           
+                sample_id, seq_id = get_seq_ids(gene_id)
 
-                #length = gene_annotation_dict[gene_id]['length']                
+                #length = gene_annotation_dict[gene_id]['length']
                 sample_dict.setdefault(sample_id, []).append(gene_id)
             for sample in samples:
                 sample_id = sample['id']
@@ -124,7 +124,7 @@ def create_rtab(annotated_clusters, samples, out_dir):
     return rtab_file
 
 
-def create_summary(rtab_file, out_dir):
+def create_summary(rtab_file, out_dir, t_core=0.99,t_soft=0.95,t_shell=0.15 ):
     starttime = datetime.now()
     num_core = 0
     num_soft_core = 0
@@ -142,11 +142,11 @@ def create_summary(rtab_file, out_dir):
                 if cell == '0':
                     num_zero += 1
             percent = (num_sample - num_zero) / num_sample
-            if percent >= 0.99:
+            if percent >= t_core:
                 num_core += 1
-            elif percent >= 0.95:
+            elif percent >= t_soft:
                 num_soft_core += 1
-            elif percent >= 0.15:
+            elif percent >= t_shell:
                 num_shell += 1
             else:
                 num_cloud += 1
@@ -154,10 +154,10 @@ def create_summary(rtab_file, out_dir):
 
     summary_file = os.path.join(out_dir, 'summary_statistics.txt')
     with open(summary_file, 'w') as fh:
-        fh.write('Core genes' + '\t' + '(99% <= strains <= 100%)' + '\t'+ str(num_core) + '\n')
-        fh.write('Soft core genes' + '\t' + '(95% <= strains < 99%)' + '\t'+ str(num_soft_core) + '\n')
-        fh.write('Shell genes' + '\t' + '(15% <= strains < 95%)' + '\t' + str(num_shell) + '\n')
-        fh.write('Cloud genes' + '\t' + '(0% <= strains < 15%)' + '\t'+ str(num_cloud) + '\n')
+        fh.write('Core genes' + '\t' + '('+str(t_core*100)+'% <= strains <= 100%)' + '\t'+ str(num_core) + '\n')
+        fh.write('Soft core genes' + '\t' + '('+str(t_soft*100)+'% <= strains <' +str(t_core*100)+'%)' + '\t'+ str(num_soft_core) + '\n')
+        fh.write('Shell genes' + '\t' + '('+str(t_shell*100)+'% <= strains < '+str(t_soft*100)+'%)' + '\t' + str(num_shell) + '\n')
+        fh.write('Cloud genes' + '\t' + '(0% <= strains < '+str(t_shell*100)+'%)' + '\t'+ str(num_cloud) + '\n')
         fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' + '\t'+ str(total) + '\n')
     elapsed = datetime.now() - starttime
     logging.info(f'Create summary -- time taken {str(elapsed)}')
@@ -178,8 +178,8 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
                 length_max = length
         representative_list.add(representative)
     create_fasta_include(
-        fasta_file=faa_fasta, 
-        include_list=representative_list, 
+        fasta_file=faa_fasta,
+        include_list=representative_list,
         output_file=representative_fasta
         )
     elapsed = datetime.now() - starttime
@@ -189,7 +189,7 @@ def create_representative_fasta(clusters, gene_annotation, faa_fasta, out_dir):
 
 def export_gene_annotation(gene_annotation, out_dir):
     # starttime = datetime.now()
-    
+
     with open(os.path.join(out_dir, 'gene_annotation.tsv'),'w') as fh:
         writer = csv.writer(fh, delimiter='\t')
         for gene in gene_annotation:
@@ -197,37 +197,40 @@ def export_gene_annotation(gene_annotation, out_dir):
             row.append(gene)
             row.extend(gene_annotation[gene])
             writer.writerow(row)
-    
+
     # elapsed = datetime.now() - starttime
     # logging.info(f'Export gene annotation -- time taken {str(elapsed)}')
 
 def import_gene_annotation(annotation_file):
     # starttime = datetime.now()
-    
+
     gene_annotation = {}
     with open(annotation_file,'r') as fh:
         csv_reader = csv.reader(fh, delimiter='\t')
         for row in csv_reader:
             row[3] = int(row[3])
             gene_annotation[row[0]] = tuple(row[1:])
-    
+
     # elapsed = datetime.now() - starttime
     # logging.info(f'Import gene annotation -- time taken {str(elapsed)}')
     return gene_annotation
 
 
-def create_outputs(annotated_clusters,samples,out_dir):    
+def create_outputs(annotated_clusters,samples,out_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
     spreadsheet_file = create_spreadsheet(
-        annotated_clusters=annotated_clusters,         
+        annotated_clusters=annotated_clusters,
         samples=samples,
         out_dir=out_dir
     )
     rtab_file = create_rtab(
-        annotated_clusters=annotated_clusters,         
+        annotated_clusters=annotated_clusters,
         samples=samples,
         out_dir=out_dir
     )
     summary_file = create_summary(
-        rtab_file=rtab_file, 
-        out_dir=out_dir
+        rtab_file=rtab_file,
+        out_dir=out_dir,
+        t_core=t_core,
+        t_soft=t_soft,
+        t_shell=t_shell
     )

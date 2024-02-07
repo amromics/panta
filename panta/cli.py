@@ -158,8 +158,8 @@ def run_main_pipeline(args):
     json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
-    if args.alignment != None:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, threads)
+    if args.alignment:
+        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -331,12 +331,11 @@ def run_add_sample_pipeline(args):
     output.create_outputs(annotated_clusters,new_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
     #print(annotated_clusters)
-    if args.alignment != None:
+    if args.alignment:
         samples_dir = os.path.join(collection_dir, 'samples')
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
-
-        post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, threads)
+        post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
@@ -386,7 +385,8 @@ def main():
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])
+    main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, choices=['nucleotide', 'protein'])
+    main_cmd.add_argument('-r', '--ratio-coverage', help='Ratio of coverage to align', default=0.0, type=float)
 
     main_cmd.add_argument('--core', help='Percentage of core genes', default=0.99, type=float)
     main_cmd.add_argument('--soft', help='Percentage of soft core genes', default=0.95, type=float)
@@ -410,11 +410,12 @@ def main():
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     add_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
-    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, action='store',  nargs='*',  choices=['nucleotide', 'protein'])
+    add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, choices=['nucleotide', 'protein'])
+    add_cmd.add_argument('-r', '--ratio-coverage', help='Ratio of coverage to align', default=0.0, type=float)
     add_cmd.add_argument('--core', help='Percentage of core genes', default=0.99, type=float)
     add_cmd.add_argument('--soft', help='Percentage of soft core genes', default=0.95, type=float)
     add_cmd.add_argument('--shell', help='Percentage of shell genes', default=0.15, type=float)
-    args = parser.parse_args()
+    args = parser.parse_args()    
     args.func(args)
 
 if __name__ == "__main__":

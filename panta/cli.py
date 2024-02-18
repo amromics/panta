@@ -42,12 +42,16 @@ def collect_sample(sample_id_list, args):
         gff_list = args.gff
         for gff in gff_list:
             base_name = os.path.basename(gff)
-            if gff.endswith('.gff'):
-                sample_id = base_name[:-4]
-            elif gff.endswith('.gff.gz'):
+            if gff.endswith('.gff') or gff.endswith('.GFF'):
+                sample_id = base_name[:-4]                
+            elif gff.endswith('.gff.gz') or gff.endswith('.GFF.gz'):
                 sample_id = base_name[:-7]
+            elif gff.endswith('.gff3') or gff.endswith('.GFF3'):
+                sample_id = base_name[:-5]
+            elif gff.endswith('.gff3.gz') or gff.endswith('.GFF3.gz'):
+                sample_id = base_name[:-8]
             else:
-                raise Exception(f'{gff} should be a gff3 file')
+                raise Exception(f'{gff} file should have one of suffices .gff, .gff3, .GFF, .GFF3')
 
             sample_id = sample_id.replace('-','_')#Make sure that - is not part of sample_id
             if sample_id in sample_id_list:

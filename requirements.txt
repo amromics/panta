@@ -3,7 +3,7 @@ cd-hit==4.8.1
 blast==2.13.0
 diamond==2.1.3
 mcl==14.137
-mafft==7.515
+mafft==7.520
 sra-tools==3.0.3
 pandas
 sra-tools

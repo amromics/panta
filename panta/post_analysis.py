@@ -369,7 +369,7 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
         with open(faa_file) as faa_fh:
             for seq in SeqIO.parse(faa_fh, 'fasta'):
                 if seq.id not in gene_to_cluster_name:
-                    logger.error(f'Gene {seq.id} not in clusters? why')
+                    #logger.error(f'Gene {seq.id} not in clusters? why')
                     continue
                 cluster_name = gene_to_cluster_name[seq.id]
                 with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
@@ -395,6 +395,23 @@ def run_mafft_protein_alignment(annotated_clusters, out_dir, threads=1):
         if not os.path.isfile(gene_seq_file):
             logger.info('{} does not exist'.format(gene_seq_file))
             continue
+
+        #check if the alignment has been done
+        if os.path.isfile(gene_aln_file):
+            inset = set()
+            with open(gene_seq_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    inset.add(seq.id)
+
+            outset = set()
+            with open(gene_aln_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    outset.add(seq.id)
+
+            if inset == outset:
+                logger.info(f'Aligment for {cluster_name} exists, skip realignment')
+                continue
+
         cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
         #cmds.write(cmd + '\n')
         results.append(pool.apply_async(run_command,(cmd, None)))
@@ -424,6 +441,23 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
         if not os.path.isfile(gene_seq_file):
             logger.info('{} does not exist'.format(gene_aln_file))
             continue
+
+        #check if the alignment has been done
+        if os.path.isfile(gene_aln_file):
+            inset = set()
+            with open(gene_seq_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    inset.add(seq.id)
+
+            outset = set()
+            with open(gene_aln_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    outset.add(seq.id)
+
+            if inset == outset:
+                logger.info(f'Aligment for {cluster_name} exists, skip realignment')
+                continue
+
         cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
         cmd += f' && rm {gene_seq_file}'
         #cmds.write(cmd + '\n')
@@ -548,10 +582,11 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
     pan_ref_list = set()
 
     clusters_dir = os.path.join(collection_dir, 'clusters')
-    if os.path.exists(clusters_dir):
-        shutil.rmtree(clusters_dir)
+    # if os.path.exists(clusters_dir):
+    #     shutil.rmtree(clusters_dir)
     #Create a fresh
-    os.mkdir(clusters_dir)
+    if not os.path.exists(clusters_dir):
+        os.mkdir(clusters_dir)
 
     clusters_to_align = []
     #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])

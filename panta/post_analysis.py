@@ -444,12 +444,12 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
     for cluster_name in annotated_clusters:
         cluster_dir = os.path.join(out_dir, 'clusters', cluster_name)
 
-        protein_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln.gz')
+        protein_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
         if not os.path.isfile(protein_aln_file):
             logger.info('{} does not exist'.format(protein_aln_file))
             continue
         protein_dict = {}
-        with gzip.open(protein_aln_file, 'rt') as fh:
+        with open(protein_aln_file, 'rt') as fh:
             for seq_record in SeqIO.parse(fh, 'fasta'):
                 protein_dict[seq_record.id] = str(seq_record.seq)
 
@@ -461,8 +461,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
         for seq_record in SeqIO.parse(nucleotide_seq_file, 'fasta'):
             nucleotide_dict[seq_record.id] = str(seq_record.seq)
 
-        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
-        with gzip.open(nucleotide_aln_file, 'wt') as fh:
+        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln')
+        with open(nucleotide_aln_file, 'wt') as fh:
             for seq_id in protein_dict.keys():
                 protein = protein_dict[seq_id]
                 nucleotide = nucleotide_dict[seq_id]
@@ -513,13 +513,13 @@ def create_core_gene_alignment(annotated_clusters,
         if skip == True:
             continue
 
-        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln.gz')
+        nucleotide_aln_file = os.path.join(cluster_dir, cluster_name + '.fna.aln')
         if not os.path.isfile(nucleotide_aln_file):
             logger.info('{} does not exist'.format(nucleotide_aln_file))
             continue
 
         cluster_dict = {}
-        with gzip.open(nucleotide_aln_file, 'rt') as fh:
+        with open(nucleotide_aln_file, 'rt') as fh:
             for seq_record in SeqIO.parse(fh, 'fasta'):
                 sample_id,_ = get_seq_ids(seq_record.id)
                 #sample_id = gene_annotation_dict[seq_record.id]['sample_id']

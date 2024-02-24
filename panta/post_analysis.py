@@ -539,8 +539,10 @@ def create_core_gene_alignment(annotated_clusters,
 
 def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, coverage_threshold=0.0, threads=1):
     count_threshold = int(len(samples) * coverage_threshold)
-    if count_threshold < 1:
-        count_threshold = 1
+
+    #Need to have at least 2 genes before we can do alignment
+    if count_threshold < 2:
+        count_threshold = 2
 
     gene_to_cluster_name = {}
     pan_ref_list = set()

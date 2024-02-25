@@ -609,6 +609,15 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
             #    length_max = length
         pan_ref_list.add(annotated_clusters[cluster_name]['representative'])
 
+        #Remove folders that are not in clusters to align (in case the clusters changes)
+    existing_folders = os.listdir(clusters_dir)
+    for folder_name in existing_folders:
+        if folder_name not in clusters_to_align:
+            folder_path = os.path.join(clusters_dir,folder_name)
+            if os.path.isdir(folder_path):
+                shutil.rmtree(folder_path)
+                logger.info(f'Clean up cluster {folder_name}')            
+
     if 'protein' == alignment:
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)

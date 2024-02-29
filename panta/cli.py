@@ -63,7 +63,7 @@ def collect_sample(sample_id_list, args):
     else:
         raise Exception(f'Please specify -t or -g')
 
-    samples.sort(key= lambda x:x['id'])
+    #samples.sort(key= lambda x:x['id'])
     return samples
 
 def run_main_pipeline(args):
@@ -318,8 +318,10 @@ def run_add_sample_pipeline(args):
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len new clusters = {len(new_clusters)}')
 
     # post analysis
-    new_samples.extend(old_samples)
-    new_samples.sort(key= lambda x:x['id'])
+    #new_samples.extend(old_samples)
+    old_samples.extend(new_samples)
+    new_samples = old_samples
+    #new_samples.sort(key= lambda x:x['id'])
 
     split_clusters = post_analysis.split_paralogs(
         #gene_annotation_fn=gene_annotation_fn,

@@ -12,8 +12,8 @@ Depencencies:
 The simplest method is installed via conda:
 
 1. Download and install the appropriate conda, such as miniconda from [here](https://docs.conda.io/en/latest/miniconda.html)
-   
-   
+
+
 2. Create a conda environment with all the necessary dependencies: From the repository directory run
 
 ```bash
@@ -52,7 +52,7 @@ options:
                         method for all-against-all alignment (default: diamond)
   -i IDENTITY, --identity IDENTITY
                         minimum percentage identity (default: 0.7)
-  --LD LD               length difference cutoff between two sequences (default: 0)
+  --LD LD               length difference cutoff between two sequences (default: 0.7)
   --AL AL               alignment coverage for the longer sequence (default: 0)
   --AS AS               alignment coverage for the shorter sequence (default: 0)
   -e EVALUE, --evalue EVALUE
@@ -83,7 +83,7 @@ options:
                         method for all-against-all alignment (default: diamond)
   -i IDENTITY, --identity IDENTITY
                         minimum percentage identity (default: 0.7)
-  --LD LD               length difference cutoff between two sequences (default: 0)
+  --LD LD               length difference cutoff between two sequences (default: 0.7)
   --AL AL               alignment coverage for the longer sequence (default: 0)
   --AS AS               alignment coverage for the shorter sequence (default: 0)
   -e EVALUE, --evalue EVALUE

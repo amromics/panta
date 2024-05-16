@@ -43,7 +43,7 @@ def collect_sample(sample_id_list, args):
         for gff in gff_list:
             base_name = os.path.basename(gff)
             if gff.endswith('.gff') or gff.endswith('.GFF'):
-                sample_id = base_name[:-4]                
+                sample_id = base_name[:-4]
             elif gff.endswith('.gff.gz') or gff.endswith('.GFF.gz'):
                 sample_id = base_name[:-7]
             elif gff.endswith('.gff3') or gff.endswith('.GFF3'):
@@ -158,7 +158,7 @@ def run_main_pipeline(args):
     annotated_clusters = post_analysis.annotate_cluster(
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
-        
+
     json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
@@ -385,7 +385,7 @@ def main():
     main_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     main_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])
     main_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
-    main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
+    main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0.70, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
@@ -410,7 +410,7 @@ def main():
     add_cmd.add_argument('-s', '--dont-split', help='dont split paralog clusters', default=False, action='store_true')
     add_cmd.add_argument('-b', '--blast', help='method for all-against-all alignment', default='diamond', action='store', choices=['diamond', 'blast'])
     add_cmd.add_argument('-i', '--identity', help='minimum percentage identity', default=0.70, type=float)
-    add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0, type=float)
+    add_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0.70, type=float)
     add_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     add_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
     add_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
@@ -421,7 +421,7 @@ def main():
     add_cmd.add_argument('--core', help='Percentage of core genes', default=0.99, type=float)
     add_cmd.add_argument('--soft', help='Percentage of soft core genes', default=0.95, type=float)
     add_cmd.add_argument('--shell', help='Percentage of shell genes', default=0.15, type=float)
-    args = parser.parse_args()    
+    args = parser.parse_args()
     args.func(args)
 
 if __name__ == "__main__":

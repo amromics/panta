@@ -27,6 +27,11 @@ mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requ
 pip install .
 
 ```
+Or via docker:
+
+```bash
+sudo docker build -t panta:1.0 .
+```
 
 ## Usage
 Activate conda enviroment:
@@ -100,4 +105,10 @@ Basic:
 ```
 panta main -o examples/test/output -g examples/test/main/*.gff
 panta add -c examples/test/output -g examples/test/add/*.gff
+```
+Via docker:
+```
+chmod -R a+rw examples/test/
+docker run -it -e ENV_NAME=panta -v /mnt/data/data/amromics/panta:/tmp/panta:rw panta:1.0 panta main -o examples/test/output -g examples/test/main/*.gff
+
 ```

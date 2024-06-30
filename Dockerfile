@@ -2,7 +2,7 @@ FROM mambaorg/micromamba:latest
 #Metadata
 LABEL \
 	image.name="panta" \
-	image.version="1.0" \
+	image.version="1.0.1" \
 	image.description="" \
 	maintainer="amromics.org" 
 

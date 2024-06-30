@@ -30,7 +30,7 @@ pip install .
 Or via docker:
 
 ```bash
-sudo docker build -t panta:1.0 .
+sudo docker build -t panta:1.0.1 .
 ```
 
 ## Usage
@@ -109,6 +109,6 @@ panta add -c examples/test/output -g examples/test/add/*.gff
 Via docker:
 ```
 chmod -R a+rw examples/test/
-docker run -it -e ENV_NAME=panta -v /mnt/data/data/amromics/panta:/tmp/panta:rw panta:1.0 panta main -o examples/test/output -g examples/test/main/*.gff
+docker run -it -e ENV_NAME=panta -v /mnt/data/data/amromics/panta:/tmp/panta:rw panta:1.0.1 panta main -o examples/test/output -g examples/test/main/*.gff
 
 ```

@@ -79,7 +79,265 @@ def run_cd_hit_with_map(faa_file, map_file, out_dir, threads=4):
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
     return cd_hit_represent_corrected_fasta, clusters_new
 
+def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):        
+    starttime = datetime.now()
+    
+    mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
+    mmseq_cluster_file=os.path.join(out_dir, 'mmseq_cluster.tsv')
+    cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id 0.98 -c 0.98 --threads {threads} > /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseq')        
 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq2 with 98% identity part 1 -- time taken {elapsed}')
+
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    represent_corrected_fasta = os.path.join(out_dir, 'mmseq.fasta')
+    with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
+        for line in ifh:
+            if line[0] == '>':
+                ofh.write(f'>{gene_map[line[1:].strip()]}\n')
+            else:
+                ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq with 98% identity part 1 -- time taken {elapsed}')
+    c_cursor=0
+    cluster_count=0
+    with open(mmseq_cluster_file, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+           
+            if rep_name == member:
+                c_cursor=cluster_count
+                
+                clusters[c_cursor] = {'gene_names':[]} 
+                clusters[c_cursor]['representative'] = gene_map[member]
+                cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+    clusters_new = {}
+    for cluster_name in clusters:
+        clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 98% identity -- time taken {str(elapsed)}')
+    return represent_corrected_fasta, clusters_new
+def run_diamond_with_map(faa_file, map_file, out_dir, threads=4):        
+    starttime = datetime.now()
+    
+    diamond_represent_fasta= os.path.join(out_dir, 'diamond_rep_seq.fasta')
+    diamond_cluster_file=os.path.join(out_dir, 'diamond_cluster.tsv')
+    cmd = f'diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 98 --member-cover 98> /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond')        
+    cmd=f'CMD="seqtk subseq {faa_file} <(cut -f1 {diamond_cluster_file} | uniq) > {diamond_represent_fasta}" ; /bin/bash -c "$CMD"'
+    #ret = run_command(cmd)
+    ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 98% identity part 1 -- time taken {elapsed}')
+
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    represent_corrected_fasta = os.path.join(out_dir, 'diamond.fasta')
+    with open(represent_corrected_fasta,'w') as ofh, open(diamond_represent_fasta) as ifh:
+        for line in ifh:
+            if line[0] == '>':
+                ofh.write(f'>{gene_map[line[1:].strip()]}\n')
+            else:
+                ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 98% identity part 1 -- time taken {elapsed}')
+    c_cursor=0
+    cluster_count=0
+    with open(diamond_cluster_file, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+           
+            if rep_name == member:
+                c_cursor=cluster_count
+                
+                clusters[c_cursor] = {'gene_names':[]} 
+                clusters[c_cursor]['representative'] = gene_map[member]
+                cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+    clusters_new = {}
+    for cluster_name in clusters:
+        clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 98% identity -- time taken {str(elapsed)}')
+    return represent_corrected_fasta, clusters_new
+
+def run_diamond_clustering(faa_file, map_file, out_dir, threads=4):        
+    starttime = datetime.now()
+    
+    #mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
+    diamond_cluster_file=os.path.join(out_dir, 'diamond_clusters')
+    cmd = f'diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 70 --member-cover 70> /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond')        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 70% identity part 1 -- time taken {elapsed}')
+
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    #represent_corrected_fasta = os.path.join(out_dir, 'diamond.fasta')
+    # with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
+    #     for line in ifh:
+    #         if line[0] == '>':
+    #             ofh.write(f'>{gene_map[line[1:].strip()]}\n')
+    #         else:
+    #             ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 70% identity part 1 -- time taken {elapsed}')
+    c_cursor=0
+    cluster_count=0
+    with open(diamond_cluster_file, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+           
+            if rep_name == member:
+                c_cursor=cluster_count
+                
+                clusters[c_cursor] = {'gene_names':[]} 
+                clusters[c_cursor]['representative'] = gene_map[member]
+                cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+   # clusters_new = {}
+    inflated_clusters = []
+    for cluster_name in clusters:
+        #clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+        inflated_genes=[clusters[cluster_name]['representative']]
+        inflated_genes.extend(clusters[cluster_name]['gene_names'])
+        inflated_clusters.append(inflated_genes)
+        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run  diamond 70% identity -- time taken {str(elapsed)}')
+    return inflated_clusters
+def run_mmseq_clustering(faa_file, map_file, out_dir, threads=4):        
+    starttime = datetime.now()
+    
+    #mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
+    mmseq_cluster_file=os.path.join(out_dir, 'mmseq_clusters')
+    cmd = f'mmseqs easy-linclust {faa_file} {mmseq_cluster_file} {out_dir}/tmp --min-seq-id 0.70 -c 0.7  --threads {threads} > /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseq')        
+    mmseq_cluster_file=mmseq_cluster_file+"_cluster.tsv"
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq with 70% identity  -- time taken {elapsed}')
+
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    #represent_corrected_fasta = os.path.join(out_dir, 'diamond.fasta')
+    # with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
+    #     for line in ifh:
+    #         if line[0] == '>':
+    #             ofh.write(f'>{gene_map[line[1:].strip()]}\n')
+    #         else:
+    #             ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq with 70% identity -- time taken {elapsed}')
+    c_cursor=0
+    cluster_count=0
+    with open(mmseq_cluster_file, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+           
+            if rep_name == member:
+                c_cursor=cluster_count
+                
+                clusters[c_cursor] = {'gene_names':[]} 
+                clusters[c_cursor]['representative'] = gene_map[member]
+                cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+   # clusters_new = {}
+    inflated_clusters = []
+    for cluster_name in clusters:
+        #clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+        inflated_genes=[clusters[cluster_name]['representative']]
+        inflated_genes.extend(clusters[cluster_name]['gene_names'])
+        inflated_clusters.append(inflated_genes)
+        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run  mmseq 70% identity -- time taken {str(elapsed)}')
+    return inflated_clusters
 
 def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()
@@ -130,7 +388,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     return blast_result
 
 
-def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
+def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -158,25 +416,52 @@ def run_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     logging.info(f'Protein alignment with Diamond -- time taken {str(elapsed)}')
     return diamond_result
 
+def pairwise_alignment_mmseq(database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
+    starttime = datetime.now()
+    
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    
+    # make mmseq database
+    mmseq_db = os.path.join(out_dir, 'mmseq_db')
+    cmd = f'mmseqs createdb {database_fasta} {mmseq_db}'
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseqs createdb target_db')
+    query_db = os.path.join(out_dir, 'query_db')
+    cmd = f'mmseqs createdb {query_fasta} {query_db}'
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseqs createdb query_db')
+    cmd = f'mmseqs createindex {mmseq_db} tmp'
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseqs createindex ')
+    
+    # run mmseq blastp
+    mmseq_result = os.path.join(out_dir, 'mmseqs.tsv')
+    cmd = f'mmseqs search {query_db} {mmseq_db} resultDB tmp'
+    #subprocess.call(cmd, shell=True)
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
 
-def pairwise_alignment(diamond, database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
-    if diamond == False:
-        blast_result = run_blast(
-            database_fasta = database_fasta,
-            query_fasta = query_fasta,
-            out_dir = out_dir,
-            evalue = evalue,
-            threads=threads
-            )
-    else:
-        blast_result = run_diamond(
-            database_fasta = database_fasta,
-            query_fasta = query_fasta,
-            out_dir = out_dir,
-            evalue = evalue,
-            threads=threads
-            )
-    return blast_result
+    if ret != 0:
+        raise Exception('Error running mmseqs search')
+    cmd = f'mmseqs convertalis {query_db} {mmseq_db} resultDB -outfmt 6 {mmseq_result}'
+    #subprocess.call(cmd, shell=True)
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+
+    if ret != 0:
+        raise Exception('Error running mmseqs convertalis')
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Protein alignment with mmseq -- time taken {str(elapsed)}')
+    return mmseq_result
+
 
 
 def filter_blast_result(blast_result, 
@@ -258,4 +543,42 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
     
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
+    return inflated_clusters, clusters
+def make_clusters_from_mcl(mcl_file, map_file):
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    c_cursor=0
+    cluster_count=0
+    with open(mcl_file, 'r') as fh:
+        for line in fh:
+            line = line.rstrip('\n')
+            genes = line.split('\t')
+            c_cursor=cluster_count
+            clusters[c_cursor] = {'gene_names':[]} 
+            clusters[c_cursor]['representative'] = gene_map[genes[0]]
+            cluster_count=cluster_count+1
+            for i in range(1,len(genes)):
+                clusters[c_cursor]['gene_names'].append(gene_map[genes[i]])                
+                   
+                            
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+   # clusters_new = {}
+    inflated_clusters = []
+    for cluster_name in clusters:
+        #clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+        inflated_genes=[clusters[cluster_name]['representative']]
+        inflated_genes.extend(clusters[cluster_name]['gene_names'])
+        inflated_clusters.append(inflated_genes)
     return inflated_clusters, clusters

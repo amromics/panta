@@ -283,7 +283,7 @@ def run_main_pipeline_g_mmseq_a_diamond_c_mcl(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -356,18 +356,19 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
         out_dir=temp_dir,
         threads=threads)
     logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}') """
-    cd_hit_represent_fasta, cd_hit_groups = main_pipeline.run_diamond_with_map(
+    diamond_represent_fasta, diamond_groups = main_pipeline.run_diamond_with_map(
         faa_file=combined_faa,
         map_file=combined_faa_map,
         out_dir=temp_dir,
+        cover=args.cov,
         threads=threads)
-    logger.info(f'len diamond_clusters = {len(cd_hit_groups)}') 
+    logger.info(f'len diamond_clusters = {len(diamond_groups)}') 
 
     #print(f'Diamond = {args.diamond}')
     blast_result = main_pipeline.pairwise_alignment_diamond(
         #diamond=(args.blast=='diamond'),
-        database_fasta = cd_hit_represent_fasta,
-        query_fasta = cd_hit_represent_fasta,
+        database_fasta = diamond_represent_fasta,
+        query_fasta =diamond_represent_fasta,
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
@@ -386,7 +387,7 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
         threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=cd_hit_groups,
+        cd_hit_clusters=diamond_groups,
         mcl_file=mcl_file)
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
 
@@ -420,8 +421,9 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
     shutil.move(gene_position_fn, main_gene_position_fn)
 
     json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
-    shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    shutil.move(diamond_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(inflated_clusters, open(os.path.join(out_dir, 'inflated_clusters.json'), 'w'), indent=4, sort_keys=True)
     #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
     shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
     #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
@@ -656,6 +658,107 @@ def run_main_pipeline_c_diamond(args):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
+def run_main_pipeline_g_diamond_a_diamond_c_diamond(args):
+    starttime = datetime.now()
+
+    out_dir = args.outdir
+    threads = args.threads
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+
+    temp_dir = os.path.join(out_dir, 'temp')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+
+    data_preparation.extract_proteins_tofile(
+        samples=samples,
+        out_dir=out_dir,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
+        table=args.table,
+        threads=threads)
+
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
+
+    # main_pipeline
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=out_dir,
+        samples=samples)
+
+    """ cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_clusters)}') """
+    inflated_clusters = main_pipeline.run_diamond_clustering_pipeline(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    #logger.info(f'len mmseq_clusters = {len(cd_hit_groups)}') 
+
+   
+
+    
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs(
+        gene_position_fn=gene_position_fn,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    logger.info(f'len split_clusters = {len(split_clusters)}')
+
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+
+    output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    if args.alignment:
+        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+
+    # output for next run
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv')
+
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
+
+    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    #json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
 def run_main_pipeline_c_mmseq(args):
     starttime = datetime.now()
 
@@ -770,6 +873,8 @@ def run_main(args):
         run_main_pipeline_c_mmseq(args)
     if args.mode=='c_diamond':
         run_main_pipeline_c_diamond(args)
+    if args.mode=='g_diamond_a_diamond_c_diamond':
+        run_main_pipeline_g_diamond_a_diamond_c_diamond(args)
     
 def run_add_sample_pipeline(args):
     starttime = datetime.now()
@@ -971,12 +1076,13 @@ def main():
     main_cmd.add_argument('--LD', help='length difference cutoff between two sequences', default=0.70, type=float)
     main_cmd.add_argument('--AL', help='alignment coverage for the longer sequence', default=0, type=float)
     main_cmd.add_argument('--AS', help='alignment coverage for the shorter sequence', default=0, type=float)
+    main_cmd.add_argument('-c','--cov' ,help='coverage of grouping step', default=90, type=float)
     main_cmd.add_argument('-e', '--evalue', help='Blast evalue', default=1E-6, type=float)
     main_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=0, type=int)
     main_cmd.add_argument('--table', help='codon table', default=11, type=int)
     main_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, choices=['nucleotide', 'protein'])
     main_cmd.add_argument('-r', '--ratio-coverage', help='Ratio of coverage to align', default=0.0, type=float)
-
+    main_cmd.add_argument('--poa', help='Alignment with POA', default=False, action='store_true')
     main_cmd.add_argument('--core', help='Percentage of core genes', default=0.99, type=float)
     main_cmd.add_argument('--soft', help='Percentage of soft core genes', default=0.95, type=float)
     main_cmd.add_argument('--shell', help='Percentage of shell genes', default=0.15, type=float)

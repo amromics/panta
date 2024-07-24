@@ -270,3 +270,5 @@ def combine_proteins_with_maps(out_dir, samples):
     elapsed = datetime.now() - starttime
     logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file, combined_faa_map
+def hash_sequence(in_seq):
+    return hash(in_seq)

@@ -140,12 +140,12 @@ def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):
     elapsed = datetime.now() - starttime
     logging.info(f'Run diamond with 98% identity -- time taken {str(elapsed)}')
     return represent_corrected_fasta, clusters_new
-def run_diamond_with_map(faa_file, map_file, out_dir, threads=4):        
+def run_diamond_with_map(faa_file, map_file, out_dir, cover=90, threads=4):        
     starttime = datetime.now()
     
     diamond_represent_fasta= os.path.join(out_dir, 'diamond_rep_seq.fasta')
     diamond_cluster_file=os.path.join(out_dir, 'diamond_cluster.tsv')
-    cmd = f'diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 98 --member-cover 98> /dev/null'    
+    cmd = f'./diamond deepclust -d {faa_file} -o {diamond_cluster_file} --sensitive --approx-id 98 --round-approx-id 98 --round-coverage {cover} --member-cover {cover} --mutual-cover {cover} > /dev/null'    
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond')        
@@ -209,13 +209,14 @@ def run_diamond_clustering(faa_file, map_file, out_dir, threads=4):
     
     #mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
     diamond_cluster_file=os.path.join(out_dir, 'diamond_clusters')
-    cmd = f'diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 70 --member-cover 70> /dev/null'    
+    cmd = f'diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 98 --member-cover 98> /dev/null'    
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond')        
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run diamond with 70% identity part 1 -- time taken {elapsed}')
+    logging.info(f'Run diamond with 98% identity part 1 -- time taken {elapsed}')
+   
 
     clusters = {}
     gene_map = {}
@@ -249,6 +250,115 @@ def run_diamond_clustering(faa_file, map_file, out_dir, threads=4):
                 clusters[c_cursor] = {'gene_names':[]} 
                 clusters[c_cursor]['representative'] = gene_map[member]
                 cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+
+           
+                
+    
+    del gene_map    
+
+    # convert to a simple dictionary
+   # clusters_new = {}
+    inflated_clusters = []
+    for cluster_name in clusters:
+        #clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+        inflated_genes=[clusters[cluster_name]['representative']]
+        inflated_genes.extend(clusters[cluster_name]['gene_names'])
+        inflated_clusters.append(inflated_genes)
+        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run  diamond 70% identity -- time taken {str(elapsed)}')
+    return inflated_clusters
+def run_diamond_clustering_pipeline(faa_file, map_file, out_dir, threads=4):
+    starttime = datetime.now()
+    
+    #mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
+    diamond_cluster_file=os.path.join(out_dir, 'diamond_clusters')
+    cmd = f'./diamond linclust -d {faa_file} -o {diamond_cluster_file} --approx-id 98 --member-cover 98> /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond')        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond with 98% identity part 1 -- time taken {elapsed}')
+    diamond_represent_fasta= os.path.join(out_dir, 'diamond_rep_seq.faa')
+    
+    cmd=f'CMD="seqtk subseq {faa_file} <(cut -f1 {diamond_cluster_file} | uniq) > {diamond_represent_fasta}" ; /bin/bash -c "$CMD"'
+    
+    ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run seqtk subseq -- time taken {elapsed}')
+
+    diamond_represent_fasta_db= os.path.join(out_dir, 'diamond_rep_seq_db')
+    cmd=f'./diamond makedb --in {diamond_represent_fasta} -d {diamond_represent_fasta_db}'
+    ret = run_command(cmd)
+    #ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond makedb  -- time taken {elapsed}')
+    out_blast=os.path.join(out_dir, 'blast_out')
+    cmd=f'./diamond blastp -q {diamond_represent_fasta} -d {diamond_represent_fasta_db} -o {out_blast} --fast -f 6 qseqid sseqid qcovhsp scovhsp corrected_bitscore --approx-id 70 -p {threads} --query-cover 90 -k1000 '
+    ret = run_command(cmd)
+    #ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond blastp  -- time taken {elapsed}')
+    
+    edge_file=os.path.join(out_dir, 'edge.tsv')
+    cmd=f'cat {out_blast} > {edge_file}'
+    ret = run_command(cmd)
+    #ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run cat blastp output  -- time taken {elapsed}')
+
+    cmd=f'samtools faidx {diamond_represent_fasta}'
+    ret = run_command(cmd)
+    #ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run samtools faidx  -- time taken {elapsed}')
+    diamond_represent_vertex= os.path.join(out_dir, 'diamond_rep_vertex')
+    diamond_cluster_file_r2=os.path.join(out_dir, 'diamond_clusters_r2.tsv')
+    cmd=f'./diamond greedy-vertex-cover --edges {edge_file} -d {diamond_represent_fasta}.fai --centroid-out {diamond_represent_vertex}  --edge-format triplet -o {diamond_cluster_file_r2}'
+    ret = run_command(cmd)
+    #ret = os.system(cmd)
+    elapsed = datetime.now() - starttime
+    logging.info(f'diamond greedy-vertex-cover  -- time taken {elapsed}')
+
+    clusters = {}
+    gene_map = {}
+    count = 0
+    with open(map_file, 'r') as fh:
+        for line in fh:
+            line = line.strip()
+            gene_map[f'{count}'] = line
+            count += 1
+    #represent_corrected_fasta = os.path.join(out_dir, 'diamond.fasta')
+    # with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
+    #     for line in ifh:
+    #         if line[0] == '>':
+    #             ofh.write(f'>{gene_map[line[1:].strip()]}\n')
+    #         else:
+    #             ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run diamond clustering pipeline -- time taken {elapsed}')
+    c_cursor=0
+    cluster_count=0
+    p_cluster='-1'
+    with open(diamond_cluster_file_r2, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+
+            if not rep_name == p_cluster:
+                c_cursor=cluster_count
+                
+                clusters[c_cursor] = {'gene_names':[]} 
+                clusters[c_cursor]['representative'] = gene_map[rep_name]
+                cluster_count=cluster_count+1
+                p_cluster=rep_name
                 
             else:
                 clusters[c_cursor]['gene_names'].append(gene_map[member])                
@@ -396,7 +506,7 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     
     # make diamond database
     diamond_db = os.path.join(out_dir, 'diamond_db')
-    cmd = f'diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
+    cmd = f'./diamond makedb --in {database_fasta} -d {diamond_db} -p {threads} --quiet'
     #ret = os.system(cmd)
     ret = run_command(cmd)
     if ret != 0:
@@ -404,7 +514,7 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f'diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
+    cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
     #subprocess.call(cmd, shell=True)
     #ret = os.system(cmd)
     ret = run_command(cmd)

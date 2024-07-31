@@ -9,7 +9,7 @@ import json
 import csv
 from datetime import datetime
 from panta import *
-
+from panta.utils import *
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(levelname)s : %(message)s',
@@ -157,7 +157,7 @@ def run_main_pipeline_a_diamond_c_mcl(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples,samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -279,12 +279,14 @@ def run_main_pipeline_g_mmseq_a_diamond_c_mcl(args):
         unlabeled_clusters=split_clusters,
         gene_annotation_fn=gene_annotation_fn)
 
-    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
-
+        post_analysis.run_gene_alignment(annotated_clusters, samples,samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
+        post_analysis.create_poa_protein_consensus(annotated_clusters,out_dir,threads=threads)
+        post_analysis.make_protein_consensus_db(annotated_clusters,out_dir,threads=threads)
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
     #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
@@ -392,7 +394,8 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
 
 
-    # post analysis
+    # post 
+    
     split_clusters = post_analysis.split_paralogs(
         gene_position_fn=gene_position_fn,
         unsplit_clusters= inflated_clusters,
@@ -408,8 +411,8 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
-
+        post_analysis.run_gene_alignment(annotated_clusters, samples,samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_hhm_profile_clusters(annotated_clusters,out_dir,  threads=threads)
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
     #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
@@ -535,7 +538,7 @@ def run_main_pipeline_g_cdhit_a_diamond_c_mcl(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples, samples,out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -636,7 +639,7 @@ def run_main_pipeline_c_diamond(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples, samples,out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -838,7 +841,7 @@ def run_main_pipeline_c_mmseq(args):
 
     output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     if args.alignment:
-        post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, samples,samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #output.export_gene_annotation(gene_annotation, out_dir)
@@ -1027,7 +1030,7 @@ def run_add_sample_pipeline(args):
         samples_dir = os.path.join(collection_dir, 'samples')
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
-        post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, new_samples,old_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
 
     # output for next run
     #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
@@ -1054,7 +1057,274 @@ def run_add_sample_pipeline(args):
 
     #if os.path.exists(temp_dir):
     #    shutil.rmtree(temp_dir)
+def run_add_sample_pipeline2(args):
+    starttime = datetime.now()
 
+    collection_dir = args.collection_dir
+    if not os.path.exists(collection_dir):
+        raise Exception(f'{collection_dir} does not exist')
+    threads = args.threads
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+
+    diamond=(args.blast=='diamond')
+
+    identity = args.identity
+    evalue = args.evalue
+
+
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir)
+    else:
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+
+
+    # Check required files
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv')
+    if not os.path.isfile(existing_gene_annotation_fn):
+        raise Exception(f'{existing_gene_annotation_fn} does not exist')
+    #gene_annotation = output.import_gene_annotation(gene_annotation_file)
+
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv')
+    #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+
+    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
+    old_clusters = json.load(open(os.path.join(collection_dir, 'annotated_clusters.json'), 'r'))
+
+    old_concensus_faa = os.path.join(collection_dir, 'consensus.fasta')
+    if not os.path.isfile(old_concensus_faa):
+        raise Exception(f'{old_concensus_faa} does not exist')
+    
+    old_consensus_db=None
+    if args.blast=='diamond':
+        old_consensus_db=os.path.join(collection_dir, 'consenus_diamond_db.dmnd')
+    if args.blast=='mmseq':
+        old_consensus_db=os.path.join(collection_dir, 'consenus_mmseq_db')
+    
+    # collect new samples
+    sample_id_list = [sample['id'] for sample in old_samples]
+    new_samples = collect_sample(sample_id_list, args)
+    if len(new_samples) == 0:
+        raise Exception(f'There must be at least one new sample')
+
+    # data preparation
+    data_preparation.extract_proteins_tofile(
+        samples=new_samples,
+        out_dir=collection_dir,
+        gene_annotation_fn = gene_annotation_fn,
+        gene_position_fn = gene_position_fn,
+        table=args.table,
+        existing_gene_annotation_fn=existing_gene_annotation_fn,
+        existing_gene_position_fn=existing_gene_position_fn,
+        threads=threads,
+        )
+    new_combined_faa = data_preparation.combine_proteins(
+        out_dir=collection_dir,
+        samples=new_samples)
+
+    not_match_faa = add_sample_pipeline.match_new_sequence(
+        new_seqs_file = new_combined_faa,
+        old_clusters=old_clusters,
+        out_dir = collection_dir,
+        consensusdb=old_consensus_db,
+        threads=threads)
+    combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(not_match_faa,collection_dir)
+    # not_match_represent_faa, not_match_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=not_match_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    group_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
+        faa_file=combined_faa_file,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    logger.info(f'len mmseq_clusters = {len(mmseq_groups)}') 
+    blast_result = main_pipeline.pairwise_alignment_diamond(
+      
+        database_fasta = group_represent_fasta,
+        query_fasta = group_represent_fasta,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = filtered_blast_result,
+        threads=threads)
+
+    inflated_clusters, clusters = main_pipeline.reinflate_clusters(
+        cd_hit_clusters=mmseq_groups,
+        mcl_file=mcl_file)
+    logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs(
+        gene_position_fn=gene_position_fn,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    logger.info(f'len split_clusters = {len(split_clusters)}')
+
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+    # post analysis
+    #new_samples.extend(old_samples)
+    annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,old_clusters)
+    old_samples.extend(new_samples)
+    #new_samples = old_samples
+    #new_samples.sort(key= lambda x:x['id'])
+
+    
+    json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+   
+    output.create_outputs(annotated_clusters,new_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    #json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    #print(annotated_clusters)
+    if args.alignment:
+        samples_dir = os.path.join(collection_dir, 'samples')
+        if not os.path.exists(samples_dir):
+            raise Exception(f'{samples_dir} does not exist')
+        #post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+        post_analysis.run_gene_alignment(annotated_clusters, new_samples,old_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa,add=True)
+        post_analysis.create_poa_protein_consensus(annotated_clusters,collection_dir,threads=threads)
+        post_analysis.make_protein_consensus_db(annotated_clusters,collection_dir,threads=threads)
+    # output for next run
+    #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    #main_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+
+    #Replace the main existing files by the new ones
+    shutil.copy(gene_annotation_fn, existing_gene_annotation_fn)
+    shutil.copy(gene_position_fn, existing_gene_position_fn)
+
+    #output.export_gene_annotation(gene_annotation, collection_dir)
+    #json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(old_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
+    #json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    #cmd = f'mv {combined_blast_result}  ' + os.path.join(collection_dir, 'blast.tsv')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time cli {str(elapsed)}')
+    logging.info(f'Done -- time taken {str(elapsed)}')
+
+    #if os.path.exists(temp_dir):
+    #    shutil.rmtree(temp_dir)
+def build_reference_gene_family_db(args):
+    starttime = datetime.now()
+    ref_db_dir='gene_families'
+    if not os.path.exists(ref_db_dir):
+            os.mkdir(ref_db_dir)
+    mmseq_represent_fasta= os.path.join(ref_db_dir, 'mmseq_rep_seq.fasta')
+    mmseq_cluster_file=os.path.join(ref_db_dir, 'mmseq_cluster.tsv')
+    cmd = f'mmseqs easy-linclust {args.input} {ref_db_dir}/mmseq {ref_db_dir}/tmp --min-seq-id 0.98 -c 0.98 --threads {args.threads} > /dev/null'    
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running mmseq')        
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq2 with 98% identity part 1 -- time taken {elapsed}')
+
+    clusters = {}
+   
+    count = 0
+    
+    represent_corrected_fasta = os.path.join(ref_db_dir, 'mmseq.fasta')
+    map_id_des={}
+    unique_gene_name=set()
+    with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
+        for line in ifh:
+            if line[0] == '>':
+                str_name=line[1:].strip()
+                
+                geneid=str_name.split(' ')[0].split('|')[1]
+                
+                des=str_name[str_name.find(' ') + 1:]
+                map_id_des[geneid]={'des':des}
+                pattern = r'GN=([^ ]+)'
+
+
+                match = re.search(pattern, des)
+
+
+                if match:
+                 
+                    genename = match.group(1)
+                    
+                else:
+                    genename=geneid
+                if genename in unique_gene_name:
+                    suffix=1
+                    new_gene_name=genename+'_'+str(suffix)
+                    while new_gene_name in unique_gene_name:
+                        suffix=suffix+1
+                        new_gene_name=genename+'_'+str(suffix)
+                    map_id_des[geneid]['genename']=   new_gene_name
+                    unique_gene_name.add(new_gene_name)
+                    ofh.write(f'>{new_gene_name}\n')
+                else:
+                    map_id_des[geneid]['genename']= genename
+                    unique_gene_name.add(genename)
+                    ofh.write(f'>{genename}\n')
+                       
+            else:
+                ofh.write(line)      
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run mmseq with 98% identity part 1 -- time taken {elapsed}')
+    c_cursor='0'
+    cluster_count=0
+    with open(mmseq_cluster_file, 'r') as fh:
+        for line in fh:
+            rep_name,member = line.strip().split()
+            rep_name=rep_name.strip()
+            member=member.strip()
+           
+            if rep_name == member:
+                c_cursor=rep_name
+                
+                clusters[c_cursor] = {'gene_ids':[]} 
+                clusters[c_cursor]['representative'] = member
+                cluster_count=cluster_count+1
+                
+            else:
+                clusters[c_cursor]['gene_ids'].append(member)                
+
+           
+                
+    diamond_db = os.path.join(ref_db_dir, 'genefamyly_diamond_db')
+    cmd = f'./diamond makedb --in {represent_corrected_fasta} -d {diamond_db} -p {args.threads} --quiet'
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond makedb for consensus file')
+    
+    for k in clusters.keys():
+        clusters[k]['genename']=map_id_des[k]['genename']
+        clusters[k]['description']=map_id_des[k]['des']
+    # convert to a simple dictionary
+    json.dump(clusters, open(os.path.join(ref_db_dir, 'gene_family_clusters.json'), 'w'), indent=4, sort_keys=True)
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run make gene family db with 98% identity -- time taken {str(elapsed)}')
+    
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
@@ -1093,7 +1363,8 @@ def main():
         description='Add pipeline: add sample into previous collection',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    add_cmd.set_defaults(func=run_add_sample_pipeline)
+    add_cmd.set_defaults(func=run_add_sample_pipeline2)
+    #main_cmd.add_argument('-m', '--mode', help='mode running', required=True, type=str)
     add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
     add_cmd.add_argument('-c', '--collection-dir', help='previous collection directory', required=True, type=str)
@@ -1108,9 +1379,21 @@ def main():
     add_cmd.add_argument('--table', help='codon table', default=11, type=int)
     add_cmd.add_argument('-a', '--alignment', help='run alignment for each gene cluster', default=None, choices=['nucleotide', 'protein'])
     add_cmd.add_argument('-r', '--ratio-coverage', help='Ratio of coverage to align', default=0.0, type=float)
+    add_cmd.add_argument('--poa', help='Alignment with POA', default=False, action='store_true')
+   
     add_cmd.add_argument('--core', help='Percentage of core genes', default=0.99, type=float)
     add_cmd.add_argument('--soft', help='Percentage of soft core genes', default=0.95, type=float)
     add_cmd.add_argument('--shell', help='Percentage of shell genes', default=0.15, type=float)
+    
+    ref_cmd = subparsers.add_parser(
+        'build',
+        description='Build reference gene famyly clusters',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    ref_cmd.set_defaults(func=build_reference_gene_family_db)
+    ref_cmd.add_argument('-i', '--input', help='reference gene sequences in fasta format',required=True, type=str)
+    ref_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=1, type=int)
+    
     args = parser.parse_args()
     args.func(args)
 

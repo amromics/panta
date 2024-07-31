@@ -270,5 +270,20 @@ def combine_proteins_with_maps(out_dir, samples):
     elapsed = datetime.now() - starttime
     logging.info(f'Combine protein -- time taken {str(elapsed)}')
     return combined_faa_file, combined_faa_map
+def make_combine_maps(not_match_sequences_file,out_dir):
+    starttime = datetime.now()
+    combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
+    combined_faa_map = os.path.join(out_dir, 'temp', 'combined.map')
+    count = 0
+    with open(not_match_sequences_file) as fi ,open(combined_faa_file, 'w') as fh, open(combined_faa_map, 'w') as map_fh:
+        for seq in SeqIO.parse(fi, 'fasta'):
+            fh.write(f'>{count}\n{seq.seq}\n')
+            map_fh.write(f'{seq.id}\n')
+            count += 1
+            
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Combine un-match protein -- time taken {str(elapsed)}')
+    return combined_faa_file, combined_faa_map
 def hash_sequence(in_seq):
     return hash(in_seq)

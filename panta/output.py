@@ -49,6 +49,7 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             sample_dict = {}
             #length_list = []
             this_cluster = annotated_clusters[cluster]
+            
             for gene_id in this_cluster['gene_id']:
                 sample_id, seq_id = get_seq_ids(gene_id)
                 #sample_id = gene_annotation_dict[gene_id]['sample_id']
@@ -195,6 +196,7 @@ def create_representative_nucl(annotated_clusters,out_dir):
     for cluster in annotated_clusters:
         this_cluster = annotated_clusters[cluster]
         gene_rep_id=this_cluster['representative']
+        
         sample_id=gene_rep_id.split('-')[0]
         list_samples.add(sample_id)
         dict_rep[gene_rep_id]={'size':this_cluster['size'],'gene':cluster,'iswrite':False}
@@ -289,9 +291,9 @@ def create_outputs(annotated_clusters,samples,out_dir,t_core=0.99,t_soft=0.95,t_
         t_soft=t_soft,
         t_shell=t_shell
     )
-    representative_clusters_nucl=create_representative_nucl(
-    annotated_clusters=annotated_clusters,
-    out_dir=out_dir)
-    representative_clusters_prot=create_representative_prot(
-    annotated_clusters=annotated_clusters,
-    out_dir=out_dir)
+    # representative_clusters_nucl=create_representative_nucl(
+    # annotated_clusters=annotated_clusters,
+    # out_dir=out_dir)
+    # representative_clusters_prot=create_representative_prot(
+    # annotated_clusters=annotated_clusters,
+    # out_dir=out_dir)

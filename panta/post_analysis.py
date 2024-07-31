@@ -192,10 +192,10 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
 
             # check paralogs
             paralog_genes = find_paralogs(cluster)#, gene_annotation_dict)
-            if paralog_genes !=None:
-                logger.info(f'cluster representative seq {cluster[0]} has '+str(len(paralog_genes)))
-                for g in paralog_genes:
-                    logger.info(f'{g} ')
+            # if paralog_genes !=None:
+            #     logger.info(f'cluster representative seq {cluster[0]} has '+str(len(paralog_genes)))
+            #     for g in paralog_genes:
+            #         logger.info(f'{g} ')
 
             if paralog_genes == None:
                 clusters_not_paralogs.add(first_gene)
@@ -339,7 +339,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
     return annotated_clusters
 
 
-def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir):
+def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir, add=False):
     starttime = datetime.now()
     clusters_dir = os.path.join(out_dir, 'clusters')
     pan_ref_file = os.path.join(out_dir, 'pan_genome_reference.fna')
@@ -353,7 +353,13 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
                     if seq_id in gene_to_cluster_name:
                         cluster_name = gene_to_cluster_name[seq_id]
                         seq_fasta = SeqIO.FastaIO.as_fasta(seq)
-                        with open(os.path.join(clusters_dir, cluster_name, cluster_name + '.fna'), 'a') as out_fh:
+                        if add:
+                            gene_add_file_in_cluster=os.path.join(clusters_dir, cluster_name, cluster_name + '.add.fna')
+                            with open(gene_add_file_in_cluster, 'a') as out_fh:
+                                out_fh.write(seq_fasta)
+                        gene_file_in_cluster=os.path.join(clusters_dir, cluster_name, cluster_name + '.fna')
+                
+                        with open(gene_file_in_cluster, 'a') as out_fh:
                             out_fh.write(seq_fasta)
                         if seq_id in pan_ref_list:
                             ref_fh.write(seq_fasta)
@@ -364,11 +370,12 @@ def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list
     elapsed = datetime.now() - starttime
     logging.info(f'Create nucleotide sequence file for each gene cluster -- time taken {str(elapsed)}')
 
-def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
+def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir,add=False):
     starttime = datetime.now()
 
     for sample in samples:
         sample_id = sample['id']
+   
         faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
         with open(faa_file) as faa_fh:
             for seq in SeqIO.parse(faa_fh, 'fasta'):
@@ -376,7 +383,12 @@ def create_pro_file_for_each_cluster(samples, gene_to_cluster_name, out_dir):
                     #logger.error(f'Gene {seq.id} not in clusters? why')
                     continue
                 cluster_name = gene_to_cluster_name[seq.id]
-                with open(os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa'), 'a') as out_fh:
+                if add:
+                    gene_add_file_in_cluster=os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.add.faa')
+                    with open(gene_add_file_in_cluster, 'a') as out_fh:
+                        out_fh.write(SeqIO.FastaIO.as_fasta(seq))
+                gene_file_in_cluster=os.path.join(out_dir, 'clusters', cluster_name, cluster_name + '.faa')
+                with open(gene_file_in_cluster, 'a') as out_fh:
                     out_fh.write(SeqIO.FastaIO.as_fasta(seq))
 
     elapsed = datetime.now() - starttime
@@ -437,15 +449,18 @@ def run_poa_protein_alignment(annotated_clusters, out_dir, threads=1):
     pool = multiprocessing.Pool(processes=threads)
     results = []
     #with open(cmds_file,'w') as cmds:
+    cmd=''
     for cluster_name in annotated_clusters:
         cluster_dir = os.path.join(clusters_dir, cluster_name)
         gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
+        gene_graph_file = os.path.join(cluster_dir, cluster_name + '.faa.gfa')
         gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
         if not os.path.isfile(gene_seq_file):
             logger.info('{} does not exist'.format(gene_seq_file))
             continue
 
-        #check if the alignment has been done
+        #check if the alignment has been done or need to progressive
+        addset=set()
         if os.path.isfile(gene_aln_file):
             inset = set()
             with open(gene_seq_file) as fh:
@@ -460,18 +475,74 @@ def run_poa_protein_alignment(annotated_clusters, out_dir, threads=1):
             if inset == outset:
                 logger.info(f'Aligment for {cluster_name} exists, skip realignment')
                 continue
-
-        cmd = f"abpoa {gene_seq_file} -r1 > {gene_aln_file}"
+            else:
+                addset=inset.difference(outset)
+            print('len of '+gene_aln_file+' is '+str(len(outset))+', len of '+gene_seq_file+' is '+str(len(inset)))
+        if len(addset) > 0 and len(outset) > 1:
+            #progressive
+            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.add.faa')
+            cmd= f"abpoa -c -i {gene_aln_file} {gene_seq_file} -r1 > {gene_aln_file}" 
+        else:    
+            cmd = f"abpoa  {gene_seq_file} -c -r1 > {gene_aln_file}"
         #cmds.write(cmd + '\n')
         results.append(pool.apply_async(run_command,(cmd, None)))
     pool.close()
     pool.join()
     for result in results:
         if result.get() != 0:
-            raise Exception('Error running maftt')
+            raise Exception('Error running poa')
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run protein POA alignment -- time taken {str(elapsed)}')
+
+def run_hhm_profile_clusters(annotated_clusters, out_dir, threads=1):
+    starttime = datetime.now()
+
+    clusters_dir = os.path.join(out_dir, 'clusters')
+
+    #cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    #with open(cmds_file,'w') as cmds:
+    for cluster_name in annotated_clusters:
+        cluster_dir = os.path.join(clusters_dir, cluster_name)
+        gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
+        gene_hmm_file = os.path.join(cluster_dir, cluster_name + '.hmm')
+        gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
+        if not os.path.isfile(gene_aln_file):
+            logger.info('{} does not exist'.format(gene_aln_file))
+            continue
+        if not os.path.isfile(gene_seq_file):
+            logger.info('{} does not exist'.format(gene_seq_file))
+            continue
+        #check if the alignment has been done
+        if os.path.isfile(gene_aln_file):
+            inset = set()
+            with open(gene_seq_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    inset.add(seq.id)
+
+            outset = set()
+            with open(gene_aln_file) as fh:
+                for seq in Se-iqIO.parse(fh, 'fasta'):
+                    outset.add(seq.id)
+
+            if inset == outset and os.path.isfile(gene_hmm_file) :
+                logger.info(f'HMM profile for {cluster_name} exists, skip hmm build profile')
+                continue
+
+        cmd = f"hmmbuild --amino  --cpu 1  {gene_hmm_file} {gene_aln_file}"
+        #cmds.write(cmd + '\n')
+        results.append(pool.apply_async(run_command,(cmd, None)))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running poa')
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run protein hmmbuild -- time taken {str(elapsed)}')
+
 def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
     starttime = datetime.now()
 
@@ -490,6 +561,7 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
             continue
 
         #check if the alignment has been done
+        addset=set()
         if os.path.isfile(gene_aln_file):
             inset = set()
             with open(gene_seq_file) as fh:
@@ -504,9 +576,14 @@ def run_mafft_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
             if inset == outset:
                 logger.info(f'Aligment for {cluster_name} exists, skip realignment')
                 continue
-
-        cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
-        cmd += f' && rm {gene_seq_file}'
+            else:
+                addset=inset.difference(outset)
+        if len(addset)>0 and len(outset)>1:
+            gene_seq_file=os.path.join(cluster_dir, cluster_name + '.add.faa')
+            cmd= f"mafft --add {gene_seq_file} --reorder {gene_aln_file} > {gene_aln_file}"
+        else:
+            cmd = f"mafft --auto --quiet --thread 1 {gene_seq_file} > {gene_aln_file}"
+            #cmd += f' && rm {gene_seq_file}'
         #cmds.write(cmd + '\n')
         results.append(pool.apply_async(run_command,(cmd, None)))
     pool.close()
@@ -535,6 +612,7 @@ def run_poa_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
             continue
 
         #check if the alignment has been done
+        addset=set()
         if os.path.isfile(gene_aln_file):
             inset = set()
             with open(gene_seq_file) as fh:
@@ -549,9 +627,15 @@ def run_poa_nucleotide_alignment(annotated_clusters, out_dir, threads=1):
             if inset == outset:
                 logger.info(f'Aligment for {cluster_name} exists, skip realignment')
                 continue
-
-        cmd = f"abpoa {gene_seq_file} -r1 > {gene_aln_file}"
-        cmd += f' && rm {gene_seq_file}'
+            else:
+                addset=inset.difference(outset)
+        if len(addset) > 0 and len(outset) > 1:
+            #progressive
+            gene_seq_file = os.path.join(cluster_dir, cluster_name + '.add.fna')
+            cmd= f"abpoa -i {gene_aln_file} {gene_seq_file} -r1 > {gene_aln_file}" 
+        else: 
+            cmd = f"abpoa {gene_seq_file} -r1 > {gene_aln_file}"
+        #cmd += f' && rm {gene_seq_file}'
         #cmds.write(cmd + '\n')
         results.append(pool.apply_async(run_command,(cmd, None)))
     pool.close()
@@ -602,8 +686,8 @@ def create_nucleotide_alignment(annotated_clusters, out_dir):
                 new_record = SeqRecord(Seq(result), id = seq_id, description = '')
                 SeqIO.write(new_record, fh, 'fasta')
 
-        os.remove(nucleotide_seq_file)
-        os.remove(os.path.join(cluster_dir, cluster_name + '.faa'))
+        #os.remove(nucleotide_seq_file)
+        #os.remove(os.path.join(cluster_dir, cluster_name + '.faa'))
 
     elapsed = datetime.now() - starttime
     logging.info(f'Create  nucleotide alignment -- time taken {str(elapsed)}')
@@ -662,7 +746,7 @@ def create_core_gene_alignment(annotated_clusters,
     elapsed = datetime.now() - starttime
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
 
-def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, coverage_threshold=0.0, threads=1,poa=False):
+def run_gene_alignment(annotated_clusters, samples,oldsamples, collection_dir, alignment, coverage_threshold=0.0, threads=1,poa=False, add=False):
     count_threshold = int(len(samples) * coverage_threshold)
 
     #Need to have at least 2 genes before we can do alignment
@@ -682,8 +766,8 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
     clusters_to_align = []
     #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['sample_id','length'])
     for cluster_name in annotated_clusters:
-        if len(annotated_clusters[cluster_name]['gene_id']) < count_threshold:
-            continue
+        # if len(annotated_clusters[cluster_name]['gene_id']) < count_threshold:
+        #     continue
         clusters_to_align.append(cluster_name)
 
         cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
@@ -710,13 +794,17 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
                 logger.info(f'Clean up cluster {folder_name}')            
 
     if 'protein' == alignment:
-        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
-        create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir)
+        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir,add=add)
+        create_pro_file_for_each_cluster(samples, gene_to_cluster_name, collection_dir,add=add)
         if poa==True:
             run_poa_protein_alignment(clusters_to_align, collection_dir, threads=threads)
         else:
             run_mafft_protein_alignment(clusters_to_align, collection_dir, threads=threads)
+        
+        #run_hhm_profile_clusters(clusters_to_align,collection_dir,  threads=threads)
         create_nucleotide_alignment(clusters_to_align, collection_dir)
+        
+
     if 'nucleotide' == alignment:
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
         if poa==True:
@@ -724,9 +812,90 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
         else:
             run_mafft_nucleotide_alignment(clusters_to_align, collection_dir, threads=threads)
 
-    create_core_gene_alignment(annotated_clusters,samples,collection_dir)
+    create_core_gene_alignment(annotated_clusters,oldsamples,collection_dir)
 
-def create_gene_profile(cluster,out_dir,threads=4):
-    #make POA
-    #make HMM profile
-    pass
+def create_poa_protein_consensus(annotated_clusters, out_dir,threads=1):
+    starttime = datetime.now()
+
+    clusters_dir = os.path.join(out_dir, 'clusters')
+
+    #cmds_file = os.path.join(clusters_dir,"pro_align_cmds")
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    #with open(cmds_file,'w') as cmds:
+    for cluster_name in annotated_clusters:
+        cluster_dir = os.path.join(clusters_dir, cluster_name)
+        gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
+        #gene_hmm_file = os.path.join(cluster_dir, cluster_name + '.hmm')
+        gene_seq_file = os.path.join(cluster_dir, cluster_name + '.faa')
+        
+        gene_seq_consensus_file = os.path.join(cluster_dir, cluster_name + '.consensus.faa')
+        #if not os.path.isfile(gene_aln_file):
+        #    logger.info('{} does not exist'.format(gene_aln_file))
+        #    continue
+        if not os.path.isfile(gene_seq_file):
+            logger.info('{} does not exist'.format(gene_seq_file))
+            continue
+        #check if the alignment has been done
+        if os.path.isfile(gene_aln_file):
+            inset = set()
+            with open(gene_seq_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    inset.add(seq.id)
+
+            outset = set()
+            with open(gene_aln_file) as fh:
+                for seq in SeqIO.parse(fh, 'fasta'):
+                    outset.add(seq.id)
+
+            if inset == outset and os.path.isfile(gene_seq_consensus_file) :
+                logger.info(f'Consensus for {cluster_name} exists, skip consensus by poa')
+                continue
+
+        cmd = f"abpoa -c -t BLOSUM62.mtx {gene_seq_file} > {gene_seq_consensus_file} && sed -i 's/^>Consensus_sequence/>{cluster_name}/' {gene_seq_consensus_file}"
+        results.append(pool.apply_async(run_command,(cmd, None)))
+        
+        annotated_clusters[cluster_name]['representative']=gene_seq_consensus_file
+        #cmds.write(cmd + '\n')
+        
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running poa consensus')
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run create protein consensus by poa -- time taken {str(elapsed)}')
+def make_protein_consensus_db(annotated_clusters, out_dir,method='diamond',threads=1):
+    consensus_fasta = os.path.join(out_dir, 'consensus.fasta')
+    for cluster_name in annotated_clusters:
+        if os.path.isfile(annotated_clusters[cluster_name]["representative"]):
+            cmd = f'cat {annotated_clusters[cluster_name]["representative"]} >> {consensus_fasta}'
+            ret = run_command(cmd)
+            if ret != 0:
+                logger.info(f'Concat consensus of {cluster_name} failed!')
+    if method=='diamond':
+        diamond_db = os.path.join(out_dir, 'consenus_diamond_db')
+        cmd = f'./diamond makedb --in {consensus_fasta} -d {diamond_db} -p {threads} --quiet'
+        #ret = os.system(cmd)
+        ret = run_command(cmd)
+        if ret != 0:
+            raise Exception('Error running diamond makedb for consensus file')
+    if method=='mmseq':
+        mmseq_db = os.path.join(out_dir, 'consensus_mmseq_db')
+        cmd = f'mmseqs createdb {consensus_fasta} {mmseq_db}'
+        #ret = os.system(cmd)
+        ret = run_command(cmd)
+        if ret != 0:
+            raise Exception('Error running mmseqs createdb consensus file')
+def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters):
+    count={}
+    for clustername in new_annotated_clusters:
+        if clustername in old_annotated_clusters:
+            #search max suffix
+            suffix=1
+            while clustername+'_'+str(suffix) in old_annotated_clusters:
+                suffix=suffix+1
+            
+            old_annotated_clusters[clustername+'_'+str(suffix)]=new_annotated_clusters[clustername]
+    return old_annotated_clusters

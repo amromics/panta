@@ -48,14 +48,20 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             row = []
             sample_dict = {}
             #length_list = []
+            num_seq=0
             this_cluster = annotated_clusters[cluster]
-            
-            for gene_id in this_cluster['gene_id']:
-                sample_id, seq_id = get_seq_ids(gene_id)
-                #sample_id = gene_annotation_dict[gene_id]['sample_id']
-                #length = gene_annotation_dict[gene_id]['length']
-                sample_dict.setdefault(sample_id, []).append(gene_id)
-                #length_list.append(length)
+            #print(this_cluster)
+            if this_cluster['size']==0:
+                continue
+            for g in this_cluster['groups']:
+
+                for gene_id in g['gene_id']:
+                    num_seq=num_seq+1
+                    sample_id, seq_id = get_seq_ids(gene_id)
+                    #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                    #length = gene_annotation_dict[gene_id]['length']
+                    sample_dict.setdefault(sample_id, []).append(gene_id)
+                    #length_list.append(length)
 
             # Gene
             row.append(cluster)
@@ -66,7 +72,7 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             # No. sequences
             row.append(this_cluster['size']) # row.append(len(this_cluster['gene_id']))
             # Avg sequences per isolate
-            avg_seq = len(this_cluster['gene_id']) / len(sample_dict)
+            avg_seq = num_seq / len(sample_dict)
             row.append(round(avg_seq,2))
             # Min group size nuc
             row.append(this_cluster['min_length']) # row.append(min(length_list))
@@ -104,17 +110,20 @@ def create_rtab(annotated_clusters, samples, out_dir):
 
         # write row
         for cluster in annotated_clusters:
+            if annotated_clusters[cluster]['size']==0:
+                continue
             row = []
             # Gene
             row.append(cluster)
             # Samples
             sample_dict = {}
-            for gene_id in annotated_clusters[cluster]['gene_id']:
-                #sample_id = gene_annotation_dict[gene_id]['sample_id']
-                sample_id, seq_id = get_seq_ids(gene_id)
+            for g in annotated_clusters[cluster]['groups']:
+                for gene_id in g['gene_id']:
+                    #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                    sample_id, seq_id = get_seq_ids(gene_id)
 
-                #length = gene_annotation_dict[gene_id]['length']
-                sample_dict.setdefault(sample_id, []).append(gene_id)
+                    #length = gene_annotation_dict[gene_id]['length']
+                    sample_dict.setdefault(sample_id, []).append(gene_id)
             for sample in samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])

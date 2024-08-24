@@ -3,7 +3,9 @@ import logging
 import multiprocessing
 from datetime import datetime
 from panta.utils import run_command, parse_cluster_file, chunk_fasta_file
-
+import json
+from Bio.Seq import Seq
+from Bio import SeqIO
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +81,7 @@ def run_cd_hit_with_map(faa_file, map_file, out_dir, threads=4):
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
     return cd_hit_represent_corrected_fasta, clusters_new
 
-def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):        
+def run_mmseq_with_map(faa_file, map_file, out_dir,group_dir, threads=4):        
     starttime = datetime.now()
     
     mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
@@ -90,7 +92,7 @@ def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):
         raise Exception('Error running mmseq')        
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run mmseq2 with 98% identity part 1 -- time taken {elapsed}')
+    #logging.info(f'Run mmseq2 with 98% identity part 1 -- time taken {elapsed}')
 
     clusters = {}
     gene_map = {}
@@ -106,11 +108,14 @@ def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):
             if line[0] == '>':
                 ofh.write(f'>{gene_map[line[1:].strip()]}\n')
             else:
-                ofh.write(line)      
+                ofh.write(line)    
+    with open(represent_corrected_fasta) as handle:
+        for record in SeqIO.parse(handle, "fasta"):
+            SeqIO.write(record, os.path.join(group_dir,record.id+".faa"), "fasta")            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run mmseq with 98% identity part 1 -- time taken {elapsed}')
-    c_cursor=0
+    c_cursor=None
     cluster_count=0
     with open(mmseq_cluster_file, 'r') as fh:
         for line in fh:
@@ -119,14 +124,14 @@ def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):
             member=member.strip()
            
             if rep_name == member:
-                c_cursor=cluster_count
+                c_cursor=gene_map[member]
                 
-                clusters[c_cursor] = {'gene_names':[]} 
-                clusters[c_cursor]['representative'] = gene_map[member]
+                clusters[gene_map[member]] = {'gene_id':[gene_map[member]]} 
+                clusters[gene_map[member]]['representative'] = gene_map[member]
                 cluster_count=cluster_count+1
                 
             else:
-                clusters[c_cursor]['gene_names'].append(gene_map[member])                
+                clusters[c_cursor]['gene_id'].append(gene_map[member])                
 
            
                 
@@ -134,12 +139,12 @@ def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):
     del gene_map    
 
     # convert to a simple dictionary
-    clusters_new = {}
-    for cluster_name in clusters:
-        clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+    # clusters_new = {}
+    # for cluster_name in clusters:
+    #     clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
     elapsed = datetime.now() - starttime
-    logging.info(f'Run diamond with 98% identity -- time taken {str(elapsed)}')
-    return represent_corrected_fasta, clusters_new
+    logging.info(f'Run mmseq with 98% identity, {cluster_count} groups -- time taken {str(elapsed)}')
+    return represent_corrected_fasta, clusters
 def run_diamond_with_map(faa_file, map_file, out_dir, cover=90, threads=4):        
     starttime = datetime.now()
     
@@ -523,7 +528,7 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
 
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Protein alignment with Diamond -- time taken {str(elapsed)}')
+    logging.info(f'Protein pairwise alignment with Diamond -- time taken {str(elapsed)}')
     return diamond_result
 
 def pairwise_alignment_mmseq(database_fasta, query_fasta, out_dir, evalue=1E-6 ,threads=4):
@@ -603,13 +608,13 @@ def filter_blast_result(blast_result,
     return filtered_blast_result
 
             
-def cluster_with_mcl(blast_result, out_dir, threads=4):
+def cluster_with_mcl(blast_result, out_dir, threads=4,inflation=1.5):
     starttime = datetime.now()
     if threads > 1:
         threads = threads - 1
     
     mcl_file = os.path.join(out_dir, 'mcl_clusters')
-    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I 1.5 -te {threads} -o {mcl_file} > /dev/null 2>&1"
+    cmd = f"mcxdeblast -m9 --score r --line-mode=abc {blast_result} 2> /dev/null | mcl - --abc -I {inflation} -te {threads} -o {mcl_file} > /dev/null 2>&1"
     #ret = os.system(cmd)
     ret = run_command(cmd)
     if ret != 0:
@@ -619,7 +624,7 @@ def cluster_with_mcl(blast_result, out_dir, threads=4):
     return mcl_file
 
 
-def reinflate_clusters(cd_hit_clusters, mcl_file):
+def reinflate_clusters(groups, mcl_file):
     """
     Return
     ------
@@ -628,7 +633,7 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
     """    
     starttime = datetime.now()
     clusters = {}
-    clusters.update(cd_hit_clusters)
+    clusters.update(groups)
 
     inflated_clusters = []
     # Inflate genes from cdhit which were sent to mcl
@@ -638,21 +643,62 @@ def reinflate_clusters(cd_hit_clusters, mcl_file):
             line = line.rstrip('\n')
             genes = line.split('\t')
             for gene in genes:
-                inflated_genes.append(gene)
-                if gene in cd_hit_clusters:
-                    inflated_genes.extend(cd_hit_clusters[gene])
-                    del cd_hit_clusters[gene]
+                #inflated_genes.append(gene)
+                if gene in groups:
+                    inflated_genes.extend(groups[gene]['gene_id'])
+                    del groups[gene]
             inflated_clusters.append(inflated_genes)
     
     # Inflate any clusters that were in the clusters file but not sent to mcl
-    for gene in cd_hit_clusters:
+    count_not_mcl=0
+    for gene in groups:
+        count_not_mcl=count_not_mcl+1
+
         inflated_genes = []
-        inflated_genes.append(gene)
-        inflated_genes.extend(cd_hit_clusters[gene])
+        #inflated_genes.append(gene)
+        inflated_genes.extend(groups[gene]['gene_id'])
         inflated_clusters.append(inflated_genes)
     
     elapsed = datetime.now() - starttime
-    logging.info(f'Reinflate clusters -- time taken {str(elapsed)}')
+    logging.info(f'Reinflate new {len(inflated_clusters)} clusters with refer to {len(clusters.keys())} groups, {count_not_mcl} groups not found in MCL clustering -- time taken {str(elapsed)}')
+    return inflated_clusters, clusters
+def reinflate_clusters_by_groups(groups, mcl_file):
+    """
+    Return
+    ------
+        - inflated_clusters: list of list of genes
+        -clusters: dict(cluster_id->[gene_ids])
+    """    
+    starttime = datetime.now()
+    clusters = {}
+    clusters.update(groups)
+
+    inflated_clusters = []
+    # Inflate genes from cdhit which were sent to mcl
+    with open(mcl_file, 'r') as fh:
+        for line in fh:
+            inflated_genes = []
+            line = line.rstrip('\n')
+            genes = line.split('\t')
+            for gene in genes:
+                #inflated_genes.append(gene)
+                if gene in groups:
+                    inflated_genes.append(groups[gene])
+                    del groups[gene]
+            inflated_clusters.append(inflated_genes)
+    
+    # Inflate any clusters that were in the clusters file but not sent to mcl
+    count_not_mcl=0
+    for gene in groups:
+        count_not_mcl=count_not_mcl+1
+
+        inflated_genes = []
+        #inflated_genes.append(gene)
+        inflated_genes.append(groups[gene])
+        inflated_clusters.append(inflated_genes)
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Reinflate new {len(inflated_clusters)} clusters with refer to {len(clusters.keys())} groups, {count_not_mcl} groups not found in MCL clustering -- time taken {str(elapsed)}')
     return inflated_clusters, clusters
 def make_clusters_from_mcl(mcl_file, map_file):
     clusters = {}
@@ -692,3 +738,214 @@ def make_clusters_from_mcl(mcl_file, map_file):
         inflated_genes.extend(clusters[cluster_name]['gene_names'])
         inflated_clusters.append(inflated_genes)
     return inflated_clusters, clusters
+def match_seqs_to_ref(out_dir,seqs_file, groups, refdb,ref_clusters, threads=1, evalue=1E-6):
+    starttime = datetime.now()
+    diamond_result = os.path.join(out_dir, 'ref_diamond.tsv')
+    cmd = f'./diamond blastp -q {seqs_file} -d {refdb} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --sensitive --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond blastp')
+    top_match={}
+    for line in open(diamond_result, 'r'):
+        cells = line.rstrip().split('\t')            
+
+        sid=cells[0]
+        clustername=cells[1]
+        pident = float(cells[2]) / 100
+        alignment_length = int(cells[3]) # * 3
+        qlen = int(cells[12])# * 3 + 3
+        slen = int(cells[13])# * 3 + 3
+        short_seq = min(qlen, slen)
+        long_seq = max(qlen, slen)
+        len_diff = short_seq / long_seq
+        align_short = alignment_length / short_seq
+        align_long = alignment_length / long_seq
+        if pident <= 0.7 or len_diff <= 0.7 or align_short <= 0.7 or align_long <= 0.7:
+            continue
+        if not cells[0] in top_match.keys():
+            top_match[cells[0]]={'len':qlen,'cluster':clustername,'ident':pident} 
+        if top_match[cells[0]]['ident']<pident:
+            top_match[cells[0]]['cluster']=clustername
+            top_match[cells[0]]['ident']=pident
+    un_match_combined_faa_file = os.path.join(out_dir, 'unmatch_combined.faa')
+    clusters={}
+    # gene_map = {}
+    # count = 0
+    # with open(map_file, 'r') as fh:
+    #     for line in fh:
+    #         line = line.strip()
+    #         gene_map[f'{line}'] = count
+    #         count += 1
+    matched_cluster=set()
+    for sid in top_match.keys():
+        c=top_match[sid]['cluster']
+        if not c in clusters.keys():
+            
+            clusters[c]={}
+            clusters[c]['gene_id']=[]
+            clusters[c]['max_length']=0
+            clusters[c]['mean_length']=0
+            clusters[c]['min_length']=1E6
+            clusters[c]['gene_name']=ref_clusters[c]['gene_name']
+            clusters[c]['product']=ref_clusters[c]['description']
+            clusters[c]['representative']=''
+            clusters[c]['size']=0
+            matched_cluster.add(c)
+        clusters[c]['gene_id'].append(sid)
+        clusters[c]['gene_id'].extend(groups[sid])
+        new_size=clusters[c]['size']+1+len(groups[sid])
+        clusters[c]['size']=new_size
+        clusters[c]['mean_length']=float((int(clusters[c]['mean_length'])*(new_size-1-len(groups[sid]))+int(top_match[sid]['len'])))/(new_size-len(groups[sid]))
+        clusters[c]['max_length']=max(int(clusters[c]['max_length']),int(top_match[sid]['len']))
+        clusters[c]['min_length']=min(int(clusters[c]['min_length']),int(top_match[sid]['len']))
+        del groups[sid]
+    """ for c in ref_clusters.keys():
+        if not c in clusters.keys():
+            clusters[c]={}
+            clusters[c]['gene_id']=[]
+            clusters[c]['max_length']=0
+            clusters[c]['mean_length']=0
+            clusters[c]['min_length']=1E6
+            clusters[c]['product']=ref_clusters[c]['description']
+            clusters[c]['representative']=ref_clusters[c]['representative']
+            clusters[c]['size']=0 """
+    
+    json.dump(clusters, open(os.path.join(out_dir, 'clusters_by_ref.json'), 'w'), indent=4, sort_keys=True)
+    count_unmatched=0
+    count_num_input=0
+    with open(un_match_combined_faa_file, 'w') as fh, open(seqs_file, 'rt') as fi:
+        for newseq in SeqIO.parse(fi,'fasta'):
+            count_num_input=count_num_input+1
+            if not newseq.id in top_match.keys():
+                #newseq.id=str(gene_map[newseq.id])
+                newseq.description=''
+                newseq.name=''
+                SeqIO.write(newseq,fh,'fasta')
+                count_unmatched=count_unmatched+1
+    #del gene_map 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Remain {len(groups.keys())} not matched')
+    logging.info(f'Matching {count_num_input} groups to ref clusters, {len(top_match.keys())} matched, form {len(clusters.keys())} ref clusters,  {count_unmatched} groups not matched  -- time taken {str(elapsed)}')
+    return un_match_combined_faa_file,clusters,groups
+def match_seqs_to_ref_by_nearest_group(out_dir,seqs_file, groups, refdb,refcdb,ref_clusters, threads=1, evalue=1E-6):
+    starttime = datetime.now()
+    diamond_result = os.path.join(out_dir, 'ref_diamond.tsv')
+    cmd = f'./diamond blastp -q {seqs_file} -d {refdb} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --sensitive --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond blastp')
+    top_match={}
+    for line in open(diamond_result, 'r'):
+        cells = line.rstrip().split('\t')            
+
+        sid=cells[0]
+        clustername=cells[1]
+        pident = float(cells[2]) / 100
+        alignment_length = int(cells[3]) # * 3
+        qlen = int(cells[12])# * 3 + 3
+        slen = int(cells[13])# * 3 + 3
+        short_seq = min(qlen, slen)
+        long_seq = max(qlen, slen)
+        len_diff = short_seq / long_seq
+        align_short = alignment_length / short_seq
+        align_long = alignment_length / long_seq
+        if pident <= 0.7 or len_diff <= 0.7 or align_short <= 0.7 or align_long <= 0.7:
+            continue
+        if not sid in top_match.keys():
+            top_match[sid]=[]
+        top_match[sid].append({'len':qlen,'cluster':clustername,'ident':pident} )
+       
+
+        
+    un_match_combined_faa_file = os.path.join(out_dir, 'unmatch_combined.faa')
+    clusters={}
+    # gene_map = {}
+    # count = 0
+    # with open(map_file, 'r') as fh:
+    #     for line in fh:
+    #         line = line.strip()
+    #         gene_map[f'{line}'] = count
+    #         count += 1
+    matched_cluster=set()
+    dict_seqs={}
+    temseqdir=os.path.join(out_dir, 'temp_seqs')
+    temmatchingdir=os.path.join(out_dir, 'temp_matching')
+    os.mkdir(temseqdir)
+    os.mkdir(temmatchingdir)
+    with open(seqs_file, 'r') as fh:
+        for seq in SeqIO.parse(fh,'fasta'):
+            temp_seq= os.path.join(temseqdir, seq.id+".faa")
+            with open(temp_seq, 'w') as fo:
+                SeqIO.write(seq,fo,'fasta')
+        #blast with groups in matched clusters
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    for sid in top_match.keys():
+        os.mkdir(temmatchingdir+"/"+sid)
+        if len(top_match[sid])<=1:
+            continue
+        for c in top_match[sid]:
+            diamondout=temmatchingdir+"/"+sid+"/"+c['cluster']+".tsv"
+            cmd = f'./diamond blastp --quiet  -q {os.path.join(temseqdir,sid+".faa")} -d {refcdb+"/"+c["cluster"]+".db.dmnd"} -p 1 --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --sensitive --max-target-seqs 2000 2> /dev/null 1> {diamondout}'
+            results.append(pool.apply_async(run_command,(cmd, None)))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running diamond with ref clusters')
+    for sid in top_match.keys():
+        neartest_cluster=top_match[sid][0]
+        best_ident=0
+        if len(top_match[sid])>1:
+            for c in top_match[sid]:
+                diamondout=temmatchingdir+"/"+sid+"/"+c['cluster']+".tsv"
+                #read and note max identity group
+                for line in open(diamondout, 'r'):
+                    cells = line.rstrip().split('\t')            
+
+                    sid=cells[0]
+                    groupname=cells[1]
+                    pident = float(cells[2]) / 100
+                    if pident>best_ident:
+                        best_ident=pident
+                        neartest_cluster=c
+        nearest_cluster_name=neartest_cluster['cluster']
+        if not nearest_cluster_name in clusters.keys():
+            
+            clusters[nearest_cluster_name]={}
+            clusters[nearest_cluster_name]['groups']=[]
+            clusters[nearest_cluster_name]['max_length']=0
+            clusters[nearest_cluster_name]['mean_length']=0
+            clusters[nearest_cluster_name]['min_length']=1E6
+            clusters[nearest_cluster_name]['gene_name']=ref_clusters[nearest_cluster_name]['gene_name']
+            clusters[nearest_cluster_name]['product']=ref_clusters[nearest_cluster_name]['description']
+            clusters[nearest_cluster_name]['representative']=''
+            clusters[nearest_cluster_name]['size']=0
+            clusters[nearest_cluster_name]['source']='reference'
+            matched_cluster.add(nearest_cluster_name)
+        clusters[nearest_cluster_name]['groups'].append(groups[sid])
+        #clusters[neartest_cluster]['gene_id'].extend(groups[sid])
+        #TODO: need to recalculate 
+        new_size=clusters[nearest_cluster_name]['size']+1+len(groups[sid]['gene_id'])
+        clusters[nearest_cluster_name]['size']=new_size
+        clusters[nearest_cluster_name]['mean_length']=float((int(clusters[nearest_cluster_name]['mean_length'])*(new_size-1-len(groups[sid]['gene_id']))+int(neartest_cluster['len'])))/(new_size-len(groups[sid]['gene_id']))
+        clusters[nearest_cluster_name]['max_length']=max(int(clusters[nearest_cluster_name]['max_length']),int(neartest_cluster['len']))
+        clusters[nearest_cluster_name]['min_length']=min(int(clusters[nearest_cluster_name]['min_length']),int(neartest_cluster['len']))
+        del groups[sid]
+    json.dump(clusters, open(os.path.join(out_dir, 'clusters_by_ref.json'), 'w'), indent=4, sort_keys=True)
+    count_unmatched=0
+    count_num_input=0
+    with open(un_match_combined_faa_file, 'w') as fh, open(seqs_file, 'rt') as fi:
+        for newseq in SeqIO.parse(fi,'fasta'):
+            count_num_input=count_num_input+1
+            if not newseq.id in top_match.keys():
+                #newseq.id=str(gene_map[newseq.id])
+                newseq.description=''
+                newseq.name=''
+                SeqIO.write(newseq,fh,'fasta')
+                count_unmatched=count_unmatched+1
+    #del gene_map 
+    elapsed = datetime.now() - starttime
+    logging.info(f'Remain {len(groups.keys())} not matched')
+    logging.info(f'Matching {count_num_input} groups to ref clusters, {len(top_match.keys())} matched, form {len(clusters.keys())} ref clusters,  {count_unmatched} groups not matched  -- time taken {str(elapsed)}')
+    return un_match_combined_faa_file,clusters,groups   

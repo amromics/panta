@@ -10,6 +10,9 @@ import csv
 from datetime import datetime
 from panta import *
 from panta.utils import *
+from Bio.Seq import Seq
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(levelname)s : %(message)s',
@@ -389,7 +392,7 @@ def run_main_pipeline_g_diamond_a_diamond_c_mcl(args):
         threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=diamond_groups,
+        groups=diamond_groups,
         mcl_file=mcl_file)
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
 
@@ -517,7 +520,7 @@ def run_main_pipeline_g_cdhit_a_diamond_c_mcl(args):
         threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=cd_hit_groups,
+        groups=cd_hit_groups,
         mcl_file=mcl_file)
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
 
@@ -863,6 +866,295 @@ def run_main_pipeline_c_mmseq(args):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
+def run_main_pipeline_m_ref_g_mmseq_a_diamond_c_mcl(args):
+    starttime = datetime.now()
+
+    out_dir = args.outdir
+    threads = args.threads
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+
+    temp_dir = os.path.join(out_dir, 'temp')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+    ref_db='gene_families/gene_families_diamond_db.dmnd'
+    ref_clusters = json.load(open('gene_families/gene_family_clusters.json','r'))
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+
+    data_preparation.extract_proteins_tofile(
+        samples=samples,
+        out_dir=out_dir,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
+        table=args.table,
+        threads=threads)
+
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
+
+    # main_pipeline
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=out_dir,
+        samples=samples)
+
+    """ cd_hit_represent_fasta, cd_hit_groups = main_pipeline.run_cd_hit_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_groups)}')  """
+    mmseq_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    not_match_represent_faa,clusters_by_ref,remain_groups= main_pipeline.match_seqs_to_ref(
+        out_dir = temp_dir,
+        seqs_file = mmseq_represent_fasta,
+        
+        groups=mmseq_groups,
+        refdb=ref_db,
+        ref_clusters=ref_clusters,
+        
+        threads=threads)
+    # mmseq_represent_fasta2, mmseq_groups2 = main_pipeline.run_mmseq_with_map(
+    #     faa_file=not_match_faa,
+    #     map_file=combined_faa_map,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    # logger.info(f'len new mmseq_clusters = {len(mmseq_groups2)}') 
+
+    #print(f'Diamond = {args.diamond}')
+    blast_result = main_pipeline.pairwise_alignment_diamond(
+      
+        database_fasta = not_match_represent_faa,
+        query_fasta = not_match_represent_faa,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = filtered_blast_result,
+        threads=threads)
+
+    inflated_clusters, clusters = main_pipeline.reinflate_clusters(
+        groups=remain_groups,
+        mcl_file=mcl_file)
+    logger.info(f'len new inflated_clusters = {len(inflated_clusters)} len groups = {len(clusters)}')
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs(
+        gene_position_fn=gene_position_fn,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    logger.info(f'len new split_clusters = {len(split_clusters)}')
+
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=split_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+
+    annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,clusters_by_ref)
+
+    output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
+    post_analysis.create_poa_protein_consensus(annotated_clusters,out_dir,gene_families_dir='gene_families',threads=threads)
+    post_analysis.make_protein_consensus_db(annotated_clusters,out_dir,threads=threads)
+    post_analysis.create_protein_db_for_clusters(annotated_clusters,out_dir,group_seq_dir,threads=threads)
+ 
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    # output for next run
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv')
+
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
+
+    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    # json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
+def run_main_pipeline_m_ref_g_mmseq_a_diamond_c_mcl_nearest_group(args):
+    starttime = datetime.now()
+
+    out_dir = args.outdir
+    threads = args.threads
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+    print("using "+str(threads) +" CPU cores")
+    temp_dir = os.path.join(out_dir, 'temp')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+    ref_db='gene_families/gene_families_diamond_db.dmnd'
+    ref_cdb='gene_families/db'
+    ref_clusters = json.load(open('gene_families/gene_family_clusters.json','r'))
+    group_seq_dir=os.path.join(out_dir, 'groups')
+    os.makedirs(group_seq_dir)
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+
+    data_preparation.extract_proteins_tofile(
+        samples=samples,
+        out_dir=out_dir,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
+        table=args.table,
+        threads=threads)
+
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
+
+    # main_pipeline
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=out_dir,
+        samples=samples)
+
+    """ cd_hit_represent_fasta, cd_hit_groups = main_pipeline.run_cd_hit_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    logger.info(f'len cd_hit_clusters = {len(cd_hit_groups)}')  """
+    mmseq_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        group_dir=group_seq_dir,
+        threads=threads)
+    not_match_represent_faa,clusters_by_ref,remain_groups= main_pipeline.match_seqs_to_ref_by_nearest_group(
+        out_dir = temp_dir,
+        seqs_file = mmseq_represent_fasta,
+        refcdb=ref_cdb,
+        groups=mmseq_groups,
+        refdb=ref_db,
+        ref_clusters=ref_clusters,
+        
+        threads=threads)
+    # mmseq_represent_fasta2, mmseq_groups2 = main_pipeline.run_mmseq_with_map(
+    #     faa_file=not_match_faa,
+    #     map_file=combined_faa_map,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    # logger.info(f'len new mmseq_clusters = {len(mmseq_groups2)}') 
+
+    #print(f'Diamond = {args.diamond}')
+    blast_result = main_pipeline.pairwise_alignment_diamond(
+      
+        database_fasta = not_match_represent_faa,
+        query_fasta = not_match_represent_faa,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = filtered_blast_result,
+        inflation=2,
+        threads=threads)
+
+    inflated_clusters, clusters = main_pipeline.reinflate_clusters_by_groups(
+        groups=remain_groups,
+        mcl_file=mcl_file)
+    logger.info(f'len new inflated_clusters = {len(inflated_clusters)} len groups = {len(clusters)}')
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs_by_group(
+        gene_position_fn=gene_position_fn,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    logger.info(f'len new split_clusters = {len(split_clusters)}')
+
+    annotated_clusters = post_analysis.annotate_cluster_main(
+        unlabeled_clusters=split_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+
+    annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,clusters_by_ref)
+
+    output.create_outputs(annotated_clusters,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
+    post_analysis.create_poa_protein_consensus(annotated_clusters,out_dir,gene_families_dir='gene_families',threads=threads)
+    post_analysis.make_protein_consensus_db(annotated_clusters,out_dir,threads=threads)
+    post_analysis.create_protein_db_for_clusters(annotated_clusters,out_dir,group_seq_dir,threads=threads)
+    json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
+    # output for next run
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv')
+
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
+
+    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(cd_hit_represent_fasta, os.path.join(out_dir, 'representative.fasta'))
+    # json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
 def run_main(args):
     if args.mode=='a_diamond_c_mcl':
         run_main_pipeline_a_diamond_c_mcl(args)
@@ -878,7 +1170,8 @@ def run_main(args):
         run_main_pipeline_c_diamond(args)
     if args.mode=='g_diamond_a_diamond_c_diamond':
         run_main_pipeline_g_diamond_a_diamond_c_diamond(args)
-    
+    if args.mode=='m_ref_g_mmseq_a_diamond_c_mcl':
+        run_main_pipeline_m_ref_g_mmseq_a_diamond_c_mcl_nearest_group(args)
 def run_add_sample_pipeline(args):
     starttime = datetime.now()
 
@@ -1075,8 +1368,9 @@ def run_add_sample_pipeline2(args):
 
     temp_dir = os.path.join(collection_dir, 'temp')
     if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-        os.makedirs(temp_dir)
+        #shutil.rmtree(temp_dir)
+        #os.makedirs(temp_dir)
+        pass
     else:
         os.makedirs(temp_dir)
 
@@ -1095,7 +1389,8 @@ def run_add_sample_pipeline2(args):
 
     old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
     old_clusters = json.load(open(os.path.join(collection_dir, 'annotated_clusters.json'), 'r'))
-
+    ref_clusters = json.load(open('gene_families/gene_family_clusters.json','r'))
+    ref_db='gene_families/gene_families_diamond_db.dmnd'
     old_concensus_faa = os.path.join(collection_dir, 'consensus.fasta')
     if not os.path.isfile(old_concensus_faa):
         raise Exception(f'{old_concensus_faa} does not exist')
@@ -1123,31 +1418,54 @@ def run_add_sample_pipeline2(args):
         existing_gene_position_fn=existing_gene_position_fn,
         threads=threads,
         )
-    new_combined_faa = data_preparation.combine_proteins(
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
         out_dir=collection_dir,
         samples=new_samples)
-
-    not_match_faa = add_sample_pipeline.match_new_sequence(
-        new_seqs_file = new_combined_faa,
+    #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(new_combined_faa,collection_dir)
+    mmseq_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        threads=threads)
+    not_match_faa1,old_clusters,mmseq_groups = add_sample_pipeline.extend_by_match_seqs_to_ref(
+        seqs_file = mmseq_represent_fasta,
+        groups=mmseq_groups,
         old_clusters=old_clusters,
-        out_dir = collection_dir,
+        out_dir = temp_dir,
+        refdb=ref_db,
+        ref_clusters=ref_clusters,
+        threads=threads)
+    not_match_faa2,mmseq_groups = add_sample_pipeline.match_new_sequence_to_oldcluster(
+        new_seqs_file = not_match_faa1,
+        old_clusters=old_clusters,
+        out_dir = temp_dir,
+        groups=mmseq_groups,
         consensusdb=old_consensus_db,
         threads=threads)
-    combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(not_match_faa,collection_dir)
+    
+    # not_match_faa2,old_clusters,mmseq_groups = add_sample_pipeline.extend_by_match_seqs_to_ref(
+    #     seqs_file = not_match_faa1,
+    #     groups=mmseq_groups,
+    #     old_clusters=old_clusters,
+    #     out_dir = temp_dir,
+    #     refdb=ref_db,
+    #     ref_clusters=ref_clusters,
+    #     threads=threads)
+    #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(not_match_faa2,collection_dir)
     # not_match_represent_faa, not_match_clusters = main_pipeline.run_cd_hit(
     #     faa_file=not_match_faa,
     #     out_dir=temp_dir,
     #     threads=threads)
-    group_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
-        faa_file=combined_faa_file,
-        map_file=combined_faa_map,
-        out_dir=temp_dir,
-        threads=threads)
-    logger.info(f'len mmseq_clusters = {len(mmseq_groups)}') 
+    # group_represent_fasta2, mmseq_groups2 = main_pipeline.run_mmseq_with_map(
+    #     faa_file=combined_faa_file,
+    #     map_file=combined_faa_map,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    # logger.info(f'len mmseq_clusters 2 = {len(mmseq_groups2)}') 
     blast_result = main_pipeline.pairwise_alignment_diamond(
       
-        database_fasta = group_represent_fasta,
-        query_fasta = group_represent_fasta,
+        database_fasta = not_match_faa2,
+        query_fasta = not_match_faa2,
         out_dir = os.path.join(temp_dir, 'blast'),
         evalue = args.evalue,
         threads=threads)
@@ -1166,7 +1484,7 @@ def run_add_sample_pipeline2(args):
         threads=threads)
 
     inflated_clusters, clusters = main_pipeline.reinflate_clusters(
-        cd_hit_clusters=mmseq_groups,
+        groups=mmseq_groups,
         mcl_file=mcl_file)
     logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
 
@@ -1192,7 +1510,7 @@ def run_add_sample_pipeline2(args):
     
     json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
    
-    output.create_outputs(annotated_clusters,new_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    output.create_outputs(annotated_clusters,old_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
     #json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
     #print(annotated_clusters)
     if args.alignment:
@@ -1200,7 +1518,7 @@ def run_add_sample_pipeline2(args):
         if not os.path.exists(samples_dir):
             raise Exception(f'{samples_dir} does not exist')
         #post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
-        post_analysis.run_gene_alignment(annotated_clusters, new_samples,old_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa,add=True)
+        post_analysis.run_gene_alignment(annotated_clusters, old_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa,add=True)
         post_analysis.create_poa_protein_consensus(annotated_clusters,collection_dir,threads=threads)
         post_analysis.make_protein_consensus_db(annotated_clusters,collection_dir,threads=threads)
     # output for next run
@@ -1225,31 +1543,236 @@ def run_add_sample_pipeline2(args):
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time cli {str(elapsed)}')
     logging.info(f'Done -- time taken {str(elapsed)}')
+def run_add_sample_pipeline_nearest_group(args):
+    starttime = datetime.now()
 
+    collection_dir = args.collection_dir
+    if not os.path.exists(collection_dir):
+        raise Exception(f'{collection_dir} does not exist')
+    threads = args.threads
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+
+    diamond=(args.blast=='diamond')
+
+    identity = args.identity
+    evalue = args.evalue
+
+
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        #shutil.rmtree(temp_dir)
+        #os.makedirs(temp_dir)
+        pass
+    else:
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+
+
+    # Check required files
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv')
+    if not os.path.isfile(existing_gene_annotation_fn):
+        raise Exception(f'{existing_gene_annotation_fn} does not exist')
+    #gene_annotation = output.import_gene_annotation(gene_annotation_file)
+
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv')
+    #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+
+    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
+    old_clusters = json.load(open(os.path.join(collection_dir, 'annotated_clusters.json'), 'r'))
+    group_seq_dir=os.path.join(collection_dir, 'groups')
+    ref_clusters = json.load(open('gene_families/gene_family_clusters.json','r'))
+    ref_db='gene_families/gene_families_diamond_db.dmnd'
+    ref_cdb='gene_families/db'
+    group_seq_dir=os.path.join(collection_dir, 'groups')
+    
+    old_concensus_faa = os.path.join(collection_dir, 'consensus.fasta')
+    if not os.path.isfile(old_concensus_faa):
+        raise Exception(f'{old_concensus_faa} does not exist')
+    
+    old_consensus_db=None
+    if args.blast=='diamond':
+        old_consensus_db=os.path.join(collection_dir, 'consenus_diamond_db.dmnd')
+    if args.blast=='mmseq':
+        old_consensus_db=os.path.join(collection_dir, 'consenus_mmseq_db')
+    
+    # collect new samples
+    sample_id_list = [sample['id'] for sample in old_samples]
+    new_samples = collect_sample(sample_id_list, args)
+    if len(new_samples) == 0:
+        raise Exception(f'There must be at least one new sample')
+
+    # data preparation
+    data_preparation.extract_proteins_tofile(
+        samples=new_samples,
+        out_dir=collection_dir,
+        gene_annotation_fn = gene_annotation_fn,
+        gene_position_fn = gene_position_fn,
+        table=args.table,
+        existing_gene_annotation_fn=existing_gene_annotation_fn,
+        existing_gene_position_fn=existing_gene_position_fn,
+        threads=threads,
+        )
+    combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+        out_dir=collection_dir,
+        samples=new_samples)
+    #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(new_combined_faa,collection_dir)
+    mmseq_represent_fasta, mmseq_groups = main_pipeline.run_mmseq_with_map(
+        faa_file=combined_faa,
+        map_file=combined_faa_map,
+        out_dir=temp_dir,
+        group_dir=group_seq_dir,
+        threads=threads)
+    not_match_faa1,old_clusters,mmseq_groups = add_sample_pipeline.extend_by_match_seqs_to_ref(
+        seqs_file = mmseq_represent_fasta,
+        groups=mmseq_groups,
+        old_clusters=old_clusters,
+        out_dir = temp_dir,
+        refdb=ref_db,
+        refcdb=ref_cdb,
+        ref_clusters=ref_clusters,
+        threads=threads)
+    not_match_faa2,mmseq_groups = add_sample_pipeline.match_new_sequence_to_oldcluster(
+        new_seqs_file = not_match_faa1,
+        old_clusters=old_clusters,
+        out_dir = temp_dir,
+        groups=mmseq_groups,
+        group_dir=group_seq_dir,
+        consensusdb=old_consensus_db,
+        threads=threads)
+    
+    # not_match_faa2,old_clusters,mmseq_groups = add_sample_pipeline.extend_by_match_seqs_to_ref(
+    #     seqs_file = not_match_faa1,
+    #     groups=mmseq_groups,
+    #     old_clusters=old_clusters,
+    #     out_dir = temp_dir,
+    #     refdb=ref_db,
+    #     ref_clusters=ref_clusters,
+    #     threads=threads)
+    #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(not_match_faa2,collection_dir)
+    # not_match_represent_faa, not_match_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=not_match_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    # group_represent_fasta2, mmseq_groups2 = main_pipeline.run_mmseq_with_map(
+    #     faa_file=combined_faa_file,
+    #     map_file=combined_faa_map,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+    # logger.info(f'len mmseq_clusters 2 = {len(mmseq_groups2)}') 
+    blast_result = main_pipeline.pairwise_alignment_diamond(
+      
+        database_fasta = not_match_faa2,
+        query_fasta = not_match_faa2,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = filtered_blast_result,
+        threads=threads)
+
+    inflated_clusters, clusters = main_pipeline.reinflate_clusters_by_groups(
+        groups=mmseq_groups,
+        mcl_file=mcl_file)
+    logger.info(f'len inflated_clusters = {len(inflated_clusters)} len clusters = {len(clusters)}')
+
+
+    # post analysis
+    split_clusters = post_analysis.split_paralogs(
+        gene_position_fn=gene_position_fn,
+        unsplit_clusters= inflated_clusters,
+        dontsplit=args.dont_split
+        )
+    logger.info(f'len split_clusters = {len(split_clusters)}')
+
+    annotated_clusters = post_analysis.annotate_cluster_main(
+        unlabeled_clusters=split_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+    # post analysis
+    #new_samples.extend(old_samples)
+    annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,old_clusters)
+    old_samples.extend(new_samples)
+    #new_samples = old_samples
+    #new_samples.sort(key= lambda x:x['id'])
+
+    
+    json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+   
+    output.create_outputs(annotated_clusters,old_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    #json.dump(annotated_clusters, open(os.path.join(collection_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    #print(annotated_clusters)
+    samples_dir = os.path.join(collection_dir, 'samples')
+    if not os.path.exists(samples_dir):
+        raise Exception(f'{samples_dir} does not exist')
+    #post_analysis.run_gene_alignment(annotated_clusters, new_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads)
+    post_analysis.run_gene_alignment(annotated_clusters, old_samples, collection_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa,add=True)
+    post_analysis.create_poa_protein_consensus(annotated_clusters,collection_dir,gene_families_dir='gene_families',threads=threads)
+    post_analysis.make_protein_consensus_db(annotated_clusters,collection_dir,threads=threads)
+    post_analysis.create_protein_db_for_clusters(annotated_clusters,collection_dir,group_seq_dir,threads=threads)
+    
+    # output for next run
+    #main_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv.gz')
+    #main_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv.gz')
+
+    #Replace the main existing files by the new ones
+    shutil.copy(gene_annotation_fn, existing_gene_annotation_fn)
+    shutil.copy(gene_position_fn, existing_gene_position_fn)
+
+    #output.export_gene_annotation(gene_annotation, collection_dir)
+    #json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(old_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
+    #json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    #cmd = f'mv {combined_blast_result}  ' + os.path.join(collection_dir, 'blast.tsv')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time cli {str(elapsed)}')
+    logging.info(f'Done -- time taken {str(elapsed)}')
     #if os.path.exists(temp_dir):
     #    shutil.rmtree(temp_dir)
 def build_reference_gene_family_db(args):
     starttime = datetime.now()
     ref_db_dir='gene_families'
-    if not os.path.exists(ref_db_dir):
-            os.mkdir(ref_db_dir)
+    if os.path.exists(ref_db_dir):
+        shutil.rmtree(ref_db_dir)
+    else:
+        os.mkdir(ref_db_dir)
+        os.mkdir(ref_db_dir+"/sequences")
+        os.mkdir(ref_db_dir+"/db")
     mmseq_represent_fasta= os.path.join(ref_db_dir, 'mmseq_rep_seq.fasta')
     mmseq_cluster_file=os.path.join(ref_db_dir, 'mmseq_cluster.tsv')
-    cmd = f'mmseqs easy-linclust {args.input} {ref_db_dir}/mmseq {ref_db_dir}/tmp --min-seq-id 0.98 -c 0.98 --threads {args.threads} > /dev/null'    
+    cmd = f'mmseqs easy-linclust {args.input} {ref_db_dir}/mmseq {ref_db_dir}/tmp --min-seq-id {args.identity} -c {args.coverage} --threads {args.threads} > /dev/null'    
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running mmseq')        
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Run mmseq2 with 98% identity part 1 -- time taken {elapsed}')
+    logging.info(f'Run mmseq2 with {args.identity} identity part 1 -- time taken {elapsed}')
 
-    clusters = {}
+    groups = {}
    
     count = 0
     
     represent_corrected_fasta = os.path.join(ref_db_dir, 'mmseq.fasta')
     map_id_des={}
     unique_gene_name=set()
+    num_dup=0
     with open(represent_corrected_fasta,'w') as ofh, open(mmseq_represent_fasta) as ifh:
         for line in ifh:
             if line[0] == '>':
@@ -1271,25 +1794,34 @@ def build_reference_gene_family_db(args):
                     
                 else:
                     genename=geneid
+                # if genename in unique_gene_name:
+                #     suffix=1
+                #     new_gene_name=genename+'_'+str(suffix)
+                #     num_dup=num_dup+1
+                #     while new_gene_name in unique_gene_name:
+                #         suffix=suffix+1
+                #         new_gene_name=genename+'_'+str(suffix)
+                #     map_id_des[geneid]['genename']=   new_gene_name
+                #     unique_gene_name.add(new_gene_name)
+                #     ofh.write(f'>{new_gene_name}\n')
+                # else:
+                #     map_id_des[geneid]['genename']= genename
+                #     unique_gene_name.add(genename)
+                #     ofh.write(f'>{genename}\n')
                 if genename in unique_gene_name:
-                    suffix=1
-                    new_gene_name=genename+'_'+str(suffix)
-                    while new_gene_name in unique_gene_name:
-                        suffix=suffix+1
-                        new_gene_name=genename+'_'+str(suffix)
-                    map_id_des[geneid]['genename']=   new_gene_name
-                    unique_gene_name.add(new_gene_name)
-                    ofh.write(f'>{new_gene_name}\n')
+                    num_dup=num_dup+1
                 else:
-                    map_id_des[geneid]['genename']= genename
                     unique_gene_name.add(genename)
-                    ofh.write(f'>{genename}\n')
-                       
+                map_id_des[geneid]['gene_name']= genename
+                unique_gene_name.add(genename)
+                ofh.write(f'>{geneid}\n')       
             else:
-                ofh.write(line)      
-
+                ofh.write(line)  
+        
+    for ref_seq in SeqIO.parse(open(represent_corrected_fasta),'fasta'):    
+        SeqIO.write(ref_seq, ref_db_dir+"/sequences/"+ref_seq.id+".fasta", "fasta")
     elapsed = datetime.now() - starttime
-    logging.info(f'Run mmseq with 98% identity part 1 -- time taken {elapsed}')
+    #logging.info(f'Run mmseq with {args.identity} identity part 1 -- time taken {elapsed}')
     c_cursor='0'
     cluster_count=0
     with open(mmseq_cluster_file, 'r') as fh:
@@ -1301,29 +1833,132 @@ def build_reference_gene_family_db(args):
             if rep_name == member:
                 c_cursor=rep_name
                 
-                clusters[c_cursor] = {'gene_ids':[]} 
-                clusters[c_cursor]['representative'] = member
+                groups[c_cursor] = {'gene_id':[]} 
+                groups[c_cursor]['representative'] = ref_db_dir+"/sequences/"+member+".fasta"
+                groups[c_cursor]['gene_name']=map_id_des[c_cursor]['gene_name']
                 cluster_count=cluster_count+1
                 
-            else:
-                clusters[c_cursor]['gene_ids'].append(member)                
+            
+            groups[c_cursor]['gene_id'].append(member)                 
 
            
+    logging.info(f'###{args.identity} {args.coverage} {cluster_count} {num_dup}')
+    diamond_result=main_pipeline.pairwise_alignment_diamond(represent_corrected_fasta,represent_corrected_fasta,ref_db_dir+'/temp')          
+    mcl_file=main_pipeline.cluster_with_mcl(diamond_result,ref_db_dir+'/temp',inflation=2)
+    inflated_clusters = []
+    # Inflate genes from cdhit which were sent to mcl
+    clusters=[]
+    with open(mcl_file, 'r') as fh:
+        for line in fh:
+            inflated_genes = []
+            line = line.rstrip('\n')
+            genes = line.split('\t')
+            cluster={'id':genes[0],'groups':[]}
+            for gene in genes:
+                #inflated_genes.append(gene)
                 
-    diamond_db = os.path.join(ref_db_dir, 'genefamyly_diamond_db')
-    cmd = f'./diamond makedb --in {represent_corrected_fasta} -d {diamond_db} -p {args.threads} --quiet'
+                inflated_genes.extend(groups[gene]['gene_id'])
+                cluster['groups'].append(gene)
+            clusters.append(cluster) 
+            inflated_clusters.append(inflated_genes)
+    dict_gene={}
+    with open(args.input) as fh:
+        for seq in SeqIO.parse(fh, 'fasta'):
+            geneid=seq.id.split(' ')[0].split('|')[1]
+            dict_gene[geneid]=SeqRecord(seq.seq, id = geneid, description = '')
+    
+    map_name={}
+    big_clusters={}
+    for c in clusters:
+        big_clusters[c['id']]={'groups':[]}
+
+        big_clusters[c['id']]['gene_name']=map_id_des[c['id']]['gene_name']
+        big_clusters[c['id']]['description']=map_id_des[c['id']]['des']
+        #clusters[k]['gene_name']=map_id_des[c[0]]['gene_name']
+        #clusters[k]['description']=map_id_des[c[0]]['des']
+        for g in c['groups']:
+
+            big_clusters[c['id']]['groups'].append(groups[g])
+       
+    #split clusters by gene name
+    splited_clusters={}
+    for c in big_clusters.keys():
+        #count gene name in clusters:
+        unique_gene_in_cluster={}
+        set_names=set()
+        for g in big_clusters[c]['groups']:
+        
+            if g['gene_name'] not in unique_gene_in_cluster.keys():
+                unique_gene_in_cluster[g['gene_name']]=1
+            else:
+                unique_gene_in_cluster[g['gene_name']]=1 + unique_gene_in_cluster[g['gene_name']]
+        if len(unique_gene_in_cluster.keys())>1:
+            #neeed to split
+            for gene_name in unique_gene_in_cluster.keys():
+                list_groups=[]
+                for g in big_clusters[c]['groups']:
+                    if g['gene_name']==gene_name:
+                        list_groups.append(g)
+                newid=list_groups[0]['gene_id'][0]
+                splited_clusters[newid]={}
+                splited_clusters[newid]['groups']=list_groups
+                #for g in list_groups:
+                #    splited_clusters[newid]['groups'].append(g)
+                splited_clusters[newid]['gene_name']=gene_name
+                splited_clusters[newid]['description']=map_id_des[newid]['des']
+        else:
+           splited_clusters[c]=big_clusters[c]
+    pool = multiprocessing.Pool(processes=args.threads)
+    results = []
+    for c in splited_clusters.keys():
+        #make fasta for each cluster
+        gene_seq_consensus_file=ref_db_dir+"/temp/"+c+".cons.faa"
+        gene_seq_file=ref_db_dir+"/temp/"+c+".faa"
+        with open(gene_seq_file, 'wt') as fh:
+            for g in splited_clusters[c]['groups']:
+                for gene in g['gene_id']:
+            
+                    SeqIO.write(dict_gene[gene], fh, 'fasta')
+        cmd = f"abpoa -c -t BLOSUM62.mtx {gene_seq_file} > {gene_seq_consensus_file} && sed -i 's/^>Consensus_sequence/>{c}/' {gene_seq_consensus_file}"
+        results.append(pool.apply_async(run_command,(cmd, None)))
+        gene_diamonddb_file=ref_db_dir+"/db/"+c+".db"
+        cmd2=f'./diamond makedb --in {gene_seq_file} -d {gene_diamonddb_file} -p 1 --quiet'
+        results.append(pool.apply_async(run_command,(cmd2, None)))
+    pool.close()
+    pool.join()
+
+    represent_clusters_file=os.path.join(ref_db_dir, 'ref_consensus.fasta')
+    with open(represent_clusters_file, 'wt') as fh:
+        for c in clusters:
+            consensus_gene_file=ref_db_dir+"/temp/"+c['id']+".cons.faa"
+            with open(consensus_gene_file) as fi:
+                for seq in SeqIO.parse(fi, 'fasta'):
+                    SeqIO.write(seq, fh, 'fasta')
+    diamond_db = os.path.join(ref_db_dir, 'gene_families_diamond_db')
+
+    cmd = f'./diamond makedb --in {represent_clusters_file} -d {diamond_db} -p {args.threads} --quiet'
+
     #ret = os.system(cmd)
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond makedb for consensus file')
+
+    diamond_group_db = os.path.join(ref_db_dir, 'gene_groups_diamond_db')
+
+    cmd = f'./diamond makedb --in {represent_corrected_fasta} -d {diamond_group_db} -p {args.threads} --quiet'
+
+    #ret = os.system(cmd)
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error running diamond makedb for groups')
+    json.dump(groups, open(os.path.join(ref_db_dir, 'gene_family_groups.json'), 'w'), indent=4, sort_keys=True)
     
-    for k in clusters.keys():
-        clusters[k]['genename']=map_id_des[k]['genename']
-        clusters[k]['description']=map_id_des[k]['des']
-    # convert to a simple dictionary
-    json.dump(clusters, open(os.path.join(ref_db_dir, 'gene_family_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
+    json.dump(big_clusters, open(os.path.join(ref_db_dir, 'gene_family_clusters.json'), 'w'), indent=4, sort_keys=True)
+    json.dump(splited_clusters, open(os.path.join(ref_db_dir, 'gene_family_splited_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
     elapsed = datetime.now() - starttime
-    logging.info(f'Run make gene family db with 98% identity -- time taken {str(elapsed)}')
+    #logging.info(f'Run make gene family db with {args.identity} identity -- time taken {str(elapsed)}')
     
 def main():
     parser = argparse.ArgumentParser()
@@ -1363,7 +1998,7 @@ def main():
         description='Add pipeline: add sample into previous collection',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    add_cmd.set_defaults(func=run_add_sample_pipeline2)
+    add_cmd.set_defaults(func=run_add_sample_pipeline_nearest_group)
     #main_cmd.add_argument('-m', '--mode', help='mode running', required=True, type=str)
     add_cmd.add_argument('-g', '--gff', help='gff input files',default=None, nargs='*', type=str)
     add_cmd.add_argument('-f', '--tsv', help='tsv input file',default=None, type=str)
@@ -1393,7 +2028,8 @@ def main():
     ref_cmd.set_defaults(func=build_reference_gene_family_db)
     ref_cmd.add_argument('-i', '--input', help='reference gene sequences in fasta format',required=True, type=str)
     ref_cmd.add_argument('-t', '--threads', help='number of threads to use, 0 for all', default=1, type=int)
-    
+    ref_cmd.add_argument('-d', '--identity', help='identity', default=0.7, type=float)
+    ref_cmd.add_argument('-c', '--coverage', help='coverage', default=0.7, type=float)
     args = parser.parse_args()
     args.func(args)
 

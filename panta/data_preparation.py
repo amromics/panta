@@ -201,7 +201,7 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Extract protein -- time taken {str(elapsed)}')
+    #logging.info(f'Extract protein -- time taken {str(elapsed)}')
 
     with open(gene_annotation_fn,'w') as ga_fp, open(gene_position_fn,'w') as gp_fp:
         # If there are existing files then copy over
@@ -268,7 +268,7 @@ def combine_proteins_with_maps(out_dir, samples):
                 raise Exception(f'{faa_file} does not exist')
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Combine protein -- time taken {str(elapsed)}')
+    logging.info(f'Combine {count} protein -- time taken {str(elapsed)}')
     return combined_faa_file, combined_faa_map
 def make_combine_maps(not_match_sequences_file,out_dir):
     starttime = datetime.now()

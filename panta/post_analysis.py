@@ -156,7 +156,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
         return unsplit_clusters
 
     starttime = datetime.now()
-
+    #print(unsplit_clusters)
     #mem_usage = mem_report(0, "split_paralog0")
     # Read in gene position
     gene_position = {}
@@ -191,6 +191,7 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
                 continue
 
             # check paralogs
+            
             paralog_genes = find_paralogs(cluster)#, gene_annotation_dict)
             # if paralog_genes !=None:
             #     logger.info(f'cluster representative seq {cluster[0]} has '+str(len(paralog_genes)))
@@ -209,7 +210,83 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
             any_paralogs = 1
 
         elapsed = datetime.now() - stime
-        logger.info(f'Split paralogs iterate {i} -- count = {split_count}  time taken {str(elapsed)}')
+        #logger.info(f'Split paralogs iterate {i} -- count = {split_count}  time taken {str(elapsed)}')
+        # check if next iteration is required
+        #mem_usage = mem_report(mem_usage, "split_paralog2")
+
+        if any_paralogs == 0:
+            break
+    split_clusters = out_clusters
+    logger.info(f'Number of clusters after spliting {len(out_clusters)}')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Split paralogs -- time taken {str(elapsed)}')
+    #mem_usage = mem_report(mem_usage, "split_paralog3")
+
+    return split_clusters
+def split_paralogs_by_group(gene_position_fn, unsplit_clusters, dontsplit):
+    if dontsplit == True:
+        return unsplit_clusters
+
+    starttime = datetime.now()
+    #print(unsplit_clusters)
+    #mem_usage = mem_report(0, "split_paralog0")
+    # Read in gene position
+    gene_position = {}
+    with open(gene_position_fn) as gp_fp:
+        for line in gp_fp.readlines():
+            toks = line.strip().split(',')
+            gene_position[(toks[0], toks[1])] = toks[2:]
+
+    #mem_usage = mem_report(mem_usage, "split_paralog0")
+    #TODO: gene_position is memory intensive
+
+    clusters_not_paralogs = set()
+    # run iteratively
+    out_clusters = unsplit_clusters
+    logger.info(f'Number of clusters before spliting {len(out_clusters)}')
+    for i in range(100000):
+        stime = datetime.now()
+        in_clusters = out_clusters
+        out_clusters = []
+        any_paralogs = 0
+        # convert in_clusters so we can find the cluster index of gene
+        gene_to_cluster_index = {gene:index for index, genes in enumerate(in_clusters) for gene in genes}
+
+        split_count = 0
+        for cluster in in_clusters:
+            if len(cluster) == 1:
+                out_clusters.append(cluster)
+                continue
+            first_gene = cluster['groups'].keys()[0]
+            if first_gene in clusters_not_paralogs:
+                out_clusters.append(cluster)
+                continue
+
+            # check paralogs
+            paralog_genes =[]
+            list_genes_in_cluster=[]
+            for g in cluster['groups']:
+                list_genes_in_cluster.extend(g['gene_id'])
+                paralog_genes.extend(find_paralogs(g['gene_id']))#, gene_annotation_dict)
+            # if paralog_genes !=None:
+            #     logger.info(f'cluster representative seq {cluster[0]} has '+str(len(paralog_genes)))
+            #     for g in paralog_genes:
+            #         logger.info(f'{g} ')
+
+            if paralog_genes == None:
+                clusters_not_paralogs.add(first_gene)
+                out_clusters.append(cluster)
+                continue
+
+            # split paralogs
+            split_count += 1
+            orthologs_clusters = create_orthologs(list_genes_in_cluster, paralog_genes, gene_position, gene_to_cluster_index)
+            #TODO: need to convet orthologs to groups format
+            out_clusters.extend(orthologs_clusters)
+            any_paralogs = 1
+
+        elapsed = datetime.now() - stime
+        #logger.info(f'Split paralogs iterate {i} -- count = {split_count}  time taken {str(elapsed)}')
         # check if next iteration is required
         #mem_usage = mem_report(mem_usage, "split_paralog2")
 
@@ -223,10 +300,9 @@ def split_paralogs(gene_position_fn, unsplit_clusters, dontsplit):
 
     return split_clusters
 
-
 def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
     starttime = datetime.now()
-    clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    clusters = {'cluster_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
     chunksize = 50000
 
     annotated_clusters = {}
@@ -295,7 +371,8 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
             'min_length': lens[0],
             'max_length': lens[1],
             'mean_length': lens[2],
-            'size': lens[3]
+            'size': lens[3],
+            'source':'clustering'
             }
     ################
     # for cluster_name in clusters:
@@ -338,7 +415,130 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
 
+def annotate_cluster_main(unlabeled_clusters, gene_annotation_fn):
+    starttime = datetime.now()
+    #clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    clusters={}
+    count=0
+    for c in unlabeled_clusters:
+        clusters['cluster_' + str(count)]=c
+        count=count+1
+    #print(unlabeled_clusters)
+    chunksize = 50000
 
+    annotated_clusters = {}
+    suffix = 1
+    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['gene_name','gene_product'])
+
+    geneid_2_cluster = {}
+    for cluster_name in clusters:
+        for g in clusters[cluster_name]:
+            for gene_id in g['gene_id']:
+                geneid_2_cluster[gene_id] = cluster_name
+    #TODO: we can swap clusters and geneid_2_cluser to save memory
+    annotate_cluster_name = defaultdict(dict)
+    annotate_cluster_product = defaultdict(set)
+    annotate_cluster_rep = {}
+    annotate_cluster_len = {} #cluster_id -> (min, max, mean, number)
+
+
+    df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_name','gene_product', 'length'], chunksize=chunksize)
+    for chunk_df in df_it:
+        gene_anno_dict = chunk_df.to_dict('index')
+        for gene_id in gene_anno_dict:
+            if gene_id in geneid_2_cluster:
+                cluster_name = geneid_2_cluster[gene_id]
+                gene_name = gene_anno_dict[gene_id]['gene_name']
+                gene_product = gene_anno_dict[gene_id]['gene_product']
+
+                if gene_name:
+                    cluster_name_dict = annotate_cluster_name[cluster_name]
+                    cluster_name_dict[gene_name] =  cluster_name_dict.setdefault(gene_name, 0) + 1
+                if gene_product:
+                    annotate_cluster_product[cluster_name].add(gene_product)
+                gene_length = gene_anno_dict[gene_id]['length']
+                if cluster_name not in annotate_cluster_rep:
+                    annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    annotate_cluster_len[cluster_name] = (gene_length, gene_length, gene_length,1)
+                else:
+                    if gene_length > annotate_cluster_rep[cluster_name][1]:
+                        annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    lens = annotate_cluster_len[cluster_name]
+                    annotate_cluster_len[cluster_name] = (
+                        min(lens[0], gene_length),
+                        max(lens[1], gene_length),
+                        (lens[2] * lens[3] + gene_length) / (lens[3] + 1),
+                        (lens[3] + 1))
+    del geneid_2_cluster
+    for cluster_name in clusters:
+        #gene_id_list = []
+        #for g in clusters[cluster_name]:
+        #    gene_id_list.extend(g['gene_id'])
+        cluster_new_name = cluster_name
+        cluster_name_dict = annotate_cluster_name[cluster_name]
+        if cluster_name_dict:
+            cluster_new_name = max(cluster_name_dict, key=cluster_name_dict.get)
+
+        cluster_product = ', '.join(annotate_cluster_product[cluster_name])
+        if not cluster_product:
+            cluster_product = 'unknown'
+
+        # check if cluster_new_name already exists
+        if cluster_new_name in annotated_clusters:
+            cluster_new_name += '_{:05d}'.format(suffix)
+            suffix += 1
+        lens = annotate_cluster_len[cluster_name]
+
+        annotated_clusters[cluster_new_name] = {
+            'groups':clusters[cluster_name],
+            'product':cluster_product,
+            'representative': annotate_cluster_rep[cluster_name][0],
+            'min_length': lens[0],
+            'max_length': lens[1],
+            'mean_length': lens[2],
+            'size': lens[3],
+            'source': 'clustering'
+            }
+    ################
+    # for cluster_name in clusters:
+    #     cluster_new_name = cluster_name
+    #     cluster_product = None
+    #     gene_name_count = {}
+    #     max_number = 0
+    #     gene_id_list = clusters[cluster_name] #TODO: check if set is better than list
+    #     for gene_id in gene_id_list:
+    #         gene_name = gene_annotation_dict[gene_id]['gene_name']
+    #         gene_product = gene_annotation_dict[gene_id]['gene_product']
+    #         if gene_name:
+    #             gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
+    #             if gene_name_count[gene_name] > max_number:
+    #                 cluster_new_name = gene_name
+    #                 max_number = gene_name_count[gene_name]
+    #                 if gene_product:
+    #                     cluster_product = gene_product
+
+    #     if cluster_product == None:
+    #         cluster_product =[] #TODO: check if set is better than list
+    #         for gene_id in gene_id_list:
+    #             gene_name = gene_annotation_dict[gene_id]['gene_name']
+    #             gene_product = gene_annotation_dict[gene_id]['gene_product']
+
+    #             if gene_product:
+    #                 if gene_product not in cluster_product:
+    #                     cluster_product.append(gene_product)
+    #         if len(cluster_product) > 0:
+    #             cluster_product = ', '.join(cluster_product)
+    #         else:
+    #             cluster_product = 'unknown'
+    #     # check if cluster_new_name already exists
+    #     if cluster_new_name in annotated_clusters:
+    #         cluster_new_name += '_{:05d}'.format(suffix)
+    #         suffix += 1
+    #    annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir, add=False):
     starttime = datetime.now()
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -490,6 +690,7 @@ def run_poa_protein_alignment(annotated_clusters, out_dir, threads=1):
     pool.join()
     for result in results:
         if result.get() != 0:
+            print(result)
             raise Exception('Error running poa')
 
     elapsed = datetime.now() - starttime
@@ -746,7 +947,7 @@ def create_core_gene_alignment(annotated_clusters,
     elapsed = datetime.now() - starttime
     logging.info(f'Create core gene alignment -- time taken {str(elapsed)}')
 
-def run_gene_alignment(annotated_clusters, samples,oldsamples, collection_dir, alignment, coverage_threshold=0.0, threads=1,poa=False, add=False):
+def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, coverage_threshold=0.0, threads=1,poa=False, add=False):
     count_threshold = int(len(samples) * coverage_threshold)
 
     #Need to have at least 2 genes before we can do alignment
@@ -768,30 +969,33 @@ def run_gene_alignment(annotated_clusters, samples,oldsamples, collection_dir, a
     for cluster_name in annotated_clusters:
         # if len(annotated_clusters[cluster_name]['gene_id']) < count_threshold:
         #     continue
-        clusters_to_align.append(cluster_name)
+        if annotated_clusters[cluster_name]['size']>0:
+            clusters_to_align.append(cluster_name)
 
         cluster_dir = os.path.join(collection_dir, 'clusters', cluster_name)
         if not os.path.exists(cluster_dir):
             os.mkdir(cluster_dir)
         #length_max = 0
         #representative = None
-        for gene_id in annotated_clusters[cluster_name]['gene_id']:
-            gene_to_cluster_name[gene_id] = cluster_name
-            #sample_id = gene_annotation_dict[gene_id]['sample_id']
-            #length = gene_annotation_dict[gene_id]['length']
-            #if length > length_max:
-            #    representative = gene_id
-            #    length_max = length
+        for g in annotated_clusters[cluster_name]['groups']:
+
+            for gene_id in g['gene_id']:
+                gene_to_cluster_name[gene_id] = cluster_name
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+             #length = gene_annotation_dict[gene_id]['length']
+                #if length > length_max:
+                #    representative = gene_id
+                #    length_max = length
         pan_ref_list.add(annotated_clusters[cluster_name]['representative'])
 
         #Remove folders that are not in clusters to align (in case the clusters changes)
     existing_folders = os.listdir(clusters_dir)
-    for folder_name in existing_folders:
-        if folder_name not in clusters_to_align:
-            folder_path = os.path.join(clusters_dir,folder_name)
-            if os.path.isdir(folder_path):
-                shutil.rmtree(folder_path)
-                logger.info(f'Clean up cluster {folder_name}')            
+    # for folder_name in existing_folders:
+    #     if folder_name not in clusters_to_align:
+    #         folder_path = os.path.join(clusters_dir,folder_name)
+    #         if os.path.isdir(folder_path):
+    #             shutil.rmtree(folder_path)
+    #             logger.info(f'Clean up cluster {folder_name}')            
 
     if 'protein' == alignment:
         create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir,add=add)
@@ -806,15 +1010,41 @@ def run_gene_alignment(annotated_clusters, samples,oldsamples, collection_dir, a
         
 
     if 'nucleotide' == alignment:
-        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir)
+        create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, collection_dir,add=add)
         if poa==True:
             run_poa_nucleotide_alignment(clusters_to_align, collection_dir, threads=threads)
         else:
             run_mafft_nucleotide_alignment(clusters_to_align, collection_dir, threads=threads)
 
-    create_core_gene_alignment(annotated_clusters,oldsamples,collection_dir)
-
-def create_poa_protein_consensus(annotated_clusters, out_dir,threads=1):
+    #create_core_gene_alignment(annotated_clusters,samples,collection_dir)
+def create_protein_db_for_clusters(annotated_clusters, out_dir,group_dir,threads=1):
+    starttime = datetime.now()
+    clusters_dir = os.path.join(out_dir, 'clusters')
+    pool = multiprocessing.Pool(processes=threads)
+    results = []
+    #with open(cmds_file,'w') as cmds:
+    for cluster_name in annotated_clusters:
+        if annotated_clusters[cluster_name]['size']==0:
+            continue
+        cluster_dir = os.path.join(clusters_dir, cluster_name)
+        
+        gene_seq_file = os.path.join(cluster_dir, cluster_name + '.groups.faa')
+        with open(gene_seq_file, 'wt') as fh:
+            for g in annotated_clusters[cluster_name]['groups']:
+                record = SeqIO.read(os.path.join(group_dir,g['representative']+".faa"), "fasta")
+                SeqIO.write(record, fh, "fasta")
+                 
+        gene_diamonddb_file=os.path.join(cluster_dir, cluster_name + '.db')
+        cmd2=f'./diamond makedb --in {gene_seq_file} -d {gene_diamonddb_file} -p 1 --quiet'
+        results.append(pool.apply_async(run_command,(cmd2, None)))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result.get() != 0:
+            raise Exception('Error running diamond with ref clusters')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run create protein db for clusters -- time taken {str(elapsed)}')    
+def create_poa_protein_consensus(annotated_clusters, out_dir,gene_families_dir,threads=1):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -824,6 +1054,8 @@ def create_poa_protein_consensus(annotated_clusters, out_dir,threads=1):
     results = []
     #with open(cmds_file,'w') as cmds:
     for cluster_name in annotated_clusters:
+        if annotated_clusters[cluster_name]['size']==0:
+            continue
         cluster_dir = os.path.join(clusters_dir, cluster_name)
         gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
         #gene_hmm_file = os.path.join(cluster_dir, cluster_name + '.hmm')
@@ -854,8 +1086,11 @@ def create_poa_protein_consensus(annotated_clusters, out_dir,threads=1):
 
         cmd = f"abpoa -c -t BLOSUM62.mtx {gene_seq_file} > {gene_seq_consensus_file} && sed -i 's/^>Consensus_sequence/>{cluster_name}/' {gene_seq_consensus_file}"
         results.append(pool.apply_async(run_command,(cmd, None)))
-        
-        annotated_clusters[cluster_name]['representative']=gene_seq_consensus_file
+        print(annotated_clusters[cluster_name])
+        if annotated_clusters[cluster_name]['source']=='reference':
+            annotated_clusters[cluster_name]['representative']=os.path.join(gene_families_dir,cluster_name+'.fasta')
+        else:
+            annotated_clusters[cluster_name]['representative']=gene_seq_consensus_file
         #cmds.write(cmd + '\n')
         
     pool.close()
@@ -867,8 +1102,11 @@ def create_poa_protein_consensus(annotated_clusters, out_dir,threads=1):
     elapsed = datetime.now() - starttime
     logging.info(f'Run create protein consensus by poa -- time taken {str(elapsed)}')
 def make_protein_consensus_db(annotated_clusters, out_dir,method='diamond',threads=1):
+    starttime = datetime.now()
     consensus_fasta = os.path.join(out_dir, 'consensus.fasta')
     for cluster_name in annotated_clusters:
+        if annotated_clusters[cluster_name]["size"]==0:
+            continue
         if os.path.isfile(annotated_clusters[cluster_name]["representative"]):
             cmd = f'cat {annotated_clusters[cluster_name]["representative"]} >> {consensus_fasta}'
             ret = run_command(cmd)
@@ -888,14 +1126,24 @@ def make_protein_consensus_db(annotated_clusters, out_dir,method='diamond',threa
         ret = run_command(cmd)
         if ret != 0:
             raise Exception('Error running mmseqs createdb consensus file')
+    elapsed = datetime.now() - starttime
+    logging.info(f'make consensus db -- time taken {str(elapsed)}')
 def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters):
-    count={}
+    starttime = datetime.now()
+    num_old_clusters=len(old_annotated_clusters.keys())
+    count=0
     for clustername in new_annotated_clusters:
         if clustername in old_annotated_clusters:
+            count=count+1
             #search max suffix
+
             suffix=1
             while clustername+'_'+str(suffix) in old_annotated_clusters:
                 suffix=suffix+1
             
             old_annotated_clusters[clustername+'_'+str(suffix)]=new_annotated_clusters[clustername]
+        else:
+            old_annotated_clusters[clustername]=new_annotated_clusters[clustername]
+    elapsed = datetime.now() - starttime
+    logger.info(f'Merge {len(new_annotated_clusters.keys())} unmatched cluster to {num_old_clusters} old clusters to make {len(old_annotated_clusters.keys())} clusters, {count} duplicate -- time taken {str(elapsed)}')
     return old_annotated_clusters

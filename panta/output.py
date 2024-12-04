@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import gzip
 from panta.utils import *
-
+import json
 logger = logging.getLogger(__name__)
 
 
@@ -53,15 +53,16 @@ def create_spreadsheet(annotated_clusters, samples, out_dir):
             #print(this_cluster)
             if this_cluster['size']==0:
                 continue
-            for g in this_cluster['groups']:
-
-                for gene_id in g['gene_id']:
-                    num_seq=num_seq+1
-                    sample_id, seq_id = get_seq_ids(gene_id)
-                    #sample_id = gene_annotation_dict[gene_id]['sample_id']
-                    #length = gene_annotation_dict[gene_id]['length']
-                    sample_dict.setdefault(sample_id, []).append(gene_id)
-                    #length_list.append(length)
+            #for g in this_cluster['groups']:
+            list_geneid=read_array(this_cluster['gene_id'])
+            #print(list_geneid)ss
+            for gene_id in list_geneid:
+                num_seq=num_seq+1
+                sample_id, seq_id = get_seq_ids(gene_id)
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                #length = gene_annotation_dict[gene_id]['length']
+                sample_dict.setdefault(sample_id, []).append(gene_id)
+                #length_list.append(length)
 
             # Gene
             row.append(cluster)
@@ -117,13 +118,15 @@ def create_rtab(annotated_clusters, samples, out_dir):
             row.append(cluster)
             # Samples
             sample_dict = {}
-            for g in annotated_clusters[cluster]['groups']:
-                for gene_id in g['gene_id']:
-                    #sample_id = gene_annotation_dict[gene_id]['sample_id']
-                    sample_id, seq_id = get_seq_ids(gene_id)
+            #for g in annotated_clusters[cluster]['groups']:
+            #for gene_id in g['gene_id']:
+            list_geneid=read_array(annotated_clusters[cluster]['gene_id'])
+            for gene_id in list_geneid:
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                sample_id, seq_id = get_seq_ids(gene_id)
 
-                    #length = gene_annotation_dict[gene_id]['length']
-                    sample_dict.setdefault(sample_id, []).append(gene_id)
+                #length = gene_annotation_dict[gene_id]['length']
+                sample_dict.setdefault(sample_id, []).append(gene_id)
             for sample in samples:
                 sample_id = sample['id']
                 gene_list = sample_dict.get(sample_id, [])
@@ -282,7 +285,8 @@ def import_gene_annotation(annotation_file):
     return gene_annotation
 
 
-def create_outputs(annotated_clusters,samples,out_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
+def create_outputs(annotated_clusters_file,samples,out_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
+    annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
     spreadsheet_file = create_spreadsheet(
         annotated_clusters=annotated_clusters,
         samples=samples,

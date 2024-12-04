@@ -7,7 +7,7 @@ from datetime import datetime
 import gzip
 from Bio import SeqIO
 from Bio.Seq import Seq
-
+from panta.utils import *
 from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
@@ -201,7 +201,7 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
 
     elapsed = datetime.now() - starttime
-    #logging.info(f'Extract protein -- time taken {str(elapsed)}')
+    logging.info(f'Extract new protein -- time taken {str(elapsed)}')
 
     with open(gene_annotation_fn,'w') as ga_fp, open(gene_position_fn,'w') as gp_fp:
         # If there are existing files then copy over
@@ -233,20 +233,26 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
 
 
 def combine_proteins(out_dir, samples):
-    # starttime = datetime.now()
-
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "begin combine")
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
+    count_seqs=0
     with open(combined_faa_file, 'w') as fh:
         for sample in samples:
             sample_id = sample['id']
             faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
             if os.path.isfile(faa_file):
                 with open(faa_file) as in_fn:
-                    seqs = list(SeqIO.parse(in_fn, 'fasta'))
-                    SeqIO.write(seqs, fh, 'fasta')
+                    for r in SeqIO.parse(in_fn,'fasta'):
+                        count_seqs=count_seqs+1
+                        SeqIO.write(r,fh,'fasta')
+                    #seqs = list(SeqIO.parse(in_fn, 'fasta'))
+                    #SeqIO.write(seqs, fh, 'fasta')
             else:
                 raise Exception(f'{faa_file} does not exist')
-    # logging.info(f'Combine protein -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, "end combine")
+    elapsed = datetime.now() - starttime
+    logging.info(f'Combine {str(count_seqs)} protein -- time taken {str(elapsed)}')
     return combined_faa_file
 
 def combine_proteins_with_maps(out_dir, samples):
@@ -287,3 +293,29 @@ def make_combine_maps(not_match_sequences_file,out_dir):
     return combined_faa_file, combined_faa_map
 def hash_sequence(in_seq):
     return hash(in_seq)
+def parse_sample_to_list_seq(sample,out_dir):
+    list_seqs=[]
+    sample_id = sample['id']
+    sample_dir = os.path.join(out_dir, 'samples', sample_id)
+    faa_file = os.path.join(sample_dir, sample_id +'.faa')
+    if not os.path.exists(faa_file):
+        return None
+    with open(faa_file) as gp_fp:
+        for seq in SeqIO.parse(faa_file,'fasta'):
+            seq_file = os.path.join(sample_dir, seq.id +'.faa')
+            SeqIO.write(seq, seq_file, 'fasta')
+            list_seqs.append({'id':seq.id,'hash':hash_sequence(seq.seq)})
+    return list_seqs
+def map_unique_seq_to_cluster(clusters):
+    map_uid_cid={}
+    for cid in clusters:
+        for uid in clusters[cid]['unique_seq']:
+            map_uid_cid[uid]=cid
+    return map_uid_cid
+def convertSeq2KmerCount(k,index_kaa,seq):
+    kmers = [seq[i:i+k] for i in range(len(seq) - k + 1)]
+    kmer_counts = Counter(kmers)
+    kc_profile=[0]*len(index_kaa)
+    for kmer,count in kmer_counts.items():
+        kc_profile[index_kaa[kmer]]=count
+    return kc_profile

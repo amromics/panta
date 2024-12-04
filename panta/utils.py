@@ -5,7 +5,8 @@ import re
 from Bio import SeqIO
 from Bio.Seq import Seq
 import shutil
-
+import pickle
+import json
 logger = logging.getLogger(__name__)
 
 
@@ -205,3 +206,73 @@ def create_fasta_include(fasta_file, include_list, output_file):
 #                 ls = [pro[i:i+60] for i in range(0,len(pro), 60)]
 #                 fh_out.write(seq_id + '\n')
 #                 fh_out.write('\n'.join(ls) + '\n')
+def getIdentAlignFromCell(cells):
+    pident = float(cells[2]) / 100
+   
+    alignment_length = int(cells[3]) # * 3
+    qlen = int(cells[12])# * 3 + 3
+    slen = int(cells[13])# * 3 + 3
+    short_seq = min(qlen, slen)
+    long_seq = max(qlen, slen)
+    len_diff = short_seq / long_seq
+    align_short = alignment_length / short_seq
+    align_long = alignment_length / long_seq
+    return pident,len_diff, align_short,align_long,qlen
+def concat2fasta(fasta1,fasta2,combined_fasta):
+    #new_merged_seq_fasta=os.path.join(out_dir,"unique_concat_seq.fasta")
+    cmd=f'cat {fasta1} {fasta2} > {combined_fasta} '
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error concat unique sequences')
+    return combined_fasta
+def write_array(filename,data):
+    json.dump(data, open(filename, 'w'), indent=4, sort_keys=True)
+    #with open(filename, 'wb') as file:
+    #    pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
+    return filename
+def read_array(filename):
+    #loaded_data=None
+    loaded_data=json.load(open(filename, 'r'))
+    #with open(filename, 'rb') as file:
+    #    loaded_data = pickle.load(file)
+    return loaded_data
+def save_clusters(clusters,out_dir):
+    cluster_dir=os.path.join(out_dir,'clusters')
+    if not os.path.exists(cluster_dir):
+        os.mkdir(cluster_dir)
+    for c in clusters.keys():
+        write_array(os.path.join(cluster_dir,c+".seq.json"),clusters[c]['gene_id'])
+        clusters[c]['gene_id']=os.path.join(cluster_dir,c+".seq.json")
+        write_array(os.path.join(cluster_dir,c+".useq.json"),clusters[c]['unique_seq'])
+        clusters[c]['unique_seq']=os.path.join(cluster_dir,c+".useq.json")
+    json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    return os.path.join(out_dir, 'clusters.json')
+def save_unique_seqs(unique_groups,out_dir):
+    group_dir=os.path.join(out_dir,'groups')
+    if not os.path.exists(group_dir):
+        os.mkdir(group_dir)
+    for g in unique_groups.keys():
+        
+        write_array(os.path.join(group_dir,g+".seq.json"),unique_groups[g])
+        unique_groups[g]=os.path.join(group_dir,g+".seq.json")
+        
+    json.dump(unique_groups, open(os.path.join(out_dir, 'unique_groups.json'), 'w'), indent=4, sort_keys=True)
+    return os.path.join(out_dir, 'unique_groups.json')
+def add_unique_groups(groupname,value,out_dir):
+    group_dir=os.path.join(out_dir,'groups')
+    write_array(os.path.join(group_dir,groupname+".seq.json"),value)
+    return os.path.join(group_dir,groupname+".seq.json")
+
+def check_clusters(annotated_clusters_file,out_dir):
+    annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
+    cluster_dir=os.path.join(out_dir,'clusters')
+    for c in annotated_clusters:
+        annotated_clusters[c]['updated']=0
+        if type(annotated_clusters[c]['gene_id']) is list:
+            write_array(os.path.join(cluster_dir,c+".seq.json"),annotated_clusters[c]['gene_id'])
+            annotated_clusters[c]['gene_id']=os.path.join(cluster_dir,c+".seq.json")
+        if type(annotated_clusters[c]['unique_seq']) is list:
+            write_array(os.path.join(cluster_dir,c+".useq.json"),annotated_clusters[c]['unique_seq'])
+            annotated_clusters[c]['unique_seq']=os.path.join(cluster_dir,c+".useq.json")
+    json.dump(annotated_clusters, open(annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    

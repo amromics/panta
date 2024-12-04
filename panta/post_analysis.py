@@ -7,9 +7,9 @@ from Bio.SeqRecord import SeqRecord
 from datetime import datetime
 import pandas as pd
 from collections import defaultdict
-
+import json
 from panta.utils import *
-
+import sys
 logger = logging.getLogger(__name__)
 
 def find_paralogs(cluster):#, gene_annotation_dict):
@@ -311,8 +311,143 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
 
     geneid_2_cluster = {}
     for cluster_name in clusters:
-        for gene_id in clusters[cluster_name]:
-            geneid_2_cluster[gene_id] = cluster_name
+        for k in clusters[cluster_name].keys():
+
+            for gene_id in clusters[cluster_name][k]:
+                geneid_2_cluster[gene_id] = cluster_name
+    #TODO: we can swap clusters and geneid_2_cluser to save memory
+    annotate_cluster_name = defaultdict(dict)
+    annotate_cluster_product = defaultdict(set)
+    annotate_cluster_rep = {}
+    annotate_cluster_len = {} #cluster_id -> (min, max, mean, number)
+
+
+    df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_name','gene_product', 'length'], chunksize=chunksize)
+    logging.info("size of df_it:"+str(sys.getsizeof(df_it)))
+    logging.info("size of geneid_2_cluster:"+str(sys.getsizeof(geneid_2_cluster)))
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters:end read annotation file-- time taken {str(elapsed)}')
+    for chunk_df in df_it:
+        gene_anno_dict = chunk_df.to_dict('index')
+        for gene_id in gene_anno_dict:
+            if gene_id in geneid_2_cluster:
+                cluster_name = geneid_2_cluster[gene_id]
+                gene_name = gene_anno_dict[gene_id]['gene_name']
+                gene_product = gene_anno_dict[gene_id]['gene_product']
+
+                if gene_name:
+                    cluster_name_dict = annotate_cluster_name[cluster_name]
+                    cluster_name_dict[gene_name] =  cluster_name_dict.setdefault(gene_name, 0) + 1
+                if gene_product:
+                    annotate_cluster_product[cluster_name].add(gene_product)
+                gene_length = gene_anno_dict[gene_id]['length']
+                if cluster_name not in annotate_cluster_rep:
+                    annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    annotate_cluster_len[cluster_name] = (gene_length, gene_length, gene_length,1)
+                else:
+                    if gene_length > annotate_cluster_rep[cluster_name][1]:
+                        annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    lens = annotate_cluster_len[cluster_name]
+                    annotate_cluster_len[cluster_name] = (
+                        min(lens[0], gene_length),
+                        max(lens[1], gene_length),
+                        (lens[2] * lens[3] + gene_length) / (lens[3] + 1),
+                        (lens[3] + 1))
+    del geneid_2_cluster
+    logging.info("size of annotate_cluster_name:"+str(sys.getsizeof(annotate_cluster_name)))
+    logging.info("size of annotate_cluster_product:"+str(sys.getsizeof(annotate_cluster_product)))
+    logging.info("size of annotate_cluster_len:"+str(sys.getsizeof(annotate_cluster_len)))
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters: end mapping -- time taken {str(elapsed)}')
+    for cluster_name in clusters:
+        unique_seq=list(clusters[cluster_name].keys())
+        gene_id_list=[]
+        for k in clusters[cluster_name].keys():
+            #gene_id_list.append(k)
+            gene_id_list.extend(clusters[cluster_name][k])
+        cluster_new_name = cluster_name
+        cluster_name_dict = annotate_cluster_name[cluster_name]
+        if cluster_name_dict:
+            cluster_new_name = max(cluster_name_dict, key=cluster_name_dict.get)
+
+        cluster_product = ', '.join(annotate_cluster_product[cluster_name])
+        if not cluster_product:
+            cluster_product = 'unknown'
+
+        # check if cluster_new_name already exists
+        if cluster_new_name in annotated_clusters:
+            cluster_new_name += '_{:05d}'.format(suffix)
+            suffix += 1
+        lens = annotate_cluster_len[cluster_name]
+        annotated_clusters[cluster_new_name] = {
+            'gene_id':gene_id_list,
+            'unique_seq':unique_seq,
+            'product':cluster_product,
+            'representative': unique_seq[0],
+            'min_length': lens[0],
+            'max_length': lens[1],
+            'mean_length': lens[2],
+            'size': lens[3],
+            'source':'clustering'
+            }
+    ################
+    # for cluster_name in clusters:
+    #     cluster_new_name = cluster_name
+    #     cluster_product = None
+    #     gene_name_count = {}
+    #     max_number = 0
+    #     gene_id_list = clusters[cluster_name] #TODO: check if set is better than list
+    #     for gene_id in gene_id_list:
+    #         gene_name = gene_annotation_dict[gene_id]['gene_name']
+    #         gene_product = gene_annotation_dict[gene_id]['gene_product']
+    #         if gene_name:
+    #             gene_name_count[gene_name] = gene_name_count.get(gene_name, 0) + 1
+    #             if gene_name_count[gene_name] > max_number:
+    #                 cluster_new_name = gene_name
+    #                 max_number = gene_name_count[gene_name]
+    #                 if gene_product:
+    #                     cluster_product = gene_product
+
+    #     if cluster_product == None:
+    #         cluster_product =[] #TODO: check if set is better than list
+    #         for gene_id in gene_id_list:
+    #             gene_name = gene_annotation_dict[gene_id]['gene_name']
+    #             gene_product = gene_annotation_dict[gene_id]['gene_product']
+
+    #             if gene_product:
+    #                 if gene_product not in cluster_product:
+    #                     cluster_product.append(gene_product)
+    #         if len(cluster_product) > 0:
+    #             cluster_product = ', '.join(cluster_product)
+    #         else:
+    #             cluster_product = 'unknown'
+    #     # check if cluster_new_name already exists
+    #     if cluster_new_name in annotated_clusters:
+    #         cluster_new_name += '_{:05d}'.format(suffix)
+    #         suffix += 1
+    #    annotated_clusters[cluster_new_name] = {'gene_id':gene_id_list, 'product':cluster_product}
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
+def annotate_cluster_progressive_unique_seq(unique_seq_by_similar_group,unlabeled_clusters, gene_annotation_fn,out_dir):
+    starttime = datetime.now()
+    clusters = {'cluster_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    chunksize = 50000
+
+    annotated_clusters = {}
+    suffix = 1
+    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['gene_name','gene_product'])
+    #json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+
+    geneid_2_cluster = {}
+    count_seq=0
+    for cluster_name in clusters:
+        for k in clusters[cluster_name].keys():
+            for gene_id in clusters[cluster_name][k]:
+                geneid_2_cluster[gene_id] = cluster_name
+                count_seq=count_seq+1
+    logging.info(f'found {str(count_seq)} seqs in clusters ')
     #TODO: we can swap clusters and geneid_2_cluser to save memory
     annotate_cluster_name = defaultdict(dict)
     annotate_cluster_product = defaultdict(set)
@@ -347,9 +482,19 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
                         max(lens[1], gene_length),
                         (lens[2] * lens[3] + gene_length) / (lens[3] + 1),
                         (lens[3] + 1))
+            #else:
+            #    logging.info(f'not found {gene_id} geneid_2_cluster ')
+    
+    #json.dump(geneid_2_cluster, open(os.path.join(out_dir, 'geneid_2_cluster.json'), 'w'), indent=4, sort_keys=True)
     del geneid_2_cluster
     for cluster_name in clusters:
-        gene_id_list = clusters[cluster_name]
+        unique_seq=[]
+        for k in clusters[cluster_name].keys():
+            unique_seq.extend(unique_seq_by_similar_group[k])
+        #unique_seq=list(clusters[cluster_name].keys())
+        gene_id_list=[]
+        for k in clusters[cluster_name].keys():
+            gene_id_list.extend(clusters[cluster_name][k])
         cluster_new_name = cluster_name
         cluster_name_dict = annotate_cluster_name[cluster_name]
         if cluster_name_dict:
@@ -366,6 +511,7 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
         lens = annotate_cluster_len[cluster_name]
         annotated_clusters[cluster_new_name] = {
             'gene_id':gene_id_list,
+            'unique_seq':unique_seq,
             'product':cluster_product,
             'representative': annotate_cluster_rep[cluster_name][0],
             'min_length': lens[0],
@@ -414,7 +560,6 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
-
 def annotate_cluster_main(unlabeled_clusters, gene_annotation_fn):
     starttime = datetime.now()
     #clusters = {'groups_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
@@ -490,7 +635,8 @@ def annotate_cluster_main(unlabeled_clusters, gene_annotation_fn):
         lens = annotate_cluster_len[cluster_name]
 
         annotated_clusters[cluster_new_name] = {
-            'groups':clusters[cluster_name],
+            'seqs':clusters[cluster_name],
+            'gene_name':cluster_new_name,
             'product':cluster_product,
             'representative': annotate_cluster_rep[cluster_name][0],
             'min_length': lens[0],
@@ -539,6 +685,43 @@ def annotate_cluster_main(unlabeled_clusters, gene_annotation_fn):
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
+def expandClusterMembers(annotated_clusters_file, unique_groups):
+    starttime = datetime.now()
+    annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
+    #unique_groups= json.load(open(unique_groups_file, 'r'))
+    #json.dump(unique_groups, open('new_groups', 'w'), indent=4, sort_keys=True)
+    #time_read=0
+    time_write=0
+    for c in annotated_clusters.keys():
+        members=[]
+        list_geneid=read_array(annotated_clusters[c]['gene_id'])
+        #print(list_geneid)
+        for useq in list_geneid:
+            members.append(useq)
+            #print("merge "+useq+" and union "+str(len(unique_groups[useq])) +" to "+c)
+            #list_useq=read_array()
+            if useq in unique_groups.keys():
+                #s1 = datetime.now()
+                #list_useq=read_array(unique_groups[useq])
+                #e1 = datetime.now() - s1
+                #time_read=time_read+e1.total_seconds()
+                #print(" union "+str(len(unique_groups[useq])) +" from "+useq+" to "+c)
+            
+                members.extend(unique_groups[useq])
+        list_geneid=list(dict.fromkeys(members))
+        #print(list_geneid)
+        s2 = datetime.now()
+        annotated_clusters[c]['gene_id']=write_array(annotated_clusters[c]['gene_id'],list_geneid)
+        e2= datetime.now() - s2
+        time_write=time_write+e2.total_seconds()
+    #json.dump(annotated_clusters, open(annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    
+    elapsed = datetime.now() - starttime
+    #logging.info(f'time reading-- time taken {str(time_read)}')
+    logging.info(f'time write-- time taken {str(time_write)}')
+    logging.info(f'add unique members  -- time taken {str(elapsed)}')
+
+    return annotated_clusters_file
 def create_nuc_file_for_each_cluster(samples, gene_to_cluster_name, pan_ref_list, out_dir, add=False):
     starttime = datetime.now()
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -977,10 +1160,11 @@ def run_gene_alignment(annotated_clusters, samples, collection_dir, alignment, c
             os.mkdir(cluster_dir)
         #length_max = 0
         #representative = None
-        for g in annotated_clusters[cluster_name]['groups']:
+        #for g in annotated_clusters[cluster_name]['groups']:
 
-            for gene_id in g['gene_id']:
-                gene_to_cluster_name[gene_id] = cluster_name
+        #    for gene_id in g['gene_id']:
+        for gene_id in annotated_clusters[cluster_name]['gene_id']:
+            gene_to_cluster_name[gene_id] = cluster_name
                 #sample_id = gene_annotation_dict[gene_id]['sample_id']
              #length = gene_annotation_dict[gene_id]['length']
                 #if length > length_max:
@@ -1044,7 +1228,7 @@ def create_protein_db_for_clusters(annotated_clusters, out_dir,group_dir,threads
             raise Exception('Error running diamond with ref clusters')
     elapsed = datetime.now() - starttime
     logging.info(f'Run create protein db for clusters -- time taken {str(elapsed)}')    
-def create_poa_protein_consensus(annotated_clusters, out_dir,gene_families_dir,threads=1):
+def create_poa_protein_consensus(annotated_clusters, out_dir,gene_families_dir='gene_families',threads=1):
     starttime = datetime.now()
 
     clusters_dir = os.path.join(out_dir, 'clusters')
@@ -1055,6 +1239,8 @@ def create_poa_protein_consensus(annotated_clusters, out_dir,gene_families_dir,t
     #with open(cmds_file,'w') as cmds:
     for cluster_name in annotated_clusters:
         if annotated_clusters[cluster_name]['size']==0:
+            continue
+        if annotated_clusters[cluster_name]['source']=='reference':
             continue
         cluster_dir = os.path.join(clusters_dir, cluster_name)
         gene_aln_file = os.path.join(cluster_dir, cluster_name + '.faa.aln')
@@ -1086,9 +1272,9 @@ def create_poa_protein_consensus(annotated_clusters, out_dir,gene_families_dir,t
 
         cmd = f"abpoa -c -t BLOSUM62.mtx {gene_seq_file} > {gene_seq_consensus_file} && sed -i 's/^>Consensus_sequence/>{cluster_name}/' {gene_seq_consensus_file}"
         results.append(pool.apply_async(run_command,(cmd, None)))
-        print(annotated_clusters[cluster_name])
+        #print(annotated_clusters[cluster_name])
         if annotated_clusters[cluster_name]['source']=='reference':
-            annotated_clusters[cluster_name]['representative']=os.path.join(gene_families_dir,cluster_name+'.fasta')
+            annotated_clusters[cluster_name]['representative']="gene_families/sequences/"+cluster_name+'.fasta'
         else:
             annotated_clusters[cluster_name]['representative']=gene_seq_consensus_file
         #cmds.write(cmd + '\n')
@@ -1105,7 +1291,10 @@ def make_protein_consensus_db(annotated_clusters, out_dir,method='diamond',threa
     starttime = datetime.now()
     consensus_fasta = os.path.join(out_dir, 'consensus.fasta')
     for cluster_name in annotated_clusters:
+        
         if annotated_clusters[cluster_name]["size"]==0:
+            continue
+        if annotated_clusters[cluster_name]['source']=='reference':
             continue
         if os.path.isfile(annotated_clusters[cluster_name]["representative"]):
             cmd = f'cat {annotated_clusters[cluster_name]["representative"]} >> {consensus_fasta}'
@@ -1128,10 +1317,12 @@ def make_protein_consensus_db(annotated_clusters, out_dir,method='diamond',threa
             raise Exception('Error running mmseqs createdb consensus file')
     elapsed = datetime.now() - starttime
     logging.info(f'make consensus db -- time taken {str(elapsed)}')
-def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters):
+def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters_file,root_dir):
     starttime = datetime.now()
+    old_annotated_clusters= json.load(open(old_annotated_clusters_file, 'r'))
     num_old_clusters=len(old_annotated_clusters.keys())
     count=0
+    cluster_dir=os.path.join(root_dir,'clusters')
     for clustername in new_annotated_clusters:
         if clustername in old_annotated_clusters:
             count=count+1
@@ -1142,8 +1333,20 @@ def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clust
                 suffix=suffix+1
             
             old_annotated_clusters[clustername+'_'+str(suffix)]=new_annotated_clusters[clustername]
+            write_array(os.path.join(cluster_dir,clustername+'_'+str(suffix)+".seq.json"),old_annotated_clusters[clustername+'_'+str(suffix)]['gene_id'])
+            old_annotated_clusters[clustername+'_'+str(suffix)]['gene_id']=os.path.join(cluster_dir,clustername+'_'+str(suffix)+".seq.json")
+            write_array(os.path.join(cluster_dir,clustername+'_'+str(suffix)+".useq.json"),old_annotated_clusters[clustername+'_'+str(suffix)]['unique_seq'])
+            old_annotated_clusters[clustername+'_'+str(suffix)]['unique_seq']=os.path.join(cluster_dir,clustername+'_'+str(suffix)+".useq.json")
+            
         else:
             old_annotated_clusters[clustername]=new_annotated_clusters[clustername]
+            write_array(os.path.join(cluster_dir,clustername+".seq.json"),old_annotated_clusters[clustername]['gene_id'])
+            old_annotated_clusters[clustername]['gene_id']=os.path.join(cluster_dir,clustername+".seq.json")
+            write_array(os.path.join(cluster_dir,clustername+".useq.json"),old_annotated_clusters[clustername]['unique_seq'])
+            old_annotated_clusters[clustername]['unique_seq']=os.path.join(cluster_dir,clustername+".useq.json")
+            
+    json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    del old_annotated_clusters
     elapsed = datetime.now() - starttime
-    logger.info(f'Merge {len(new_annotated_clusters.keys())} unmatched cluster to {num_old_clusters} old clusters to make {len(old_annotated_clusters.keys())} clusters, {count} duplicate -- time taken {str(elapsed)}')
-    return old_annotated_clusters
+    logger.info(f'Merge {len(new_annotated_clusters.keys())} unmatched cluster to {num_old_clusters} old clusters  {count} duplicate -- time taken {str(elapsed)}')
+    return old_annotated_clusters_file

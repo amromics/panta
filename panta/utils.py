@@ -7,6 +7,7 @@ from Bio.Seq import Seq
 import shutil
 import pickle
 import json
+import numpy as np
 logger = logging.getLogger(__name__)
 
 
@@ -275,4 +276,11 @@ def check_clusters(annotated_clusters_file,out_dir):
             write_array(os.path.join(cluster_dir,c+".useq.json"),annotated_clusters[c]['unique_seq'])
             annotated_clusters[c]['unique_seq']=os.path.join(cluster_dir,c+".useq.json")
     json.dump(annotated_clusters, open(annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+def l2_distance(vector1, vector2):
+   
+    if len(vector1) != len(vector2):
+        raise ValueError("2 vectors not the same lenght")
     
+    # Tính khoảng cách L2
+    distance = np.sqrt(np.sum((np.array(vector1) - np.array(vector2)) ** 2))
+    return distance

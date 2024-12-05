@@ -1765,6 +1765,123 @@ def run_main_pipeline_faiss_mmseq_mcl(args):
 
     elapsed = datetime.now() - starttime
     logging.info(f'Done -- time taken {str(elapsed)}')
+def run_main_pipeline_ems_mmseq_mcl(args):
+    starttime = datetime.now()
+
+    out_dir = args.outdir
+    threads = args.threads
+    if threads <= 0:
+        threads = multiprocessing.cpu_count()
+
+    temp_dir = os.path.join(out_dir, 'temp')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+    #ref_db='gene_families/gene_families_diamond_db.dmnd'
+    #ref_clusters = json.load(open('gene_families/gene_family_clusters.json','r'))
+    #group_seq_dir=os.path.join(out_dir, 'groups')
+    #os.makedirs(group_seq_dir)
+    # collect samples
+    sample_id_list = []
+    samples = collect_sample(sample_id_list, args)
+    if len(samples) < 2:
+        raise Exception(f'There must be at least 2 samples')
+
+    data_preparation.extract_proteins_tofile(
+        samples=samples,
+        out_dir=out_dir,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_position_fn=gene_position_fn,
+        table=args.table,
+        threads=threads)
+
+    # combined_faa = data_preparation.combine_proteins(
+    #     out_dir=out_dir,
+    #     samples=samples)
+
+    # main_pipeline
+    # cd_hit_represent_fasta, cd_hit_clusters = main_pipeline.run_cd_hit(
+    #     faa_file=combined_faa,
+    #     out_dir=temp_dir,
+    #     threads=threads)
+
+    combined_faa = data_preparation.combine_proteins(
+        out_dir=out_dir,
+        samples=samples)
+
+    
+    # unique_seds_fasta, unique_groups = main_pipeline.run_faiss_unique_seqs(
+    #     faa_file=combined_faa,
+      
+    #     out_dir=temp_dir,      
+    #     threads=threads)
+    unique_seds_fasta, unique_groups = main_pipeline.run_mmseq_unique_seqs(
+        faa_file=combined_faa,
+      
+        out_dir=temp_dir,      
+        threads=threads)
+    #json.dump(unique_groups, open(os.path.join(out_dir, 'unique_groups.json'), 'w'), indent=4, sort_keys=True)
+    
+    
+
+    inflated_clusters, similar_groups, representative_similar_groups,represent_clusters_file=main_pipeline.clustering_ems(
+        input_fasta_file=unique_seds_fasta,
+        out_dir=temp_dir,
+        threads=threads
+        )
+
+   
+    annotated_clusters = post_analysis.annotate_cluster(
+        unlabeled_clusters=inflated_clusters,
+        gene_annotation_fn=gene_annotation_fn)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'before_annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    annotated_clusters_file=save_clusters(annotated_clusters,out_dir)
+    annotated_clusters_file=post_analysis.expandClusterMembers(annotated_clusters_file,unique_groups)
+    unique_groups=save_unique_seqs(unique_groups,out_dir)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
+    #annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,clusters_by_ref)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    output.create_outputs(annotated_clusters_file,samples,out_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    #post_analysis.run_gene_alignment(annotated_clusters, samples, out_dir, args.alignment, coverage_threshold=args.ratio_coverage, threads=threads,poa=args.poa)
+    #post_analysis.create_poa_protein_consensus(annotated_clusters,out_dir,gene_families_dir='gene_families',threads=threads)
+    #post_analysis.make_protein_consensus_db(annotated_clusters,out_dir,threads=threads)
+    #post_analysis.create_protein_db_for_clusters(annotated_clusters,out_dir,group_seq_dir,threads=threads)
+    represent_clusters_file=main_pipeline.make_representative_clusters_from_similar_groups(
+        annotated_clusters_file=annotated_clusters_file,
+        representative_groups=representative_similar_groups,
+        out_dir=out_dir
+    )
+    
+    # output for next run
+    #output.export_gene_annotation(gene_annotation, out_dir)
+    #json.dump(gene_position, open(os.path.join(out_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+
+    main_gene_annotation_fn = os.path.join(out_dir, 'gene_annotation.csv')
+    main_gene_position_fn = os.path.join(out_dir, 'gene_position.csv')
+    main_unique_seds = os.path.join(out_dir, 'unique_seqs.fasta')
+   
+    shutil.move(gene_annotation_fn, main_gene_annotation_fn)
+    shutil.move(gene_position_fn, main_gene_position_fn)
+    shutil.move(unique_seds_fasta, main_unique_seds)
+    json.dump(samples, open(os.path.join(out_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    shutil.rmtree(os.path.join(out_dir, 'samples'))
+    # json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.copy(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #shutil.move(blast_result, os.path.join(out_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {blast_result} > ' + os.path.join(out_dir, 'blast.tsv.gz')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time taken {str(elapsed)}')
 def run_main(args):
     if args.mode=='a_diamond_c_mcl':
         run_main_pipeline_a_diamond_c_mcl(args)
@@ -1788,6 +1905,8 @@ def run_main(args):
         run_main_pipeline_g_mmseq_a_diamond_c_mcl_connected_componnet(args)
     if args.mode=='g_faiss_a_faiss_c_mcl':
         run_main_pipeline_faiss_mmseq_mcl(args)
+    if args.mode=='g_mmseq_a_ems_c_mcl':
+        run_main_pipeline_ems_mmseq_mcl(args)
 def run_add_sample_pipeline(args):
     starttime = datetime.now()
 

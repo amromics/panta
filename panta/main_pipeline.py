@@ -12,6 +12,8 @@ import gc
 from panta.utils import *
 import faiss
 import numpy as np
+import torch
+import esm
 from collections import Counter
 logger = logging.getLogger(__name__)
 
@@ -286,11 +288,28 @@ def protein_sequences_to_2mer(fasta_file):
             index_seq_id.append(record.id)          
             list_vectors.append(convertSeq2KmerCount(2,index_kaa,str(record.seq)))
     return index_seq_id,list_vectors
+def protein_sequences_to_vector_ems(fasta_file):
+    starttime = datetime.now()
+    index_seq_id=[]
+    list_vectors=[]
+    data=[]
+    model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+    batch_converter = alphabet.get_batch_converter()
+    model.eval()
+    
+    with open(fasta_file) as handle:
+        for record in SeqIO.parse(handle, "fasta"):          
+            index_seq_id.append(record.id)          
+            data.append((record.id,str(record.seq)))
+    batch_labels, batch_strs, batch_tokens = batch_converter(data)
+    elapsed = datetime.now() - starttime
+    
+    for i in range(len(batch_tokens)):
+        list_vectors.append(batch_tokens[i].numpy().tolist())
+    logging.info(f'protein to {len(list_vectors)} vector by ems -- time taken {elapsed}')
+    return batch_labels,list_vectors
 def transform_to_l1_space(data):
-    """
-    Chuyển đổi vector (x1, x2, ..., xn) thành (x1, -x1, x2, -x2, ..., xn, -xn)
-    để sử dụng với FAISS L2 Distance, mô phỏng Manhattan Distance.
-    """
+    
     return np.hstack([data, -data])
 
 def run_faiss_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):        
@@ -875,6 +894,52 @@ def pairwise_alignment_faiss(database_fasta, query_fasta, out_dir, evalue=1E-6, 
     lapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with faiss -- time taken {str(elapsed)}')
     return faiss_result
+def pairwise_alignment_ems(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None):
+    starttime = datetime.now()
+    mem_usage=0
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    index_seq,vectors=protein_sequences_to_vector_ems(database_fasta)
+    mem_usage = mem_report(mem_usage, "ems vector")
+    ems_result = os.path.join(out_dir, 'distances_ems.tsv')
+    
+    # with open(ems_result,'w') as f:
+    #     for i in range(len(vectors)):
+    #         for j in range(i+1,len(vectors)):
+    #             d=l2_distance(vectors[i],vectors[j])
+    #             if d<150:
+    #                 str_line=index_seq[i]+" "+index_seq[j]+" "+str(d)
+    #                 f.write(str_line+"\n")
+    array_input = np.array(vectors)
+    
+    index = faiss.IndexFlatL2(array_input.shape[1])  # Sử dụng FAISS với L2 Distance
+    index.add(array_input) 
+    mem_usage = mem_report(mem_usage, "faiss input")
+    elapsed = datetime.now() - starttime
+    logging.info(f'load faiss index -- time taken {elapsed}')
+    distances, indices = index.search(array_input, k=2000)
+    row_sums = array_input.sum(axis=1, keepdims=True)
+    #distances = distances / row_sums
+    #faiss_result = os.path.join(out_dir, 'distances_faiss.tsv')
+    visited={}
+    for i in range(len(array_input)):       
+        near_items=np.where(distances[i] <= 200)[0]
+        if len(near_items)>1:
+            for j in near_items:
+                if i!=indices[i][j]:
+                    ind=str(i)+","+str(indices[i][j])
+                    rev_ind=str(indices[i][j])+","+str(i)
+                    if ind not in visited and rev_ind not in visited:
+                        visited[ind]=distances[i][j]
+    with open(ems_result,'w') as f:
+        for k in visited.keys():
+            nodes=k.split(",")
+            str_line=index_seq[int(nodes[0])]+" "+index_seq[int(nodes[1])]+" "+str(visited[k])
+            f.write(str_line+"\n")
+    mem_usage = mem_report(mem_usage, "cal distance")
+    lapsed = datetime.now() - starttime
+    logging.info(f'Protein pairwise alignment with ems -- time taken {str(elapsed)}')
+    return ems_result
 def pairwise_alignment_partion_diamond(input_fasta, out_dir, threshold=0.7,evalue=1E-6, threads=4):
     starttime = datetime.now()
     
@@ -1772,6 +1837,58 @@ def clustering_faiss(input_fasta_file,out_dir,threads,evalue=10e6,identity=0.7,L
     mcl_file = cluster_with_mcl_from_faiss(
         out_dir = out_dir,
         file_faiss = faiss_result_file,
+        threads=threads,
+        inflation=4,
+        timing_log=timing_log)
+    inflated_clusters, groups = reinflate_clusters(
+        groups=similar_groups,
+        mcl_file=mcl_file)   
+    set_of_representative_id=set()
+    count_items=0
+    for c in inflated_clusters:
+        #print(c)
+        
+        for k in c.keys():
+            #count_items=count_items+len(c[k])
+            set_of_representative_id.add(k)
+            break
+            #set_of_representative_id.update(c[k])
+        for k in c.keys():
+            count_items=count_items+len(c[k])
+           
+    new_representative_clusters=os.path.join(out_dir,'new_representative_clusters.fasta')
+    with open(groups_representative_fasta,'rt') as fi, open(new_representative_clusters,'w') as fo:
+        for r in SeqIO.parse(fi,'fasta'):
+            if r.id in set_of_representative_id:
+                
+                SeqIO.write(r,fo,'fasta')
+    elapsed = datetime.now() - starttime
+    logging.info(f'Clustering with MCL with {count_items} seqs -- time taken {str(elapsed)}')
+    
+    return inflated_clusters,groups,groups_representative_fasta,new_representative_clusters
+def clustering_ems(input_fasta_file,out_dir,threads,evalue=10e6,identity=0.7,LD=0.7,AS=0.7,AL=0.7,timing_log=None):
+    starttime = datetime.now()
+    groups_representative_fasta, similar_groups = run_mmseq_with_map_similar_seqs(
+        faa_file=input_fasta_file,
+        
+        out_dir=out_dir,      
+        threads=threads,
+        timing_log=timing_log)
+    ems_result_file = pairwise_alignment_ems(
+      
+        #database_fasta = groups_representative_fasta,
+        database_fasta = groups_representative_fasta,
+        query_fasta = groups_representative_fasta,
+        out_dir = out_dir,
+        evalue = evalue,
+        threads=threads,
+        timing_log=timing_log)
+
+    
+
+    mcl_file = cluster_with_mcl_from_faiss(
+        out_dir = out_dir,
+        file_faiss = ems_result_file,
         threads=threads,
         inflation=4,
         timing_log=timing_log)

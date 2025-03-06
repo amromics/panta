@@ -14,6 +14,7 @@ import faiss
 import numpy as np
 import torch
 import esm
+import pandas as pd
 from collections import Counter
 logger = logging.getLogger(__name__)
 
@@ -90,12 +91,12 @@ def run_cd_hit_with_map(faa_file, map_file, out_dir, threads=4):
     logging.info(f'Run CD-HIT with 98% identity -- time taken {str(elapsed)}')
     return cd_hit_represent_corrected_fasta, clusters_new
 
-def run_mmseq_with_map(faa_file, map_file, out_dir,group_dir, threads=4):        
+def run_mmseq_with_map(faa_file, map_file, out_dir, threads=4):        
     starttime = datetime.now()
     
     mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
     mmseq_cluster_file=os.path.join(out_dir, 'mmseq_cluster.tsv')
-    cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id 1 -c 1 --threads {threads} > /dev/null'    
+    cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id 0.98  -c 0.98 --threads {threads} > /dev/null'    
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running mmseq')        
@@ -118,9 +119,9 @@ def run_mmseq_with_map(faa_file, map_file, out_dir,group_dir, threads=4):
                 ofh.write(f'>{gene_map[line[1:].strip()]}\n')
             else:
                 ofh.write(line)    
-    with open(represent_corrected_fasta) as handle:
-        for record in SeqIO.parse(handle, "fasta"):
-            SeqIO.write(record, os.path.join(group_dir,record.id+".faa"), "fasta")            
+    #with open(represent_corrected_fasta) as handle:
+    #    for record in SeqIO.parse(handle, "fasta"):
+    #        SeqIO.write(record, os.path.join(group_dir,record.id+".faa"), "fasta")            
 
     elapsed = datetime.now() - starttime
     logging.info(f'Run mmseq with 98% identity part 1 -- time taken {elapsed}')
@@ -264,6 +265,53 @@ def run_mmseq_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
     elapsed = datetime.now() - starttime
     logging.info(f'Run mmseq with 100% identity, {cluster_count} groups from {seq_count} -- time taken {str(elapsed)}')
     return represent_corrected_fasta, groups
+import mmh3
+def run_hash_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):        
+    starttime = datetime.now()
+    #mem_usage = mem_report(0, "begin run_hash_unique_seqs ")
+    hash_represent_fasta= os.path.join(out_dir, 'hash_rep_seq.fasta')
+    gene_hash={}
+    represent_corrected_fasta = os.path.join(out_dir, 'unique_seqs.fasta')
+    seq_count=0
+    map_rep_hash={}
+    with open(faa_file) as faa,open(represent_corrected_fasta,"w") as newfaa:
+        for record  in SeqIO.parse(faa,"fasta"):
+            hash=str(mmh3.hash128(str(record.seq)))
+            seq_count=seq_count+1
+            if hash in gene_hash:
+                gene_hash[hash].append(record.id)
+            else:
+                gene_hash[hash]=[record.id]
+                map_rep_hash[record.id]=hash
+                SeqIO.write(record,newfaa,'fasta')
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run hash , {len(gene_hash)} hash from {seq_count} -- time taken {str(elapsed)}')
+    return represent_corrected_fasta, gene_hash,map_rep_hash
+def add_hash_unique_seqs(old_gene_hash,faa_file, out_dir, threads=4, timing_log=None):        
+    starttime = datetime.now()
+   
+    
+    #gene_hash={}
+    remain_new_faa = os.path.join(out_dir, 'remain_seqs.faa')
+    seq_count=0
+    unmatch_seq_count=0
+    match_seq_count=0
+    with open(faa_file) as faa,open(remain_new_faa,"w") as newfaa:
+        for record  in SeqIO.parse(faa,"fasta"):
+            hash=str(mmh3.hash128(str(record.seq)))
+            seq_count=seq_count+1
+            if hash in old_gene_hash:
+                match_seq_count=match_seq_count+1
+                old_gene_hash[hash].append(record.id)
+            else:
+                unmatch_seq_count=unmatch_seq_count+1
+                SeqIO.write(record,newfaa,'fasta')
+  
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run add hash , add {match_seq_count},  size hash is {len(old_gene_hash)} hash, remain {unmatch_seq_count} seqs -- time taken {str(elapsed)}')
+    return  old_gene_hash,remain_new_faa
+
 def convertSeq2KmerCount(k,index_kaa,seq):
     kmers = [seq[i:i+k] for i in range(len(seq) - k + 1)]
     kmer_counts = Counter(kmers)
@@ -367,12 +415,12 @@ def run_faiss_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
     elapsed = datetime.now() - starttime
     logging.info(f'Run faiss with 100% identity, {len(groups.keys())} groups from {len(index_seq)} sequences-- time taken {str(elapsed)}')
     return represent_corrected_fasta, groups
-def run_mmseq_with_map_similar_seqs(faa_file, out_dir, threads=4,timing_log=None):        
+def run_mmseq_with_map_similar_seqs(faa_file, out_dir, threads=4,timing_log=None, identity=0.98):        
     starttime = datetime.now()
     
     mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
     mmseq_cluster_file=os.path.join(out_dir, 'mmseq_cluster.tsv')
-    cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id 0.98 -c 0.98 --threads {threads} > /dev/null'    
+    cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id {identity} -c {identity} --threads {threads} > /dev/null'    
     ret = run_command(cmd,timing_log)
     if ret != 0:
         raise Exception('Error running mmseq')        
@@ -479,7 +527,7 @@ def run_diamond_with_map(faa_file, map_file, out_dir, cover=90, threads=4):
     
     diamond_represent_fasta= os.path.join(out_dir, 'diamond_rep_seq.fasta')
     diamond_cluster_file=os.path.join(out_dir, 'diamond_cluster.tsv')
-    cmd = f'./diamond deepclust -d {faa_file} -o {diamond_cluster_file} --sensitive --approx-id 98 --round-approx-id 98 --round-coverage {cover} --member-cover {cover} --mutual-cover {cover} > /dev/null'    
+    cmd = f'./diamond deepclust -d {faa_file} -o {diamond_cluster_file}  --approx-id 98 --round-approx-id 98 --round-coverage {cover} --member-cover {cover} --mutual-cover {cover} > /dev/null'    
     ret = run_command(cmd)
     if ret != 0:
         raise Exception('Error running diamond')        
@@ -832,7 +880,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
     return blast_result
 
 
-def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None):
+def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None,max_seq=2000):
     starttime = datetime.now()
     
     if not os.path.exists(out_dir):
@@ -848,7 +896,7 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     
     # run diamond blastp
     diamond_result = os.path.join(out_dir, 'diamond.tsv')
-    cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 2000 2> /dev/null 1> {diamond_result}'
+    cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs {max_seq} 2> /dev/null 1> {diamond_result}'
     #subprocess.call(cmd, shell=True)
     #ret = os.system(cmd)
     ret = run_command(cmd,timing_log)
@@ -859,6 +907,72 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     elapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with Diamond -- time taken {str(elapsed)}')
     return diamond_result
+import sourmash
+from sourmash import MinHash, SourmashSignature
+def pairwise_alignment_sourmash( query_fasta, out_dir,ksize=3, similarity=0.7,diff_len=0.7,num=100, evalue=1E-6, threads=4,timing_log=None):
+    starttime = datetime.now()
+   
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    signatures = []
+    sequence_names = []
+    seq_len=[]
+    for record in SeqIO.parse(query_fasta, "fasta"):
+        sequence_names.append(record.id)
+        # Create a MinHash sketch for the current sequence
+        mh = MinHash(ksize=ksize, n=num,  is_protein=True)
+        mh.add_sequence(str(record.seq), force=True)
+        # Create a SourmashSignature for this MinHash
+        sig = SourmashSignature(mh, name=record.id)
+        signatures.append(sig)
+        seq_len.append(len(record.seq))
+    
+    
+    num_sequences = len(signatures)
+    
+    output_tsv = os.path.join(out_dir, 'distances_sourmash.tsv')
+    with open(output_tsv, "w", newline="") as f:
+        for i in range(num_sequences-1):
+            for j in range(i,num_sequences):
+                sim=signatures[i].similarity(signatures[j])
+                #diff=abs(seq_len[i]-seq_len[j])
+                p_diff=min(seq_len[i],seq_len[j])/max(seq_len[i],seq_len[j])
+                if sim > similarity and p_diff>diff_len: 
+                    str_line=sequence_names[i]+"\t"+sequence_names[j]+"\t"+str(sim)
+                    f.write(str_line+"\n")
+    
+   
+    
+        
+  
+    elapsed = datetime.now() - starttime
+    logging.info(f'Protein pairwise alignment with sourmash -- time taken {str(elapsed)}')
+    return output_tsv
+def pairwise_alignment_mash(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None):
+    starttime = datetime.now()
+    mem_usage=0
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    cmd = f'mash sketch -o database_sketch  {database_fasta}'
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running mash')
+    cmd = f'mash sketch -o query_sketch  {query_fasta}'
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running mash sketch')
+    mash_result = os.path.join(out_dir, 'distances_mash.tsv')
+    cmd = f'mash dist database_sketch.msh query_sketch.msh >  {mash_result}'
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running mash sketch')
+  
+    elapsed = datetime.now() - starttime
+    logging.info(f'Protein pairwise alignment with faiss -- time taken {str(elapsed)}')
+    return mash_result
 def pairwise_alignment_faiss(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None):
     starttime = datetime.now()
     mem_usage=0
@@ -910,25 +1024,43 @@ def pairwise_alignment_ems(database_fasta, query_fasta, out_dir, evalue=1E-6, th
     #             if d<150:
     #                 str_line=index_seq[i]+" "+index_seq[j]+" "+str(d)
     #                 f.write(str_line+"\n")
-    array_input = np.array(vectors)
+    #faiss distance
+    # array_input = np.array(vectors)
     
-    index = faiss.IndexFlatL2(array_input.shape[1])  # Sử dụng FAISS với L2 Distance
-    index.add(array_input) 
-    mem_usage = mem_report(mem_usage, "faiss input")
-    elapsed = datetime.now() - starttime
-    logging.info(f'load faiss index -- time taken {elapsed}')
-    distances, indices = index.search(array_input, k=2000)
-    row_sums = array_input.sum(axis=1, keepdims=True)
-    #distances = distances / row_sums
-    #faiss_result = os.path.join(out_dir, 'distances_faiss.tsv')
+    # index = faiss.IndexFlatL2(array_input.shape[1])  # Sử dụng FAISS với L2 Distance
+    # index.add(array_input) 
+    # mem_usage = mem_report(mem_usage, "faiss input")
+    # elapsed = datetime.now() - starttime
+    # logging.info(f'load faiss index -- time taken {elapsed}')
+    # distances, indices = index.search(array_input, k=2000)
+    # row_sums = array_input.sum(axis=1, keepdims=True)
+    # #distances = distances / row_sums
+    # #faiss_result = os.path.join(out_dir, 'distances_faiss.tsv')
+    # visited={}
+    # for i in range(len(array_input)):       
+    #     near_items=np.where(distances[i] <= 200)[0]
+    #     if len(near_items)>1:
+    #         for j in near_items:
+    #             if i!=indices[i][j]:
+    #                 ind=str(i)+","+str(indices[i][j])
+    #                 rev_ind=str(indices[i][j])+","+str(i)
+    #                 if ind not in visited and rev_ind not in visited:
+    #                     visited[ind]=distances[i][j]
+    # with open(ems_result,'w') as f:
+    #     for k in visited.keys():
+    #         nodes=k.split(",")
+    #         str_line=index_seq[int(nodes[0])]+" "+index_seq[int(nodes[1])]+" "+str(visited[k])
+    #         f.write(str_line+"\n")
+    # cosin distance
     visited={}
-    for i in range(len(array_input)):       
-        near_items=np.where(distances[i] <= 200)[0]
+    distances=calculate_cosine_distances_np(vectors)
+    for i in range(len(vectors)):       
+        near_items=np.where(distances[i] <= 0.2)[0]
         if len(near_items)>1:
             for j in near_items:
-                if i!=indices[i][j]:
-                    ind=str(i)+","+str(indices[i][j])
-                    rev_ind=str(indices[i][j])+","+str(i)
+                if i!=j:
+                    ind=str(i)+","+str(j)
+                    rev_ind=str(j)+","+str(i)
                     if ind not in visited and rev_ind not in visited:
                         visited[ind]=distances[i][j]
     with open(ems_result,'w') as f:
@@ -937,7 +1069,7 @@ def pairwise_alignment_ems(database_fasta, query_fasta, out_dir, evalue=1E-6, th
             str_line=index_seq[int(nodes[0])]+" "+index_seq[int(nodes[1])]+" "+str(visited[k])
             f.write(str_line+"\n")
     mem_usage = mem_report(mem_usage, "cal distance")
-    lapsed = datetime.now() - starttime
+    elapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with ems -- time taken {str(elapsed)}')
     return ems_result
 def pairwise_alignment_partion_diamond(input_fasta, out_dir, threshold=0.7,evalue=1E-6, threads=4):
@@ -1153,9 +1285,9 @@ def pairwise_alignment_mmseq(database_fasta, query_fasta, out_dir, evalue=1E-6 ,
 def filter_blast_result(blast_result, 
                         # gene_annotation, 
                         out_dir, identity, length_difference, alignment_coverage_short, alignment_coverage_long):
-    filtered_blast_result = os.path.join(out_dir, 'filtered_blast_results')
+    filtered_blast_result_file = os.path.join(out_dir, 'filtered_blast_results')
 
-    with open(filtered_blast_result, 'w') as fh:
+    with open(filtered_blast_result_file, 'w') as fh:
         for line in open(blast_result, 'r'):
             cells = line.rstrip().split('\t')            
 
@@ -1176,7 +1308,7 @@ def filter_blast_result(blast_result,
 
             fh.write(line)
 
-    return filtered_blast_result
+    return filtered_blast_result_file
 
             
 def cluster_with_mcl(blast_result, out_dir, threads=4,inflation=1.5,timing_log=None):
@@ -1791,29 +1923,29 @@ def clustering(input_fasta_file,out_dir,threads,evalue=10e6,identity=0.7,LD=0.7,
     inflated_clusters, groups = reinflate_clusters(
         groups=similar_groups,
         mcl_file=mcl_file)   
-    set_of_representative_id=set()
+    #set_of_representative_id=set()
     count_items=0
     for c in inflated_clusters:
         #print(c)
         
-        for k in c.keys():
-            #count_items=count_items+len(c[k])
-            set_of_representative_id.add(k)
-            break
+        #for k in c.keys():
+        #    #count_items=count_items+len(c[k])
+        #    set_of_representative_id.add(k)
+        #    break
             #set_of_representative_id.update(c[k])
         for k in c.keys():
             count_items=count_items+len(c[k])
            
-    new_representative_clusters=os.path.join(out_dir,'new_representative_clusters.fasta')
-    with open(groups_representative_fasta,'rt') as fi, open(new_representative_clusters,'w') as fo:
-        for r in SeqIO.parse(fi,'fasta'):
-            if r.id in set_of_representative_id:
+    # new_representative_clusters=os.path.join(out_dir,'new_representative_clusters.fasta')
+    # with open(groups_representative_fasta,'rt') as fi, open(new_representative_clusters,'w') as fo:
+    #     for r in SeqIO.parse(fi,'fasta'):
+    #         if r.id in set_of_representative_id:
                 
-                SeqIO.write(r,fo,'fasta')
+    #             SeqIO.write(r,fo,'fasta')
     elapsed = datetime.now() - starttime
     logging.info(f'Clustering with MCL with {count_items} seqs -- time taken {str(elapsed)}')
     
-    return inflated_clusters,groups,groups_representative_fasta,new_representative_clusters
+    return inflated_clusters,groups,groups_representative_fasta
 def clustering_faiss(input_fasta_file,out_dir,threads,evalue=10e6,identity=0.7,LD=0.7,AS=0.7,AL=0.7,timing_log=None):
     starttime = datetime.now()
     groups_representative_fasta, similar_groups = run_mmseq_with_map_similar_seqs(
@@ -2466,6 +2598,7 @@ def merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clust
             old_annotated_clusters[clustername+'_'+str(suffix)]=new_annotated_clusters[clustername]
         else:
             old_annotated_clusters[clustername]=new_annotated_clusters[clustername]
+        
     json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
     elapsed = datetime.now() - starttime
     logger.info(f'Merge {len(new_annotated_clusters.keys())} unmatched cluster to {num_old_clusters} old clusters, {count} duplicate -- time taken {str(elapsed)}')
@@ -2507,4 +2640,383 @@ def reclustering(group_clusters,unique_seqs_file,gene_annotation_fn,out_dir,thre
     logger.info(f'reclustering {len(group_clusters)} clusters with {len(unique_seq_list)} unique seq, get {count_after_reflate} seqs back -- time taken {str(elapsed)}')
     
     return new_inflated_clusters
+def merge_new_cluster_to_old_clusters_by_core_analysis(new_annotated_clusters,old_annotated_clusters_file,old_unique_seqs,new_unique_seqs,gene_present_tab,root_dir,temp_dir,threads, timing_log=None):
+    starttime = datetime.now()
+    old_annotated_clusters= json.load(open(old_annotated_clusters_file, 'r'))
+    num_old_clusters=len(old_annotated_clusters.keys())
+    count=0
+    cluster_dir=os.path.join(root_dir,'clusters')
+    map_seq_new_cluster={}
+    map_count_seq_newcluster={}
+    for clustername in new_annotated_clusters:
+        for us in new_annotated_clusters[clustername]['unique_seq']:
+            map_seq_new_cluster[us]=clustername
+        map_count_seq_newcluster[clustername]=len(new_annotated_clusters[clustername]['unique_seq'])
+    map_seq_old_cluster={}
+    sample_size=100
     
+    for clustername in old_annotated_clusters:
+        list_us=read_array(old_annotated_clusters[clustername]['unique_seq'])
+        if len(list_us)>100:
+            list_us = random.choices(my_list, k=sample_size)
+        for us in list_us:
+            map_seq_old_cluster[us]=clustername 
+        
+    #split core and shell clusters:
+    df = pd.read_csv(gene_present_tab, sep="\t")  
+    row_sums = df.iloc[:, 1:].sum(axis=1)
+    k = df.shape[1] - 1  # Total number of binary columns
+    row_means = row_sums / k
+    filtered_df = df[row_means >= 0.15]
+    core_set = set(filtered_df['Gene']) 
+    #make new old unique seq:
+    print('core set:'+str(len(core_set)))
+    count_cloud_cluster=0
+    old_unique_core_seqs=os.path.join(temp_dir,'old_unique_core_seqs.fasta')
+    old_unique_cloud_seqs=os.path.join(temp_dir,'old_unique_cloud_seqs.fasta')
+    with open(old_unique_seqs,'r') as fi, open(old_unique_core_seqs,'w') as fc, open(old_unique_cloud_seqs,'w') as fh:
+        for seq in SeqIO.parse(fi,'fasta'):
+            if seq.id in map_seq_old_cluster:
+                if map_seq_old_cluster[seq.id] in core_set:
+                    SeqIO.write(seq,fc,'fasta') 
+                else:
+                    count_cloud_cluster=count_cloud_clucster+1
+                    SeqIO.write(seq,fh,'fasta')
+
+    combined_unique_core_seqs=os.path.join(temp_dir,'combined_unique_core_seqs.fasta')
+    cmd=f'cat {old_unique_core_seqs} {new_unique_seqs} > {combined_unique_core_seqs}'
+    ret = run_command(cmd,timing_log) 
+    groups_representative_fasta, similar_groups = run_mmseq_with_map_similar_seqs(
+        faa_file=combined_unique_core_seqs,    
+        out_dir=temp_dir,      
+        threads=threads,
+        timing_log=timing_log,
+        identity=0.95)
+    pair_clusters={}
+    for g in similar_groups:
+        if len(similar_groups[g])>1:
+            items=[g]
+            items.extend(similar_groups[g])
+            items.sort()
+            for i in range(len(items)-1):           
+                for j in range(i+1, len(items)):
+                    oc=None
+                    if items[i] in map_seq_old_cluster:
+                        oc=map_seq_old_cluster[items[i]]
+                    if items[j] in map_seq_old_cluster:
+                        oc=map_seq_old_cluster[items[j]]
+                    nc=None
+                    if items[i] in map_seq_new_cluster:
+                        nc=map_seq_new_cluster[items[i]]
+                    if items[j] in map_seq_new_cluster:
+                        nc=map_seq_new_cluster[items[j]]
+                    if oc==None or nc==None:
+                        continue
+                    else:
+                        if oc not in pair_clusters:
+                            pair_clusters[oc]={}
+                        if nc not in pair_clusters[oc]:
+                            pair_clusters[oc][nc]=0
+                        pair_clusters[oc][nc]=pair_clusters[oc][nc]+1
+    #filter
+    for oc in pair_clusters:
+        list_del=[]
+        for nc in  pair_clusters[oc]:
+            if pair_clusters[oc][nc]<map_count_seq_newcluster[nc]*0.5:
+                list_del.append(nc)
+        for nc in list_del:
+            del pair_clusters[oc][nc]
+    #merge core cluster:
+    """ annotated_clusters[cluster_new_name] = {
+            'gene_id':gene_id_list,
+            'unique_seq':unique_seq,
+            'product':cluster_product,
+            'representative': unique_seq[0],
+            'min_length': lens[0],
+            'max_length': lens[1],
+            'mean_length': lens[2],
+            'size': lens[3],
+            'source':'clustering'
+            } """
+    set_del_new_clusters=set()
+    for oc in pair_clusters:
+        for nc in pair_clusters[oc]:
+            old_annotated_clusters[oc]=merge_2_annotated_clusters(old_annotated_clusters[oc],new_annotated_clusters[nc])
+            set_del_new_clusters.add(nc)
+    logger.info(f'Merge {len(set_del_new_clusters)} new clusters to old {len(pair_clusters.keys())} cluster  ')
+    
+    #merge cloud cluster:
+    new_unique_cloud_seqs=os.path.join(temp_dir,'new_unique_cloud_seqs.fasta')
+    with open(new_unique_seqs,'r') as fi, open(new_unique_cloud_seqs,'w') as fc:
+        for seq in SeqIO.parse(fi,'fasta'):
+            if seq.id in map_seq_new_cluster:
+                if not map_seq_new_cluster[seq.id] in set_del_new_clusters:
+                    SeqIO.write(seq,fc,'fasta') 
+    combined_unique_cloud_seqs=os.path.join(temp_dir,'combined_unique_cloud_seqs.fasta')
+    cmd=f'cat {old_unique_cloud_seqs} {new_unique_cloud_seqs} > {combined_unique_cloud_seqs}'
+    ret = run_command(cmd,timing_log)
+    groups_representative_fasta, similar_groups = run_mmseq_with_map_similar_seqs(
+        faa_file=combined_unique_cloud_seqs,    
+        out_dir=temp_dir,      
+        threads=threads,
+        timing_log=timing_log,
+        identity=0.90)
+    pair_clusters={}
+    for g in similar_groups:
+        if len(similar_groups[g])>1:
+            items=[g]
+            items.extend(similar_groups[g])
+            items.sort()
+            for i in range(len(items)-1):           
+                for j in range(i+1, len(items)):
+                    oc=None
+                    if items[i] in map_seq_old_cluster:
+                        oc=map_seq_old_cluster[items[i]]
+                    if items[j] in map_seq_old_cluster:
+                        oc=map_seq_old_cluster[items[j]]
+                    nc=None
+                    if items[i] in map_seq_new_cluster:
+                        nc=map_seq_new_cluster[items[i]]
+                    if items[j] in map_seq_new_cluster:
+                        nc=map_seq_new_cluster[items[j]]
+                    if oc==None or nc==None:
+                        continue
+                    else:
+                        if oc not in pair_clusters:
+                            pair_clusters[oc]={}
+                        if nc not in pair_clusters[oc]:
+                            pair_clusters[oc][nc]=0
+                        pair_clusters[oc][nc]=pair_clusters[oc][nc]+1
+    for oc in pair_clusters:
+        for nc in pair_clusters[oc]:
+            old_annotated_clusters[oc]=merge_2_annotated_clusters[old_annotated_clusters[oc],new_annotated_clusters[nc]]
+            set_del_new_clusters.add(nc)
+    for nc in set_del_new_clusters:
+        del new_annotated_clusters[nc]
+    
+    json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    old_annotated_clusters_file=merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters_file)
+    #json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    save_update_clusters(old_annotated_clusters_file,root_dir)
+    del old_annotated_clusters
+    elapsed = datetime.now() - starttime
+    logger.info(f'Merge done, remain {len(new_annotated_clusters.keys())} clusters  -- time taken {str(elapsed)}')
+    return old_annotated_clusters_file,new_annotated_clusters
+def merge_new_cluster_to_old_clusters_by_core_analysis2(new_annotated_clusters,old_annotated_clusters_file,old_unique_seqs,new_unique_seqs,gene_present_tab,root_dir,temp_dir,threads, timing_log=None):
+    starttime = datetime.now()
+    old_annotated_clusters= json.load(open(old_annotated_clusters_file, 'r'))
+    map_rep_seq_old_cluster={}
+    
+    
+    for clustername in old_annotated_clusters.keys():
+       
+        map_rep_seq_old_cluster[old_annotated_clusters[clustername]['representative']]=clustername
+    
+    representative_core_old_cluster_seqs=os.path.join(temp_dir,"representative_old_core_cluster.fasta")
+    representative_cloud_old_cluster_seqs=os.path.join(temp_dir,"representative_old_cloud_cluster.fasta")
+    df = pd.read_csv(gene_present_tab, sep="\t")  
+    row_sums = df.iloc[:, 1:].sum(axis=1)
+    k = df.shape[1] - 1  # Total number of binary columns
+    row_means = row_sums / k
+    filtered_df = df[row_means >= 0.15]
+    core_set = set(filtered_df['Gene']) 
+    logger.info(f'core_set:{len(core_set)}')
+    with open(old_unique_seqs,'r') as fi, open(representative_core_old_cluster_seqs,'w') as fc, open(representative_cloud_old_cluster_seqs,'w') as fh:
+        for seq in SeqIO.parse(fi,'fasta'):
+            if seq.id in map_rep_seq_old_cluster:
+                if map_rep_seq_old_cluster[seq.id] in core_set:
+                    SeqIO.write(seq,fc,'fasta') 
+                else:                   
+                    SeqIO.write(seq,fh,'fasta')
+    map_rep_seq_new_cluster={}
+    for clustername in new_annotated_clusters:
+       
+        map_rep_seq_new_cluster[new_annotated_clusters[clustername]['representative']]=clustername
+    representative_new_cluster_seqs=os.path.join(temp_dir,"representative_new_clusters.fasta")
+    with open(new_unique_seqs,'r') as fi, open(representative_new_cluster_seqs,'w') as fc:
+        for seq in SeqIO.parse(fi,'fasta'):
+            if seq.id in map_rep_seq_new_cluster:
+                SeqIO.write(seq,fc,'fasta') 
+    #pairwise diamond with rep of old_cluster with rep of new clusters
+    blast_result = pairwise_alignment_diamond(
+      
+        #database_fasta = groups_representative_fasta,
+        database_fasta = representative_core_old_cluster_seqs,
+        query_fasta = representative_new_cluster_seqs,
+        out_dir = temp_dir,
+        evalue = 1E-6,
+        threads=threads,
+        timing_log=timing_log)
+
+    filtered_blast_result_file = filter_blast_result(
+        blast_result=blast_result,
+        out_dir = temp_dir,
+        identity=0.7,
+        length_difference=0.7,
+        alignment_coverage_short=0.7,
+        alignment_coverage_long=0.7)
+    max_match_new_cluster_old_cluster={}
+    for line in open(blast_result, 'r'):
+        
+        cells = line.rstrip().split('\t')            
+        new_rep_id=cells[0]
+        old_rep_id=cells[1]
+        old_cluster_name=map_rep_seq_old_cluster[old_rep_id] 
+        new_cluster_name=map_rep_seq_new_cluster[new_rep_id]
+        pident = float(cells[2]) / 100
+        if new_cluster_name in max_match_new_cluster_old_cluster:
+            max_match_new_cluster_old_cluster[new_cluster_name][old_cluster_name]=pident
+            if pident>max_match_new_cluster_old_cluster[new_cluster_name]['maxi']:
+                max_match_new_cluster_old_cluster[new_cluster_name]['maxi']=pident
+                max_match_new_cluster_old_cluster[new_cluster_name]['match']=old_cluster_name
+        else:
+            max_match_new_cluster_old_cluster[new_cluster_name]={}
+            max_match_new_cluster_old_cluster[new_cluster_name]['maxi']=pident
+            max_match_new_cluster_old_cluster[new_cluster_name]['match']=old_cluster_name
+    #for all match cluster, merge:
+    num_cluster=len(new_annotated_clusters)
+    for new_c in max_match_new_cluster_old_cluster:
+        old_annotated_clusters[max_match_new_cluster_old_cluster[new_c]['match']]=merge_2_annotated_clusters(old_annotated_clusters[max_match_new_cluster_old_cluster[new_c]['match']],new_annotated_clusters[new_c])
+        del new_annotated_clusters[new_c]
+    print("reduce "+str(num_cluster-len(new_annotated_clusters))+" after merge core clusters")
+    num_cluster=len(new_annotated_clusters)
+    remain_representative_new_cluster_seqs=os.path.join(temp_dir,"remain_representative_new_clusters.fasta")
+    with open(new_unique_seqs,'r') as fi, open(remain_representative_new_cluster_seqs,'w') as fc:
+        for seq in SeqIO.parse(fi,'fasta'):
+            if seq.id in map_rep_seq_new_cluster and map_rep_seq_new_cluster[seq.id] in new_annotated_clusters:
+                SeqIO.write(seq,fc,'fasta') 
+    #grouping with old cloud cluster:
+    #concat :
+    concat_new_and_cloud_rep_cluster=os.path.join(temp_dir,"concat_new_and_cloud_rep_cluster.fasta")
+    cmd=f'cat {representative_cloud_old_cluster_seqs} {remain_representative_new_cluster_seqs} > {concat_new_and_cloud_rep_cluster}'
+    ret = run_command(cmd,timing_log)
+    groups_representative_fasta, similar_groups = run_mmseq_with_map_similar_seqs(
+        faa_file=concat_new_and_cloud_rep_cluster,    
+        out_dir=temp_dir,      
+        threads=threads,
+        timing_log=timing_log,
+        identity=0.50)
+    
+    pairs = []
+    
+   
+    logger.info(f'similar_groups cloud clusters:{len(similar_groups)}')
+    for g in similar_groups:
+        if len(similar_groups[g])>1:
+            items=[g]
+            items.extend(similar_groups[g])
+            items_from_A = [item for item in items if item in map_rep_seq_old_cluster.keys()]
+            items_from_B = [item for item in items if item in map_rep_seq_new_cluster.keys()]
+            for item_a in items_from_A:
+                for item_b in items_from_B:
+                    pairs.append((map_rep_seq_old_cluster[item_a], map_rep_seq_new_cluster[item_b]))
+    logger.info(f'MPair cloud clusters:{len(pairs)}')
+    for p in pairs:
+        if p[0] in old_annotated_clusters and p[1] in new_annotated_clusters:
+            old_annotated_clusters[p[0]]=merge_2_annotated_clusters(map_rep_seq_old_cluster[p[0]],new_annotated_clusters[p[1]])
+            del new_annotated_clusters[p[1]]
+    print("reduce "+str(num_cluster-len(new_annotated_clusters))+" after merge cloud clusters")
+    json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    old_annotated_clusters_file=merge_new_cluster_to_old_clusters(new_annotated_clusters,old_annotated_clusters_file)
+    #json.dump(old_annotated_clusters, open(old_annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    save_update_clusters(old_annotated_clusters_file,root_dir)
+    del old_annotated_clusters
+    elapsed = datetime.now() - starttime
+    logger.info(f'Merge done, remain {len(new_annotated_clusters.keys())} clusters  -- time taken {str(elapsed)}')
+    return old_annotated_clusters_file,new_annotated_clusters
+def merge_2_annotated_clusters(old_cluster,new_cluster):
+    list_unique_seq=[]
+    if check_path(old_cluster['unique_seq']):
+        list_unique_seq=read_array(old_cluster['unique_seq'])
+    else:
+        list_unique_seq=old_cluster['unique_seq']
+    list_unique_seq.extend(new_cluster['unique_seq'])
+    old_cluster['min_length']=min(old_cluster['min_length'],new_cluster['min_length'])
+    old_cluster['max_length']=max(old_cluster['max_length'],new_cluster['max_length'])
+    old_cluster['mean_length']=(old_cluster['mean_length']*old_cluster['size']+new_cluster['mean_length']*new_cluster['size'])/(old_cluster['size']+new_cluster['size'])
+
+    old_cluster['size']=old_cluster['size']+new_cluster['size']
+    old_cluster['unique_seq']=write_array(old_cluster['unique_seq'], list_unique_seq)
+    return old_cluster
+def reduce_unique_seqs_and_expand_seq_ids(clusters_file, old_groups_file,new_groups,old_seqs_fasta,new_seqs_fasta,root_dir,temp_dir,threads, timing_log):
+    starttime = datetime.now()
+    old_groups=json.load(open(old_groups_file, 'r'))
+    
+    combined_unique_seqs=os.path.join(temp_dir,'combined_unique_seqs.fasta')
+    cmd=f'cat {old_seqs_fasta} {new_seqs_fasta} > {combined_unique_seqs}'
+    ret = run_command(cmd,timing_log)
+    unique_seqs_fasta, unique_groups = run_mmseq_unique_seqs(
+        faa_file=combined_unique_seqs,     
+        out_dir=temp_dir,      
+        threads=threads,
+        timing_log=timing_log)
+    json.dump(unique_groups, open(os.path.join(temp_dir,'combined_group_unique_seqs.json'), 'w'), indent=4, sort_keys=True)
+    merged_seq_in_groups={}
+    del_unique=set()
+    revert_map_seq_group={}
+    for g in unique_groups:
+        merged_seq_in_groups[g]=[g]
+        if g in old_groups:
+            merged_seq_in_groups[g].extend(read_array(old_groups[g])) 
+        else:
+            merged_seq_in_groups[g].extend(new_groups[g]) 
+        for s in unique_groups[g]:
+            merged_seq_in_groups[g].append(s)
+            if s in old_groups:
+                
+                merged_seq_in_groups[g].extend(read_array(old_groups[s]))    
+            else:
+                merged_seq_in_groups[g].extend(new_groups[s])
+            del_unique.add(s)
+        #merged_seq_in_groups=list(set(merged_seq_in_groups))
+    #count num of sq
+    count_seq=0
+    for g in merged_seq_in_groups:
+        count_seq=count_seq+len(merged_seq_in_groups[g])
+        for id in merged_seq_in_groups[g]:
+            revert_map_seq_group[id]=g
+    logger.info(f"count_seq in merged groups:{count_seq}")
+    logger.info(f'merged_seq_in_groups  {len(merged_seq_in_groups)} clusters')
+    
+    clusters=json.load(open(clusters_file, 'r'))
+    json.dump(clusters, open(clusters_file+".bak", 'w'), indent=4, sort_keys=True)
+   
+    list_del_cluster=[]
+    set_used_seq=set()
+    for c in  clusters:
+        new_unique=[]
+        new_ids=[]
+        if check_path(clusters[c]['unique_seq']):
+            list_unique_seqs=read_array(clusters[c]['unique_seq'])
+        else:
+            list_unique_seqs=clusters[c]['unique_seq']
+        #list_unique_seqs=read_array(clusters[c]['unique_seq'])
+        list_unique_seqs=list(set(list_unique_seqs))
+        #print(c)
+        for s in list_unique_seqs:
+            #print(s)
+            ns=revert_map_seq_group[s]
+            if ns in merged_seq_in_groups:
+                new_unique.append(ns)
+                new_ids.extend(merged_seq_in_groups[ns]) 
+                del merged_seq_in_groups[ns] 
+            #new_unique.append(s)
+        
+        new_ids=list(set(new_ids))
+        os.remove(clusters[c]['gene_id'])
+        os.remove(clusters[c]['unique_seq'])
+        if len(new_ids)==0 or len(new_unique)==0:
+            list_del_cluster.append(c)
+        clusters[c]['gene_id']=write_array(clusters[c]['gene_id'],new_ids)
+        clusters[c]['unique_seq']=write_array(clusters[c]['unique_seq'],new_unique)
+    logger.info(f'remove  {list_del_cluster} clusters')
+    logger.info(f'merged_seq_in_groups  {len(merged_seq_in_groups)} clusters')
+    for c in list_del_cluster:
+        # list_seqs=read_array(clusters[c]['gene_id'])
+        del clusters[c]
+    save_unique_seqs(merged_seq_in_groups,root_dir)
+    json.dump(clusters, open(clusters_file, 'w'), indent=4, sort_keys=True)
+    elapsed = datetime.now() - starttime
+    logger.info(f'reduce unique seq and expand ids  -- time taken {str(elapsed)}')
+    #print(set(merged_seq_in_groups)-set_used_seq)
+    return unique_seqs_fasta

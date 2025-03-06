@@ -3,11 +3,11 @@ import logging
 import copy
 from datetime import datetime
 import multiprocessing
-
+import random
 import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from panta.utils import run_command, parse_cluster_file,getIdentAlignFromCell
+from panta.utils import *
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +375,7 @@ def group_new_unique_seq_to_old_cluster(old_unique_seqs_fasta,new_unique_seqs_fa
     if ret != 0:
         raise Exception('Error concat unique sequences')
     return new_merged_unique_seq_fasta,old_clusters
-        
+      
 def merge_clusters_based_on_unique_seq(old_clusters,new_clusters):
     for c1 in old_clusters:
         set1=set(old_clusters[c1]['unique_seq'])

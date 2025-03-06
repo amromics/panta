@@ -226,6 +226,13 @@ def concat2fasta(fasta1,fasta2,combined_fasta):
     if ret != 0:
         raise Exception('Error concat unique sequences')
     return combined_fasta
+def appendTextfile(old_file,new_file):
+    #new_merged_seq_fasta=os.path.join(out_dir,"unique_concat_seq.fasta")
+    cmd=f'cat {new_file} >> {old_file} '
+    ret = run_command(cmd)
+    if ret != 0:
+        raise Exception('Error concat unique sequences')
+    return old_file
 def write_array(filename,data):
     json.dump(data, open(filename, 'w'), indent=4, sort_keys=True)
     #with open(filename, 'wb') as file:
@@ -248,8 +255,24 @@ def save_clusters(clusters,out_dir):
         clusters[c]['unique_seq']=os.path.join(cluster_dir,c+".useq.json")
     json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
     return os.path.join(out_dir, 'clusters.json')
+def save_update_clusters(clusters_file,out_dir):
+    cluster_dir=os.path.join(out_dir,'clusters')
+    if not os.path.exists(cluster_dir):
+        os.mkdir(cluster_dir)
+    clusters= json.load(open(clusters_file, 'r'))
+    for c in clusters.keys():
+        if type(clusters[c]['gene_id']) is list: 
+            write_array(os.path.join(cluster_dir,c+".seq.json"),clusters[c]['gene_id'])
+            clusters[c]['gene_id']=os.path.join(cluster_dir,c+".seq.json")
+        if type(clusters[c]['unique_seq']) is list: 
+            write_array(os.path.join(cluster_dir,c+".useq.json"),clusters[c]['unique_seq'])
+            clusters[c]['unique_seq']=os.path.join(cluster_dir,c+".useq.json")
+    json.dump(clusters, open(os.path.join(out_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    return os.path.join(out_dir, 'clusters.json')
 def save_unique_seqs(unique_groups,out_dir):
     group_dir=os.path.join(out_dir,'groups')
+    if os.path.exists(group_dir):
+        shutil.rmtree(group_dir)
     if not os.path.exists(group_dir):
         os.mkdir(group_dir)
     for g in unique_groups.keys():
@@ -284,3 +307,15 @@ def l2_distance(vector1, vector2):
     # Tính khoảng cách L2
     distance = np.sqrt(np.sum((np.array(vector1) - np.array(vector2)) ** 2))
     return distance
+def calculate_cosine_distances_np(vectors):
+    vectors = np.array(vectors)
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    normalized_vectors = vectors / norms
+    cosine_similarity_matrix = np.dot(normalized_vectors, normalized_vectors.T)
+    cosine_distance_matrix = 1 - cosine_similarity_matrix
+    return cosine_distance_matrix
+def check_path(value):
+    if isinstance(value,str):
+        return True
+    else:
+        return False 

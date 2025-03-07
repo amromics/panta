@@ -194,27 +194,28 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
     For now run in single thread, and will convert to asynchronous multi-threaded
     """
     starttime = datetime.now()
-
+    mem_usage = mem_report(0, "begin extract prot from new sample")
     if threads == 0:
         threads = multiprocessing.cpu_count()
     with multiprocessing.Pool(processes=threads) as pool:
         results = pool.map(partial(process_single_sample, out_dir=out_dir, table=table), samples)
 
     elapsed = datetime.now() - starttime
-    logging.info(f'Extract new protein -- time taken {str(elapsed)}')
+    mem_usage = mem_report(mem_usage, "extract prot from new sample")
+    logging.info(f'Finish extract new protein -- time taken {str(elapsed)}')
 
     with open(gene_annotation_fn,'w') as ga_fp, open(gene_position_fn,'w') as gp_fp:
         # If there are existing files then copy over
         if existing_gene_annotation_fn:
-            with open(existing_gene_annotation_fn) as ega_fp:
-                for line in ega_fp.readlines():
+            with open(existing_gene_annotation_fn,'r') as ega_fp:
+                for line in ega_fp:
                     ga_fp.write(line)
         else:
             ga_fp.write('gene_id,sample_id,seq_id,length,gene_name,gene_product,gene_index,strand\n')
 
         if existing_gene_position_fn:
-            with open(existing_gene_position_fn) as egp_fp:
-                for line in egp_fp.readlines():
+            with open(existing_gene_position_fn,'r') as egp_fp:
+                for line in egp_fp:
                     gp_fp.write(line)
 
         for result in results:
@@ -228,8 +229,10 @@ def extract_proteins_tofile(samples, out_dir, gene_annotation_fn, gene_position_
                 for line in fn.readlines():
                     gp_fp.write(line)
             os.remove(s_gene_position_fn)
+    mem_usage = mem_report(mem_usage, "collect annotations")
+    
     elapsed = datetime.now() - starttime
-    logging.info(f'Extract protein -- time taken {str(elapsed)}')
+    logging.info(f'Extract protein seqs and collect annotations-- time taken {str(elapsed)}')
 
 
 def combine_proteins(out_dir, samples):

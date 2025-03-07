@@ -3974,6 +3974,7 @@ def run_add_sample_pipeline_hash(args):
     #    out_dir=collection_dir,
     #    samples=new_samples)
     #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(new_combined_faa,collection_dir)
+    #shutil.rmtree(os.path.join(collection_dir,"samples"))
     gene_hash,remain_new_faa=main_pipeline.add_hash_unique_seqs(
         old_gene_hash=gene_hash,
         faa_file=combined_faa, 
@@ -4038,7 +4039,7 @@ def run_add_sample_pipeline_hash(args):
         alignment_coverage_short=args.AS,
         alignment_coverage_long=args.AL)
     concat_filter_blast_result=appendTextfile(old_filtered_blast_result,new_filtered_blast_result)
-    pairwise_blast_result = main_pipeline.pairwise_alignment_diamond(
+    pairwise_blast_result = main_pipeline.pairwise_alignment_diamond_split_db(
       
         database_fasta = old_similar_seqs,
         query_fasta = new_groups_representative_fasta,

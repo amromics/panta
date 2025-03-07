@@ -290,7 +290,8 @@ def run_hash_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
     return represent_corrected_fasta, gene_hash,map_rep_hash
 def add_hash_unique_seqs(old_gene_hash,faa_file, out_dir, threads=4, timing_log=None):        
     starttime = datetime.now()
-   
+    logging.info(f'Start add hash')
+    
     
     #gene_hash={}
     remain_new_faa = os.path.join(out_dir, 'remain_seqs.faa')
@@ -309,7 +310,7 @@ def add_hash_unique_seqs(old_gene_hash,faa_file, out_dir, threads=4, timing_log=
                 SeqIO.write(record,newfaa,'fasta')
   
     elapsed = datetime.now() - starttime
-    logging.info(f'Run add hash , add {match_seq_count},  size hash is {len(old_gene_hash)} hash, remain {unmatch_seq_count} seqs -- time taken {str(elapsed)}')
+    logging.info(f'Finishs add hash , add {match_seq_count},  size hash is {len(old_gene_hash)} hash, remain {unmatch_seq_count} seqs -- time taken {str(elapsed)}')
     return  old_gene_hash,remain_new_faa
 
 def convertSeq2KmerCount(k,index_kaa,seq):
@@ -907,6 +908,92 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     elapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with Diamond -- time taken {str(elapsed)}')
     return diamond_result
+
+def split_fasta(input_fasta, output_dir, batch_size):
+    """Splits a FASTA file into chunks of batch_size sequences each."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    chunk_count = 0
+    chunk_file = None
+    seq_count = 0
+
+    with open(input_fasta, "r") as infile:
+        for line in infile:
+            if line.startswith(">"):  # New sequence
+                if seq_count >= batch_size:
+                    chunk_file.close()
+                    chunk_count += 1
+                    seq_count = 0
+                
+                if seq_count == 0:
+                    chunk_file = open(os.path.join(output_dir, f"chunk_{chunk_count}.fasta"), "w")
+
+                seq_count += 1
+            
+            if chunk_file:
+                chunk_file.write(line)
+    
+    if chunk_file:
+        chunk_file.close()
+    
+    return [os.path.join(output_dir, f"chunk_{i}.fasta") for i in range(chunk_count + 1)]
+
+def pairwise_alignment_diamond_split_db(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4, timing_log=None, max_seq=2000, batch_size=100000):
+    starttime = datetime.now()
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    # Step 1: Split database FASTA into chunks
+    db_chunks_dir = os.path.join(out_dir, "db_chunks")
+    db_chunks = split_fasta(database_fasta, db_chunks_dir, batch_size)
+
+    all_results = []
+    
+    for i, chunk in enumerate(db_chunks):
+        logging.info(f"Processing database chunk {i+1}/{len(db_chunks)}: {chunk}")
+        
+        # Create a DIAMOND database for the chunk
+        diamond_db = os.path.join(out_dir, f'diamond_db_chunk_{i}')
+        cmd = f'./diamond makedb --in {chunk} -d {diamond_db} -p {threads} --quiet'
+        ret = run_command(cmd, timing_log)
+        if ret != 0:
+            raise Exception(f'Error running diamond makedb for chunk {i}')
+        
+        # Run DIAMOND BLASTP for this chunk
+        chunk_result = os.path.join(out_dir, f'diamond_chunk_{i}.tsv')
+        cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs {max_seq} 2> /dev/null 1> {chunk_result}'
+        ret = run_command(cmd, timing_log)
+        if ret != 0:
+            raise Exception(f'Error running diamond blastp for chunk {i}')
+        
+        all_results.append(chunk_result)
+
+    # Step 3: Merge all chunk results into a single file
+    final_result_file = os.path.join(out_dir, "diamond_final.tsv")
+    with open(final_result_file, "w") as outfile:
+        for i, result_file in enumerate(all_results):
+            with open(result_file, "r") as infile:
+                if i == 0:  # Copy header from the first file
+                    outfile.write(infile.read())
+                else:  # Skip headers from subsequent files
+                    next(infile)  # Skip first line
+                    outfile.write(infile.read())
+
+    # Clean up temporary chunk files and databases
+    shutil.rmtree(db_chunks_dir)
+    # for chunk in db_chunks:
+    #     os.remove(chunk)
+    # for i in range(len(db_chunks)):
+    #     os.remove(os.path.join(out_dir, f'diamond_db_chunk_{i}.dmnd'))
+    #     os.remove(os.path.join(out_dir, f'diamond_chunk_{i}.tsv'))
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Protein pairwise alignment with Diamond completed -- time taken {str(elapsed)}')
+    
+    return final_result_file
+
 import sourmash
 from sourmash import MinHash, SourmashSignature
 def pairwise_alignment_sourmash( query_fasta, out_dir,ksize=3, similarity=0.7,diff_len=0.7,num=100, evalue=1E-6, threads=4,timing_log=None):

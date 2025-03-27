@@ -993,6 +993,86 @@ def pairwise_alignment_diamond_split_db(database_fasta, query_fasta, out_dir, ev
     logging.info(f'Protein pairwise alignment with Diamond completed -- time taken {str(elapsed)}')
     
     return final_result_file
+#import os
+#import subprocess
+from collections import defaultdict
+#from Bio import SeqIO
+
+def diamond_cd_hit_2d(reference_fasta, query_fasta, out_dir,threads,evalue,timing_log=None,identity=98, coverage=90):
+    """
+    Mimics cd-hit-2d using DIAMOND to cluster query sequences against a reference set.
+    
+    Parameters:
+    - reference_fasta: Path to reference protein sequences (FASTA)
+    - query_fasta: Path to query protein sequences (FASTA)
+    - output_clusters: Path to save clusters (txt)
+    - output_unmatched: Path to save unmatched sequences (FASTA)
+    - identity: Minimum percent identity for clustering (default 90%)
+    - coverage: Minimum query and subject coverage for clustering (default 80%)
+    
+    Output:
+    - A text file with clusters where the representative comes from the reference.
+    - A FASTA file with query sequences that did not match any reference sequence.
+    """
+    
+    # Step 1: Create DIAMOND database from reference
+   
+    starttime = datetime.now()
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    diamond_db = os.path.join(out_dir, 'diamond_ref_db')
+    cmd = f'./diamond makedb --in {reference_fasta} -d {diamond_db} -p {threads} --quiet'
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+    
+    # Step 2: Run DIAMOND alignment
+    blast_output = os.path.join(out_dir,"diamond_matches.m8")
+    cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 1 --id {str(identity)} --query-cover {str(coverage)} --subject-cover {str(coverage)} 2> /dev/null 1> {blast_output}'
+    #subprocess.call(cmd, shell=True)
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+
+    #subprocess.run([
+    #    "diamond", "blastp", "-d", db_path, "-q", query_fasta, "-o", blast_output,
+    #    "--id", str(identity), "--query-cover", str(coverage), "--subject-cover", str(coverage),
+    #    "--max-target-seqs", "1", "--outfmt", "6"
+    #], check=True)
+
+    # Step 3: Process results to form clusters
+    clusters = defaultdict(list)
+    matched_queries = set()
+
+    with open(blast_output, "r") as f:
+        for line in f:
+            query_id, ref_id = line.split("\t")[:2]
+            clusters[ref_id].append(query_id)
+            matched_queries.add(query_id)
+
+    
+    # Step 5: Extract unmatched sequences
+    unmatched_sequences = []
+    for record in SeqIO.parse(query_fasta, "fasta"):
+        if record.id not in matched_queries:
+            unmatched_sequences.append(record)
+    output_unmatched=os.path.join(out_dir,"unmatched_new_unique_seq.fasta")
+    SeqIO.write(unmatched_sequences, output_unmatched, "fasta")
+
+    # Cleanup
+    #os.remove(blast_output)
+    #os.remove(db_path)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Clustering complete, merge {len(matched_queries)} similar unique seqs to existed groups, remain {len(unmatched_sequences)} seqs, unmatched sequences saved to {output_unmatched} -- time taken {str(elapsed)}')
+    
+    return clusters,output_unmatched
+# Example usage:
+# diamond_cd_hit_2d("reference.fasta", "query.fasta", "clusters.txt", "unmatched.fasta")
 
 import sourmash
 from sourmash import MinHash, SourmashSignature

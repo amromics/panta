@@ -2120,7 +2120,7 @@ def run_add(args):
     if args.mode=='g_mmseq_a_diamond_c_mcl_rand':
         run_add_sample_pipeline_rand(args)
     if args.mode=='g_mmseq_a_diamond_c_mcl_hash':
-        run_add_sample_pipeline_hash(args)
+        run_add_sample_pipeline_hash2(args)
    
 def run_add_sample_pipeline(args):
     starttime = datetime.now()
@@ -3985,10 +3985,12 @@ def run_add_sample_pipeline_hash(args):
       
         out_dir=temp_dir,      
         threads=threads)
+    
     #merge gene_hash and map gene hash
     map_rep_hash={}
     for h in gene_hash:
         map_rep_hash[gene_hash[h][0]]=h
+    
     for h in new_gene_hash:
         gene_hash[str(h)]=new_gene_hash[h]
     for id in new_map_rep_hash:
@@ -3997,9 +3999,231 @@ def run_add_sample_pipeline_hash(args):
     
     #merge unique fasta
     combined_unique_seqs_fasta=concat2fasta(old_unique_seqs,new_unique_seqs_fasta,os.path.join(temp_dir,"concat_unique_seqs.fasta"))
- 
+    
     new_groups_representative_fasta, new_similar_groups = main_pipeline.run_mmseq_with_map_similar_seqs(
         faa_file=new_unique_seqs_fasta,
+        
+        out_dir=temp_dir,      
+        threads=threads)
+    similar_groups={}
+    for  h in group_hash:
+        first_id=gene_hash[h][0]
+        similar_groups[first_id]=[]
+        for hh in group_hash[h]:
+           #print(type(h))
+            #print(type(hh))
+            similar_groups[first_id].append(gene_hash[str(hh)][0])
+        if similar_groups[first_id][0]==first_id:
+            similar_groups[first_id].pop(0)
+    logging.info(f'old similar groups: {len(similar_groups)}')
+    
+    for g in new_similar_groups:
+        h=new_map_rep_hash[g]
+        group_hash[h]=[h]
+        for id in new_similar_groups[g]:
+            group_hash[h].append(map_rep_hash[id])
+        similar_groups[g]=new_similar_groups[g]
+    logging.info(f'combined similar groups: {len(similar_groups)}')
+    
+    new_blast_result = main_pipeline.pairwise_alignment_diamond(
+      
+        database_fasta = new_groups_representative_fasta,
+        query_fasta = new_groups_representative_fasta,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+
+    new_filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=new_blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+    concat_filter_blast_result=appendTextfile(old_filtered_blast_result,new_filtered_blast_result)
+    pairwise_blast_result = main_pipeline.pairwise_alignment_diamond_split_db(
+      
+        database_fasta = old_similar_seqs,
+        query_fasta = new_groups_representative_fasta,
+        out_dir = os.path.join(temp_dir, 'blast'),
+        evalue = args.evalue,
+        threads=threads)
+    pairwise_filtered_blast_result = main_pipeline.filter_blast_result(
+        blast_result=pairwise_blast_result,
+        out_dir = temp_dir,
+        identity=args.identity,
+        length_difference=args.LD,
+        alignment_coverage_short=args.AS,
+        alignment_coverage_long=args.AL)
+    concat_filter_blast_result=appendTextfile(concat_filter_blast_result,pairwise_filtered_blast_result)
+        
+    mcl_file = main_pipeline.cluster_with_mcl(
+        out_dir = temp_dir,
+        blast_result = concat_filter_blast_result,
+        threads=threads)
+    
+   
+    
+    #json.dump(similar_groups, open(os.path.join(collection_dir, 'similar_groups.json'), 'w'), indent=4, sort_keys=True)
+    
+    inflated_clusters, groups = main_pipeline.reinflate_clusters(
+        groups=similar_groups,
+        mcl_file=mcl_file)  
+    #json.dump(inflated_clusters, open(os.path.join(collection_dir, 'inflated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    
+    annotated_clusters = post_analysis.annotate_cluster_hash(
+        unlabeled_clusters=inflated_clusters,
+        gene_annotation_fn=gene_annotation_fn,
+        gene_hash=gene_hash,
+       
+        map_gene_hash=map_rep_hash)
+    
+    annotated_clusters_file=os.path.join(collection_dir, 'clusters.json')
+    
+    json.dump(annotated_clusters, open(annotated_clusters_file, 'w'), indent=4, sort_keys=True)
+    #annotated_clusters_file=save_clusters(annotated_clusters,out_dir)
+    #annotated_clusters_file=post_analysis.expandClusterMembersByHash(annotated_clusters_file,gene_hash,map_rep_hash)
+    json.dump(gene_hash, open(os.path.join(collection_dir, 'gene_hash.json'), 'w'), indent=4, sort_keys=True)
+    group_hash_file=os.path.join(collection_dir, 'group_hash.json')
+    
+    json.dump(group_hash, open(group_hash_file, 'w'), indent=4, sort_keys=True)
+    
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    old_samples.extend(new_samples)
+    #annotated_clusters=post_analysis.merge_new_cluster_to_old_clusters(annotated_clusters,clusters_by_ref)
+    #json.dump(annotated_clusters, open(os.path.join(out_dir, 'annotated_clusters.json'), 'w'), indent=4, sort_keys=True)
+    output.create_outputs_from_hash(annotated_clusters_file,gene_hash,old_samples,collection_dir,t_core=args.core,t_soft=args.soft,t_shell=args.shell)
+    combined_similar_group_seqs_fasta=appendTextfile(old_similar_seqs,new_groups_representative_fasta)
+ 
+    main_similar = os.path.join(collection_dir, 'similar.tsv')
+   
+    shutil.move(concat_filter_blast_result, main_similar)
+    shutil.rmtree(os.path.join(collection_dir, 'samples'))
+    
+    logger.info(f'samples after extend = {len(old_samples)}')
+    shutil.copy(gene_annotation_fn, existing_gene_annotation_fn)
+    shutil.copy(gene_position_fn, existing_gene_position_fn)
+       
+    shutil.copy(combined_unique_seqs_fasta, old_unique_seqs)
+    #output.export_gene_annotation(gene_annotation, collection_dir)
+    #json.dump(gene_position, open(os.path.join(collection_dir, 'gene_position.json'), 'w'), indent=4, sort_keys=True)
+    
+    json.dump(old_samples, open(os.path.join(collection_dir, 'samples.json'), 'w'), indent=4, sort_keys=True)
+    #add_sample_pipeline.combine_representative(not_match_represent_faa, old_represent_faa, collection_dir)
+    #json.dump(new_clusters, open(os.path.join(collection_dir, 'clusters.json'), 'w'), indent=4, sort_keys=True)
+    #shutil.move(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #shutil.copy(combined_blast_result, os.path.join(collection_dir, 'blast.tsv'))
+    #cmd = f'gzip -c {combined_blast_result} > ' + os.path.join(collection_dir, 'blast.tsv.gz')
+    #cmd = f'mv {combined_blast_result}  ' + os.path.join(collection_dir, 'blast.tsv')
+    #os.system(cmd)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Done -- time cli {str(elapsed)}')
+    logging.info(f'Done -- time taken {str(elapsed)}')
+def run_add_sample_pipeline_hash2(args):
+    starttime = datetime.now()
+
+    collection_dir = args.collection_dir
+    if not os.path.exists(collection_dir):
+        raise Exception(f'{collection_dir} does not exist')
+    threads = args.threads
+    if threads == 0:
+        threads = multiprocessing.cpu_count()
+
+    diamond=(args.blast=='diamond')
+
+    identity = args.identity
+    evalue = args.evalue
+
+
+    temp_dir = os.path.join(collection_dir, 'temp')
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir)
+        pass
+    else:
+        os.makedirs(temp_dir)
+
+    gene_annotation_fn = os.path.join(temp_dir, 'gene_annotation.csv')
+    gene_position_fn = os.path.join(temp_dir, 'gene_position.csv')
+    gene_hash= json.load(open(os.path.join(collection_dir, 'gene_hash.json'), 'r'))
+    group_hash= json.load(open(os.path.join(collection_dir, 'group_hash.json'), 'r'))
+    #os.makedirs(group_seq_dir)
+    # Check required files
+    existing_gene_annotation_fn = os.path.join(collection_dir, 'gene_annotation.csv')
+    if not os.path.isfile(existing_gene_annotation_fn):
+        raise Exception(f'{existing_gene_annotation_fn} does not exist')
+    #gene_annotation = output.import_gene_annotation(gene_annotation_file)
+
+    existing_gene_position_fn = os.path.join(collection_dir, 'gene_position.csv')
+    #gene_position = json.load(open(os.path.join(collection_dir, 'gene_position.json'), 'r'))
+
+    old_samples = json.load(open(os.path.join(collection_dir, 'samples.json'), 'r'))
+    old_clusters = json.load(open(os.path.join(collection_dir, 'clusters.json'), 'r'))
+    old_unique_seqs=os.path.join(collection_dir, 'unique_seqs.fasta')
+    old_filtered_blast_result=os.path.join(collection_dir, 'similar.tsv')
+    old_similar_seqs=os.path.join(collection_dir, 'similar.fasta')
+    # collect new samples
+    sample_id_list = [sample['id'] for sample in old_samples]
+    new_samples = collect_sample(sample_id_list, args)
+    if len(new_samples) == 0:
+        raise Exception(f'There must be at least one new sample')
+
+    # data preparation
+    data_preparation.extract_proteins_tofile(
+        samples=new_samples,
+        out_dir=collection_dir,
+        gene_annotation_fn = gene_annotation_fn,
+        gene_position_fn = gene_position_fn,
+        table=args.table,
+        existing_gene_annotation_fn=existing_gene_annotation_fn,
+        existing_gene_position_fn=existing_gene_position_fn,
+        threads=threads,
+        )
+    combined_faa = data_preparation.combine_proteins(
+        out_dir=collection_dir,
+        samples=new_samples)
+    #combined_faa, combined_faa_map = data_preparation.combine_proteins_with_maps(
+    #    out_dir=collection_dir,
+    #    samples=new_samples)
+    #combined_faa_file, combined_faa_map=data_preparation.make_combine_maps(new_combined_faa,collection_dir)
+    #shutil.rmtree(os.path.join(collection_dir,"samples"))
+    gene_hash,remain_new_faa=main_pipeline.add_hash_unique_seqs(
+        old_gene_hash=gene_hash,
+        faa_file=combined_faa, 
+        out_dir=temp_dir,
+        )
+    new_unique_seqs_fasta, new_gene_hash, new_map_rep_hash= main_pipeline.run_hash_unique_seqs(
+        faa_file=remain_new_faa,
+      
+        out_dir=temp_dir,      
+        threads=threads)
+    matched_groups,unmatched_u_seqs=main_pipeline.diamond_cd_hit_2d(old_similar_seqs,new_unique_seqs_fasta,
+        out_dir = os.path.join(temp_dir, 'merge'),
+        evalue = args.evalue,
+        threads=threads)
+    
+    #merge gene_hash and map gene hash
+    map_rep_hash={}
+    for h in gene_hash:
+        map_rep_hash[gene_hash[h][0]]=h
+    
+    for h in new_gene_hash:
+        gene_hash[str(h)]=new_gene_hash[h]
+    for id in new_map_rep_hash:
+        map_rep_hash[id]=new_map_rep_hash[id]
+    logging.info(f'size gene_hash after extend: {len(gene_hash)}')
+    
+    #merge unique fasta
+    combined_unique_seqs_fasta=concat2fasta(old_unique_seqs,new_unique_seqs_fasta,os.path.join(temp_dir,"concat_unique_seqs.fasta"))
+    #merge group_gene
+    for g in matched_groups:
+        h=map_rep_hash[g]
+        for i in matched_groups[g]:
+            group_hash[h].append(map_rep_hash[i])
+    
+    new_groups_representative_fasta, new_similar_groups = main_pipeline.run_mmseq_with_map_similar_seqs(
+        faa_file=unmatched_u_seqs,
         
         out_dir=temp_dir,      
         threads=threads)

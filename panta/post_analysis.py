@@ -432,6 +432,8 @@ def annotate_cluster(unlabeled_clusters, gene_annotation_fn):
     return annotated_clusters
 def annotate_cluster_hash(unlabeled_clusters, gene_annotation_fn, gene_hash,map_gene_hash):
     starttime = datetime.now()
+    mem_usage = mem_report(0, "annotate_cluster_hash")
+    
     clusters = {'cluster_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
     chunksize = 50000
 
@@ -515,7 +517,98 @@ def annotate_cluster_hash(unlabeled_clusters, gene_annotation_fn, gene_hash,map_
             'mean_length': lens[2],
             'size': lens[3]
             }
- 
+    mem_usage = mem_report(mem_usage, "end annotate_cluster_hash")
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
+def annotate_cluster_hash_opt(unlabeled_clusters, gene_annotation_fn,map_gene_hash):
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "annotate_cluster_hash")
+    
+    clusters = {'cluster_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    chunksize = 50000
+
+    annotated_clusters = {}
+    suffix = 1
+    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['gene_name','gene_product'])
+
+    geneid_2_cluster = {}
+    for cluster_name in clusters:
+        for k in clusters[cluster_name].keys():
+
+            for gene_id in clusters[cluster_name][k]:
+                geneid_2_cluster[gene_id] = cluster_name
+    logging.info(f'geneid_2_cluster {str(len(geneid_2_cluster))}')
+    #TODO: we can swap clusters and geneid_2_cluser to save memory
+    annotate_cluster_name = defaultdict(dict)
+    annotate_cluster_product = defaultdict(set)
+    annotate_cluster_rep = {}
+    annotate_cluster_len = {} #cluster_id -> (min, max, mean, number)
+
+
+    df_it = pd.read_csv(gene_annotation_fn, na_filter= False, index_col='gene_id', usecols=['gene_id', 'gene_name','gene_product', 'length'], chunksize=chunksize)
+    for chunk_df in df_it:
+        gene_anno_dict = chunk_df.to_dict('index')
+        for gene_id in gene_anno_dict:
+            if gene_id in geneid_2_cluster:
+                cluster_name = geneid_2_cluster[gene_id]
+                gene_name = gene_anno_dict[gene_id]['gene_name']
+                gene_product = gene_anno_dict[gene_id]['gene_product']
+
+                if gene_name:
+                    cluster_name_dict = annotate_cluster_name[cluster_name]
+                    cluster_name_dict[gene_name] =  cluster_name_dict.setdefault(gene_name, 0) + 1
+                if gene_product:
+                    annotate_cluster_product[cluster_name].add(gene_product)
+                gene_length = gene_anno_dict[gene_id]['length']
+                if cluster_name not in annotate_cluster_rep:
+                    annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    annotate_cluster_len[cluster_name] = (gene_length, gene_length, gene_length,1)
+                else:
+                    if gene_length > annotate_cluster_rep[cluster_name][1]:
+                        annotate_cluster_rep[cluster_name] = (gene_id, gene_length)
+                    lens = annotate_cluster_len[cluster_name]
+                    annotate_cluster_len[cluster_name] = (
+                        min(lens[0], gene_length),
+                        max(lens[1], gene_length),
+                        (lens[2] * lens[3] + gene_length) / (lens[3] + 1),
+                        (lens[3] + 1))
+    del geneid_2_cluster
+    elapsed = datetime.now() - starttime
+    logging.info(f'Annotate clusters: end mapping -- time taken {str(elapsed)}')
+    for cluster_name in clusters:
+        unique_seq=list(clusters[cluster_name].keys())
+        gene_id_list=[]
+        for k in clusters[cluster_name].keys():
+            #gene_id_list.append(k)
+            gene_id_list.extend(clusters[cluster_name][k])
+        cluster_new_name = cluster_name
+        cluster_name_dict = annotate_cluster_name[cluster_name]
+        if cluster_name_dict:
+            cluster_new_name = max(cluster_name_dict, key=cluster_name_dict.get)
+
+        cluster_product = ', '.join(annotate_cluster_product[cluster_name])
+        if not cluster_product:
+            cluster_product = 'unknown'
+
+        # check if cluster_new_name already exists
+        if cluster_new_name in annotated_clusters:
+            cluster_new_name += '_{:05d}'.format(suffix)
+            suffix += 1
+        lens = annotate_cluster_len[cluster_name]
+        hash=[]
+        for uq in gene_id_list:
+            hash.append(map_gene_hash[uq])
+        annotated_clusters[cluster_new_name] = {
+            'hash':hash,
+            'product':cluster_product,
+            'representative': annotate_cluster_rep[cluster_name][0],
+            'min_length': lens[0],
+            'max_length': lens[1],
+            'mean_length': lens[2],
+            'size': lens[3]
+            }
+    mem_usage = mem_report(mem_usage, "end annotate_cluster_hash")
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters

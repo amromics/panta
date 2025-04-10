@@ -268,7 +268,7 @@ def run_mmseq_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
 import mmh3
 def run_hash_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):        
     starttime = datetime.now()
-    #mem_usage = mem_report(0, "begin run_hash_unique_seqs ")
+    mem_usage = mem_report(0, "begin run_hash_unique_seqs ")
     hash_represent_fasta= os.path.join(out_dir, 'hash_rep_seq.fasta')
     gene_hash={}
     represent_corrected_fasta = os.path.join(out_dir, 'unique_seqs.fasta')
@@ -284,14 +284,41 @@ def run_hash_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
                 gene_hash[hash]=[record.id]
                 map_rep_hash[record.id]=hash
                 SeqIO.write(record,newfaa,'fasta')
-    
+    mem_usage = mem_report(mem_usage, "after run_hash_unique_seqs")
+    elapsed = datetime.now() - starttime
+    logging.info(f'Run hash , {len(gene_hash)} hash from {seq_count} -- time taken {str(elapsed)}')
+    return represent_corrected_fasta, gene_hash,map_rep_hash
+def run_hash_unique_seqs_opt(faa_file, out_dir, hash_dir="hash",threads=4, timing_log=None):        
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "begin run_hash_unique_seqs ")
+    if not os.path.exists(hash_dir):
+        os.makedirs(hash_dir)
+    hash_represent_fasta= os.path.join(out_dir, 'hash_rep_seq.fasta')
+    gene_hash={}
+    represent_corrected_fasta = os.path.join(out_dir, 'unique_seqs.fasta')
+    seq_count=0
+    map_rep_hash={}
+    with open(faa_file) as faa,open(represent_corrected_fasta,"w") as newfaa:
+        for record  in SeqIO.parse(faa,"fasta"):
+            hash=str(mmh3.hash128(str(record.seq)))
+            seq_count=seq_count+1
+            if hash in gene_hash:
+                gene_hash[hash].append(record.id)
+            else:
+                gene_hash[hash]=[record.id]
+                map_rep_hash[record.id]=hash
+                SeqIO.write(record,newfaa,'fasta')
+    for hash in gene_hash:
+        save_hash_members(hash,gene_hash[hash],hash_dir)
+        gene_hash[hash]=[]
+    mem_usage = mem_report(mem_usage, "after run_hash_unique_seqs")
     elapsed = datetime.now() - starttime
     logging.info(f'Run hash , {len(gene_hash)} hash from {seq_count} -- time taken {str(elapsed)}')
     return represent_corrected_fasta, gene_hash,map_rep_hash
 def add_hash_unique_seqs(old_gene_hash,faa_file, out_dir, threads=4, timing_log=None):        
     starttime = datetime.now()
     logging.info(f'Start add hash')
-    
+    mem_usage = mem_report(0, "begin add_hash_unique_seqs ")
     
     #gene_hash={}
     remain_new_faa = os.path.join(out_dir, 'remain_seqs.faa')
@@ -308,11 +335,40 @@ def add_hash_unique_seqs(old_gene_hash,faa_file, out_dir, threads=4, timing_log=
             else:
                 unmatch_seq_count=unmatch_seq_count+1
                 SeqIO.write(record,newfaa,'fasta')
-  
+    mem_usage = mem_report(mem_usage, "after add_hash_unique_seqs")
     elapsed = datetime.now() - starttime
     logging.info(f'Finishs add hash , add {match_seq_count},  size hash is {len(old_gene_hash)} hash, remain {unmatch_seq_count} seqs -- time taken {str(elapsed)}')
     return  old_gene_hash,remain_new_faa
-
+def add_hash_unique_seqs_opt(old_gene_hash,faa_file, out_dir,hash_dir="hash", threads=4, timing_log=None):        
+    starttime = datetime.now()
+    logging.info(f'Start add hash')
+    mem_usage = mem_report(0, "begin add_hash_unique_seqs ")
+    
+    #gene_hash={}
+    remain_new_faa = os.path.join(out_dir, 'remain_seqs.faa')
+    seq_count=0
+    unmatch_seq_count=0
+    match_seq_count=0
+    match_gene_hash=defaultdict(list)
+    with open(faa_file) as faa,open(remain_new_faa,"w") as newfaa:
+        for record  in SeqIO.parse(faa,"fasta"):
+            hash=str(mmh3.hash128(str(record.seq)))
+            seq_count=seq_count+1
+            if hash in old_gene_hash:
+                match_seq_count=match_seq_count+1
+                #old_gene_hash[hash].append(record.id)
+                match_gene_hash[hash].append(record.id)
+            else:
+                unmatch_seq_count=unmatch_seq_count+1
+                SeqIO.write(record,newfaa,'fasta')
+    for hash in match_gene_hash:
+        arr=read_array(os.path.join(hash_dir,hash))
+        arr.extend(match_gene_hash[hash])
+        save_hash_members(hash,arr,hash_dir)
+    mem_usage = mem_report(mem_usage, "after add_hash_unique_seqs")
+    elapsed = datetime.now() - starttime
+    logging.info(f'Finishs add hash , add {match_seq_count},  size hash is {len(old_gene_hash)} hash, remain {unmatch_seq_count} seqs -- time taken {str(elapsed)}')
+    return  old_gene_hash,remain_new_faa
 def convertSeq2KmerCount(k,index_kaa,seq):
     kmers = [seq[i:i+k] for i in range(len(seq) - k + 1)]
     kmer_counts = Counter(kmers)
@@ -418,7 +474,7 @@ def run_faiss_unique_seqs(faa_file, out_dir, threads=4, timing_log=None):
     return represent_corrected_fasta, groups
 def run_mmseq_with_map_similar_seqs(faa_file, out_dir, threads=4,timing_log=None, identity=0.98):        
     starttime = datetime.now()
-    
+    mem_usage = mem_report(0, "start run_mmseq_with_map_similar_seqs ")
     mmseq_represent_fasta= os.path.join(out_dir, 'mmseq_rep_seq.fasta')
     mmseq_cluster_file=os.path.join(out_dir, 'mmseq_cluster.tsv')
     cmd = f'mmseqs easy-linclust {faa_file} {out_dir}/mmseq {out_dir}/tmp --min-seq-id {identity} -c {identity} --threads {threads} > /dev/null'    
@@ -468,6 +524,7 @@ def run_mmseq_with_map_similar_seqs(faa_file, out_dir, threads=4,timing_log=None
     # clusters_new = {}
     # for cluster_name in clusters:
     #     clusters_new[clusters[cluster_name]['representative']] = clusters[cluster_name]['gene_names']    
+    mem_usage = mem_report(mem_usage, "end run_mmseq_with_map_similar_seqs ")
     elapsed = datetime.now() - starttime
     logging.info(f'Run mmseq with 98% identity, {cluster_count} groups -- time taken {str(elapsed)}')
     return represent_corrected_fasta, groups
@@ -883,6 +940,7 @@ def run_blast(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4):
 
 def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4,timing_log=None,max_seq=2000):
     starttime = datetime.now()
+    mem_usage = mem_report(0, "start pairwise_alignment_diamond")
     
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -904,7 +962,7 @@ def pairwise_alignment_diamond(database_fasta, query_fasta, out_dir, evalue=1E-6
     if ret != 0:
         raise Exception('Error running diamond makedb')
 
-
+    mem_usage = mem_report(mem_usage, "end pairwise_alignment_diamond")
     elapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with Diamond -- time taken {str(elapsed)}')
     return diamond_result
@@ -941,10 +999,11 @@ def split_fasta(input_fasta, output_dir, batch_size):
 
 def pairwise_alignment_diamond_split_db(database_fasta, query_fasta, out_dir, evalue=1E-6, threads=4, timing_log=None, max_seq=2000, batch_size=100000):
     starttime = datetime.now()
-
+    mem_usage = mem_report(0,"start pairwise_alignment_diamond_split_db")
+    
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-
+    
     # Step 1: Split database FASTA into chunks
     db_chunks_dir = os.path.join(out_dir, "db_chunks")
     db_chunks = split_fasta(database_fasta, db_chunks_dir, batch_size)
@@ -988,12 +1047,196 @@ def pairwise_alignment_diamond_split_db(database_fasta, query_fasta, out_dir, ev
     # for i in range(len(db_chunks)):
     #     os.remove(os.path.join(out_dir, f'diamond_db_chunk_{i}.dmnd'))
     #     os.remove(os.path.join(out_dir, f'diamond_chunk_{i}.tsv'))
-
+    mem_usage = mem_report(mem_usage,"end pairwise_alignment_diamond_split_db")
+    
     elapsed = datetime.now() - starttime
     logging.info(f'Protein pairwise alignment with Diamond completed -- time taken {str(elapsed)}')
     
     return final_result_file
+#import os
+#import subprocess
+from collections import defaultdict
+#from Bio import SeqIO
 
+def diamond_cd_hit_2d(reference_fasta, query_fasta, out_dir,threads,evalue,timing_log=None,identity=98, coverage=90):
+    """
+    Mimics cd-hit-2d using DIAMOND to cluster query sequences against a reference set.
+    
+    Parameters:
+    - reference_fasta: Path to reference protein sequences (FASTA)
+    - query_fasta: Path to query protein sequences (FASTA)
+    - output_clusters: Path to save clusters (txt)
+    - output_unmatched: Path to save unmatched sequences (FASTA)
+    - identity: Minimum percent identity for clustering (default 90%)
+    - coverage: Minimum query and subject coverage for clustering (default 80%)
+    
+    Output:
+    - A text file with clusters where the representative comes from the reference.
+    - A FASTA file with query sequences that did not match any reference sequence.
+    """
+    
+    # Step 1: Create DIAMOND database from reference
+   
+    starttime = datetime.now()
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    diamond_db = os.path.join(out_dir, 'diamond_ref_db')
+    cmd = f'./diamond makedb --in {reference_fasta} -d {diamond_db} -p {threads} --quiet'
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+    
+    # Step 2: Run DIAMOND alignment
+    blast_output = os.path.join(out_dir,"diamond_matches.m8")
+    cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 1 --id {str(identity)} --query-cover {str(coverage)} --subject-cover {str(coverage)} 2> /dev/null 1> {blast_output}'
+    #subprocess.call(cmd, shell=True)
+    #ret = os.system(cmd)
+    ret = run_command(cmd,timing_log)
+    if ret != 0:
+        raise Exception('Error running diamond makedb')
+
+    #subprocess.run([
+    #    "diamond", "blastp", "-d", db_path, "-q", query_fasta, "-o", blast_output,
+    #    "--id", str(identity), "--query-cover", str(coverage), "--subject-cover", str(coverage),
+    #    "--max-target-seqs", "1", "--outfmt", "6"
+    #], check=True)
+
+    # Step 3: Process results to form clusters
+    clusters = defaultdict(list)
+    matched_queries = set()
+
+    with open(blast_output, "r") as f:
+        for line in f:
+            query_id, ref_id = line.split("\t")[:2]
+            clusters[ref_id].append(query_id)
+            matched_queries.add(query_id)
+
+    
+    # Step 5: Extract unmatched sequences
+    unmatched_sequences = []
+    for record in SeqIO.parse(query_fasta, "fasta"):
+        if record.id not in matched_queries:
+            unmatched_sequences.append(record)
+    output_unmatched=os.path.join(out_dir,"unmatched_new_unique_seq.fasta")
+    SeqIO.write(unmatched_sequences, output_unmatched, "fasta")
+
+    # Cleanup
+    #os.remove(blast_output)
+    #os.remove(db_path)
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Clustering complete, merge {len(matched_queries)} similar unique seqs to existed groups, remain {len(unmatched_sequences)} seqs, unmatched sequences saved to {output_unmatched} -- time taken {str(elapsed)}')
+    
+    return clusters,output_unmatched
+def diamond_cd_hit_2d_split(reference_fasta, query_fasta, out_dir,threads,evalue,timing_log=None,identity=98, coverage=90,batch_size=100000):
+    """
+    Mimics cd-hit-2d using DIAMOND to cluster query sequences against a reference set.
+    
+    Parameters:
+    - reference_fasta: Path to reference protein sequences (FASTA)
+    - query_fasta: Path to query protein sequences (FASTA)
+    - output_clusters: Path to save clusters (txt)
+    - output_unmatched: Path to save unmatched sequences (FASTA)
+    - identity: Minimum percent identity for clustering (default 90%)
+    - coverage: Minimum query and subject coverage for clustering (default 80%)
+    
+    Output:
+    - A text file with clusters where the representative comes from the reference.
+    - A FASTA file with query sequences that did not match any reference sequence.
+    """
+    
+    # Step 1: Create DIAMOND database from reference
+   
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "begin diamond_cd_hit_2d_split ")
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    db_chunks_dir = os.path.join(out_dir, "db_chunks")
+    db_chunks = split_fasta(reference_fasta, db_chunks_dir, batch_size)
+
+    all_results = []
+    
+    for i, chunk in enumerate(db_chunks):
+        logging.info(f"Processing database chunk {i+1}/{len(db_chunks)}: {chunk}")
+        
+        # Create a DIAMOND database for the chunk
+        diamond_db = os.path.join(out_dir, f'diamond_db_chunk_{i}')
+        cmd = f'./diamond makedb --in {chunk} -d {diamond_db} -p {threads} --quiet'
+        ret = run_command(cmd, timing_log)
+        if ret != 0:
+            raise Exception(f'Error running diamond makedb for chunk {i}')
+        
+        # Run DIAMOND BLASTP for this chunk
+        chunk_result = os.path.join(out_dir, f'diamond_chunk_{i}.tsv')
+        cmd = f'./diamond blastp -q {query_fasta} -d {diamond_db} -p {threads} --evalue {evalue} --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen --max-target-seqs 1 --id {str(identity)} --query-cover {str(coverage)} --subject-cover {str(coverage)} 2> /dev/null 1> {chunk_result}'
+    
+        ret = run_command(cmd, timing_log)
+        if ret != 0:
+            raise Exception(f'Error running diamond blastp for chunk {i}')
+        
+        all_results.append(chunk_result)
+
+    # Step 3: Merge all chunk results into a single file
+    final_result_file = os.path.join(out_dir, "diamond_final.tsv")
+    with open(final_result_file, "w") as outfile:
+        for i, result_file in enumerate(all_results):
+            with open(result_file, "r") as infile:
+                if i == 0:  # Copy header from the first file
+                    outfile.write(infile.read())
+                else:  # Skip headers from subsequent files
+                    next(infile)  # Skip first line
+                    outfile.write(infile.read())
+
+    # Clean up temporary chunk files and databases
+    shutil.rmtree(db_chunks_dir)
+    #subprocess.run([
+    #    "diamond", "blastp", "-d", db_path, "-q", query_fasta, "-o", blast_output,
+    #    "--id", str(identity), "--query-cover", str(coverage), "--subject-cover", str(coverage),
+    #    "--max-target-seqs", "1", "--outfmt", "6"
+    #], check=True)
+
+    # Step 3: Process results to form clusters
+    clusters = defaultdict(list)
+    map_query_ref={}
+    max_query_ident={}
+    matched_queries = set()
+
+    with open(final_result_file, "r") as f:
+        for line in f:
+            query_id, ref_id, ident = line.split("\t")[:3]
+            if query_id in max_query_ident: 
+                if float(ident)>max_query_ident[query_id]:
+                    max_query_ident[query_id]=float(ident)
+                    map_query_ref[query_id]=ref_id
+            else:
+                max_query_ident[query_id]=float(ident)
+                map_query_ref[query_id]=ref_id
+    for query_id in map_query_ref:
+        ref_id=map_query_ref[query_id]
+        clusters[ref_id].append(query_id)
+        matched_queries.add(query_id)
+
+    
+    # Step 5: Extract unmatched sequences
+    unmatched_sequences = []
+    for record in SeqIO.parse(query_fasta, "fasta"):
+        if record.id not in matched_queries:
+            unmatched_sequences.append(record)
+    output_unmatched=os.path.join(out_dir,"unmatched_new_unique_seq.fasta")
+    SeqIO.write(unmatched_sequences, output_unmatched, "fasta")
+
+    # Cleanup
+    #os.remove(blast_output)
+    #os.remove(db_path)
+    mem_usage = mem_report(mem_usage, "after diamond_cd_hit_2d_split ")
+    elapsed = datetime.now() - starttime
+    logging.info(f'Clustering complete, merge {len(matched_queries)} similar unique seqs to existed groups, remain {len(unmatched_sequences)} seqs, unmatched sequences saved to {output_unmatched} -- time taken {str(elapsed)}')
+    
+    return clusters,output_unmatched
 import sourmash
 from sourmash import MinHash, SourmashSignature
 def pairwise_alignment_sourmash( query_fasta, out_dir,ksize=3, similarity=0.7,diff_len=0.7,num=100, evalue=1E-6, threads=4,timing_log=None):
@@ -1372,6 +1615,9 @@ def pairwise_alignment_mmseq(database_fasta, query_fasta, out_dir, evalue=1E-6 ,
 def filter_blast_result(blast_result, 
                         # gene_annotation, 
                         out_dir, identity, length_difference, alignment_coverage_short, alignment_coverage_long):
+    starttime = datetime.now()
+    mem_usage = mem_report(0, " start filter_blast_result")
+    
     filtered_blast_result_file = os.path.join(out_dir, 'filtered_blast_results')
 
     with open(filtered_blast_result_file, 'w') as fh:
@@ -1394,12 +1640,15 @@ def filter_blast_result(blast_result,
                 continue
 
             fh.write(line)
-
+    mem_usage = mem_report(mem_usage, "end filter_blast_result")
+    elapsed = datetime.now() - starttime
+    logging.info(f'filter blast result -- time taken {str(elapsed)}')
     return filtered_blast_result_file
 
             
 def cluster_with_mcl(blast_result, out_dir, threads=4,inflation=1.5,timing_log=None):
     starttime = datetime.now()
+    mem_usage = mem_report(0, " start cluster_with_mcl")
     if threads > 1:
         threads = threads - 1
     
@@ -1409,6 +1658,7 @@ def cluster_with_mcl(blast_result, out_dir, threads=4,inflation=1.5,timing_log=N
     ret = run_command(cmd,timing_log)
     if ret != 0:
         raise Exception('Error running mcl')
+    mem_usage = mem_report(mem_usage, "end cluster_with_mcl")
     elapsed = datetime.now() - starttime
     logging.info(f'Cluster with MCL -- time taken {str(elapsed)}')
     return mcl_file
@@ -1435,6 +1685,7 @@ def reinflate_clusters(groups, mcl_file):
         -clusters: dict(cluster_id->[gene_ids])
     """    
     starttime = datetime.now()
+    mem_usage = mem_report(0, " start reinflate_clusters")
     clusters = {}
     clusters.update(groups)
 
@@ -1473,6 +1724,7 @@ def reinflate_clusters(groups, mcl_file):
     for c in inflated_clusters:
         for k in c:
             set_unique_seq.update(c[k])
+    mem_usage = mem_report(mem_usage, " end  reinflate_clusters")
     elapsed = datetime.now() - starttime
     logging.info(f'Reinflate new {len(inflated_clusters)} clusters with {count_unique_seq_in_mcl} unique_seq (group), {count_not_mcl} seqs (groups) not found in MCL clustering , {len(set_unique_seq)} seq in inflate clusters-- time taken {str(elapsed)}')
     return inflated_clusters, clusters

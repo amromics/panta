@@ -163,6 +163,8 @@ def create_spreadsheet1(annotated_clusters, samples, out_dir):
     return spreadsheet_file
 def create_spreadsheet_from_hash(annotated_clusters,gene_hash, samples, out_dir):
     starttime = datetime.now()
+    mem_usage = mem_report(0, "start create_spreadsheet_from_hash")
+    
     spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
     with open(spreadsheet_file, 'w') as fh:
         writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
@@ -226,10 +228,84 @@ def create_spreadsheet_from_hash(annotated_clusters,gene_hash, samples, out_dir)
                 else:
                     row.append('')
             writer.writerow(row)
+    mem_usage = mem_report(mem_usage, "end create_spreadsheet_from_hash")
+    
     elapsed = datetime.now() - starttime
     logging.info(f'Create spreadsheet -- time taken {str(elapsed)}')
     return spreadsheet_file
+def create_spreadsheet_from_hash_opt(annotated_clusters,gene_hash, samples, out_dir,hash_dir):
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "start create_spreadsheet_from_hash")
+    
+    spreadsheet_file = os.path.join(out_dir, 'gene_presence_absence.csv')
+    with open(spreadsheet_file, 'w') as fh:
+        writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 
+        # write header
+        header = ['Gene', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate', 'Min group size nuc', 'Max group size nuc', 'Avg group size nuc' ]
+        for sample in samples:
+            header.append(sample['id'])
+        writer.writerow(header)
+
+        # write row
+        for cluster in annotated_clusters:
+           
+            row = []
+            sample_dict = {}
+            #length_list = []
+            num_seq=0
+            this_cluster = annotated_clusters[cluster]
+            #print(this_cluster)
+            #if this_cluster['size']==0:
+            #    continue
+            #for g in this_cluster['groups']:
+            #list_geneid=read_array(this_cluster['gene_id'])
+            #print(list_geneid)ss
+            gene_ids=[]
+            for h in this_cluster['hash']:
+                arr=read_array(os.path.join(hash_dir,h))
+                gene_ids.extend(arr)
+            for gene_id in gene_ids:
+                num_seq=num_seq+1
+                sample_id, seq_id = get_seq_ids(gene_id)
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                #length = gene_annotation_dict[gene_id]['length']
+                sample_dict.setdefault(sample_id, []).append(gene_id)
+                #length_list.append(length)
+
+            # Gene
+            row.append(cluster)
+            # Annotation
+            row.append(this_cluster['product'])
+            # No. isolates
+            row.append(len(sample_dict))
+            # No. sequences
+            row.append(this_cluster['size']) # row.append(len(this_cluster['gene_id']))
+            # Avg sequences per isolate
+            avg_seq = num_seq / len(sample_dict)
+            row.append(round(avg_seq,2))
+            # Min group size nuc
+            row.append(this_cluster['min_length']) # row.append(min(length_list))
+            # Max group size nuc
+            row.append(this_cluster['max_length']) # row.append(max(length_list))
+            # Avg group size nuc
+            row.append(round(this_cluster['mean_length'],0)) #nuc_size = sum(length_list) / len(length_list)
+            #row.append(round(nuc_size,0))
+
+            # sample columns
+            for sample in samples:
+                sample_id = sample['id']
+                if sample_id in sample_dict:
+                    gene_list = sample_dict[sample_id]
+                    row.append('\t'.join(gene_list))
+                else:
+                    row.append('')
+            writer.writerow(row)
+    mem_usage = mem_report(mem_usage, "end create_spreadsheet_from_hash")
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create spreadsheet -- time taken {str(elapsed)}')
+    return spreadsheet_file
 def create_rtab(annotated_clusters, samples, out_dir):
     starttime = datetime.now()
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
@@ -308,6 +384,9 @@ def create_rtab1(annotated_clusters, samples, out_dir):
     return rtab_file
 def create_rtab_from_hash(annotated_clusters, gene_hash,samples, out_dir):
     starttime = datetime.now()
+
+    mem_usage = mem_report(0, "start create_rtab_from_hash")
+    
     rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
     with open(rtab_file, 'w') as fh:
         writer = csv.writer(fh, delimiter='\t')
@@ -344,12 +423,61 @@ def create_rtab_from_hash(annotated_clusters, gene_hash,samples, out_dir):
                 gene_list = sample_dict.get(sample_id, [])
                 row.append(len(gene_list))
             writer.writerow(row)
+    mem_usage = mem_report(mem_usage, "end create_rtab_from_hash")
+    
     elapsed = datetime.now() - starttime
     logging.info(f'Create Rtab -- time taken {str(elapsed)}')
     return rtab_file
+def create_rtab_from_hash_opt(annotated_clusters, gene_hash,samples, out_dir,hash_dir):
+    starttime = datetime.now()
 
+    mem_usage = mem_report(0, "start create_rtab_from_hash")
+    
+    rtab_file = os.path.join(out_dir, 'gene_presence_absence.Rtab')
+    with open(rtab_file, 'w') as fh:
+        writer = csv.writer(fh, delimiter='\t')
+
+        # write header
+        header = ['Gene']
+        for sample in samples:
+            header.append(sample['id'])
+        writer.writerow(header)
+
+        # write row
+        for cluster in annotated_clusters:
+            if annotated_clusters[cluster]['size']==0:
+                continue
+            row = []
+            # Gene
+            row.append(cluster)
+            # Samples
+            sample_dict = {}
+            #for g in annotated_clusters[cluster]['groups']:
+            #for gene_id in g['gene_id']:
+            #list_geneid=read_array(c)
+            gene_ids=[]
+            for h in annotated_clusters[cluster]['hash']:
+                arr=read_array(os.path.join(hash_dir,h))
+                gene_ids.extend(arr)
+            for gene_id in gene_ids:
+                #sample_id = gene_annotation_dict[gene_id]['sample_id']
+                sample_id, seq_id = get_seq_ids(gene_id)
+
+                #length = gene_annotation_dict[gene_id]['length']
+                sample_dict.setdefault(sample_id, []).append(gene_id)
+            for sample in samples:
+                sample_id = sample['id']
+                gene_list = sample_dict.get(sample_id, [])
+                row.append(len(gene_list))
+            writer.writerow(row)
+    mem_usage = mem_report(mem_usage, "end create_rtab_from_hash")
+    
+    elapsed = datetime.now() - starttime
+    logging.info(f'Create Rtab -- time taken {str(elapsed)}')
+    return rtab_file
 def create_summary(rtab_file, out_dir, t_core=0.99,t_soft=0.95,t_shell=0.15 ):
     starttime = datetime.now()
+    mem_usage = mem_report(0, "start create_summary")
     num_core = 0
     num_soft_core = 0
     num_shell = 0
@@ -383,6 +511,7 @@ def create_summary(rtab_file, out_dir, t_core=0.99,t_soft=0.95,t_shell=0.15 ):
         fh.write('Shell genes' + '\t' + '('+str(t_shell*100)+'% <= strains < '+str(t_soft*100)+'%)' + '\t' + str(num_shell) + '\n')
         fh.write('Cloud genes' + '\t' + '(0% <= strains < '+str(t_shell*100)+'%)' + '\t'+ str(num_cloud) + '\n')
         fh.write('Total genes' + '\t' + '(0% <= strains <= 100%)' + '\t'+ str(total) + '\n')
+    mem_usage = mem_report(mem_usage, "end create_summary")
     elapsed = datetime.now() - starttime
     logging.info(f'Create summary -- time taken {str(elapsed)}')
     return summary_file
@@ -522,6 +651,8 @@ def create_outputs(annotated_clusters_file,samples,out_dir,t_core=0.99,t_soft=0.
     # annotated_clusters=annotated_clusters,
     # out_dir=out_dir)
 def create_outputs_from_hash(annotated_clusters_file,gene_hash,samples,out_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
+    mem_usage = mem_report(0, "start create_outputs_from_hash")
+    
     annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
     spreadsheet_file = create_spreadsheet_from_hash(
         annotated_clusters=annotated_clusters,
@@ -542,7 +673,34 @@ def create_outputs_from_hash(annotated_clusters_file,gene_hash,samples,out_dir,t
         t_soft=t_soft,
         t_shell=t_shell
     )
+    mem_usage = mem_report(mem_usage, "end create_outputs_from_hash")
+def create_outputs_from_hash_opt(annotated_clusters_file,gene_hash,samples,out_dir,hash_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
+    mem_usage = mem_report(0, "start create_outputs_from_hash")
+    
+    annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
+    spreadsheet_file = create_spreadsheet_from_hash_opt(
+        annotated_clusters=annotated_clusters,
+        samples=samples,
+        out_dir=out_dir,
+        hash_dir=hash_dir,
+        gene_hash=gene_hash
+    )
+    rtab_file = create_rtab_from_hash_opt(
+        annotated_clusters=annotated_clusters,
+        samples=samples,
+        out_dir=out_dir,
+        hash_dir=hash_dir,
+        gene_hash=gene_hash
 
+    )
+    summary_file = create_summary(
+        rtab_file=rtab_file,
+        out_dir=out_dir,
+        t_core=t_core,
+        t_soft=t_soft,
+        t_shell=t_shell
+    )
+    mem_usage = mem_report(mem_usage, "end create_outputs_from_hash")
 def create_outputs1(annotated_clusters,samples,out_dir,t_core=0.99,t_soft=0.95,t_shell=0.15):
     #annotated_clusters= json.load(open(annotated_clusters_file, 'r'))
     spreadsheet_file = create_spreadsheet1(

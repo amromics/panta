@@ -282,6 +282,14 @@ def save_unique_seqs(unique_groups,out_dir):
         
     json.dump(unique_groups, open(os.path.join(out_dir, 'unique_groups.json'), 'w'), indent=4, sort_keys=True)
     return os.path.join(out_dir, 'unique_groups.json')
+def save_hash_members(hash,members,hash_dir):
+    hash_file=os.path.join(hash_dir,hash)
+    if os.path.exists(hash_file):
+        os.remove(hash_file)   
+    write_array(hash_file,members)
+     
+        
+    
 def add_unique_groups(groupname,value,out_dir):
     group_dir=os.path.join(out_dir,'groups')
     write_array(os.path.join(group_dir,groupname+".seq.json"),value)

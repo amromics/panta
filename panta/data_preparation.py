@@ -279,6 +279,31 @@ def combine_proteins_with_maps(out_dir, samples):
     elapsed = datetime.now() - starttime
     logging.info(f'Combine {count} protein -- time taken {str(elapsed)}')
     return combined_faa_file, combined_faa_map
+def add_combine_proteins_with_maps(out_dir, samples, combined_map):
+    starttime = datetime.now()
+    combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')
+    combined_faa_map = combined_map
+    with open(combined_faa_map, 'r') as f:
+        count = sum(1 for _ in f)
+
+        print('existed id:'+str(count))
+    
+    with open(combined_faa_file, 'w') as fh, open(combined_faa_map, 'a') as map_fh:
+        for sample in samples:
+            sample_id = sample['id']
+            faa_file = os.path.join(out_dir, 'samples', sample_id, sample_id + '.faa')
+            if os.path.isfile(faa_file):
+                with open(faa_file) as in_fn:
+                    for seq in SeqIO.parse(in_fn, 'fasta'):
+                        fh.write(f'>{count}\n{seq.seq}\n')
+                        map_fh.write(f'{seq.id}\n')
+                        count += 1
+            else:
+                raise Exception(f'{faa_file} does not exist')
+
+    elapsed = datetime.now() - starttime
+    logging.info(f'Combine {count} protein -- time taken {str(elapsed)}')
+    return combined_faa_file, combined_faa_map
 def make_combine_maps(not_match_sequences_file,out_dir):
     starttime = datetime.now()
     combined_faa_file = os.path.join(out_dir, 'temp', 'combined.faa')

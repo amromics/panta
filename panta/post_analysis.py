@@ -521,6 +521,59 @@ def annotate_cluster_hash(unlabeled_clusters, gene_annotation_fn, gene_hash,map_
     elapsed = datetime.now() - starttime
     logging.info(f'Annotate clusters -- time taken {str(elapsed)}')
     return annotated_clusters
+def make_no_annotated_cluster(unlabeled_clusters, gene_annotation_fn, gene_hash,map_gene_hash):
+    starttime = datetime.now()
+    mem_usage = mem_report(0, "annotate_cluster_hash")
+    
+    clusters = {'cluster_' + str(i) : cluster for i, cluster in enumerate(unlabeled_clusters)}
+    chunksize = 50000
+
+    annotated_clusters = {}
+    suffix = 1
+    #gene_annotation_dict = read_csv_to_dict(gene_annotation_fn, 'gene_id', ['gene_name','gene_product'])
+
+    geneid_2_cluster = {}
+    for cluster_name in clusters:
+        for k in clusters[cluster_name].keys():
+
+            for gene_id in clusters[cluster_name][k]:
+                geneid_2_cluster[gene_id] = cluster_name
+    logging.info(f'geneid_2_cluster {str(len(geneid_2_cluster))}')
+    #TODO: we can swap clusters and geneid_2_cluser to save memory
+    annotate_cluster_name = defaultdict(dict)
+    annotate_cluster_product = defaultdict(set)
+    annotate_cluster_rep = {}
+  
+
+    
+    for cluster_name in clusters:
+        unique_seq=list(clusters[cluster_name].keys())
+        gene_id_list=[]
+        for k in clusters[cluster_name].keys():
+            #gene_id_list.append(k)
+            gene_id_list.extend(clusters[cluster_name][k])
+        cluster_new_name = cluster_name
+        
+
+   
+        # check if cluster_new_name already exists
+        if cluster_new_name in annotated_clusters:
+            cluster_new_name += '_{:05d}'.format(suffix)
+            suffix += 1
+        #lens = annotate_cluster_len[cluster_name]
+        hash=[]
+        for uq in gene_id_list:
+            hash.append(map_gene_hash[uq])
+        annotated_clusters[cluster_new_name] = {
+            'hash':hash,
+           
+         
+            'size': len(hash)
+            }
+    mem_usage = mem_report(mem_usage, "end no_annotate_cluster_hash")
+    elapsed = datetime.now() - starttime
+    logging.info(f'make no annotate clusters -- time taken {str(elapsed)}')
+    return annotated_clusters
 def annotate_cluster_hash_opt(unlabeled_clusters, gene_annotation_fn,map_gene_hash):
     starttime = datetime.now()
     mem_usage = mem_report(0, "annotate_cluster_hash")

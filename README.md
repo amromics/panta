@@ -27,7 +27,16 @@ mamba install -y -c conda-forge -c bioconda -c anaconda -c defaults  --file requ
 pip install .
 
 ```
+3. Install addition tools for testing
+```bash
 
+pip install mmh3
+pip install fair-esm
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+conda install -c pytorch faiss-cpu=1.11.0
+mamba install sourmash-minimal
+
+```
 ## Usage
 Activate conda enviroment:
 ```
@@ -35,7 +44,7 @@ source activate panta
 ```
 ### Main pipeline: run pan-genome analysis for the first time
 ```
-usage: panta main [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
+usage: panta main [-m [PIPELINE]] [-h] [-g [GFF ...]] [-f TSV] -o OUTDIR [-s] [-b {diamond,blast}] [-i IDENTITY] [--LD LD] [--AL AL] [--AS AS] [-e EVALUE]
                           [-t THREADS] [--table TABLE] [-a [{nucleotide,protein} ...]]
 
 Main pipeline: run pan-genome analysis for the first time
@@ -62,7 +71,7 @@ options:
   --table TABLE         codon table (default: 11)
   -a [{nucleotide,protein} ...], --alignment [{nucleotide,protein} ...]
                         run alignment for each gene cluster (default: None)
-
+  -m {g_mmseq_a_diamond_c_mcl_hash, g_mmseq_a_diamond_c_mcl_hash_opt2}                   Pipeline for testing, best normal pipeline is g_mmseq_a_diamond_c_mcl_hash, developing pipeline is g_mmseq_a_diamond_c_mcl_hash_opt2
 ```
 ### Add pipeline: add sample into previous collection
 ```
@@ -93,11 +102,11 @@ options:
   --table TABLE         codon table (default: 11)
   -a [{nucleotide,protein} ...], --alignment [{nucleotide,protein} ...]
                         run alignment for each gene cluster (default: None)
-
+  -m {g_mmseq_a_diamond_c_mcl_hash, g_mmseq_a_diamond_c_mcl_hash_opt2}                   Pipeline for testing, best normal pipeline is g_mmseq_a_diamond_c_mcl_hash, developing pipeline is g_mmseq_a_diamond_c_mcl_hash_opt2
 ```
 ## Example
 Basic:
 ```
-panta main -o examples/test/output -g examples/test/main/*.gff
-panta add -c examples/test/output -g examples/test/add/*.gff
+panta main -t 8 -m g_mmseq_a_diamond_c_mcl_hash_opt2  --dont-split  -o examples/test/output -g examples/test/main/*.gff
+panta add -t 8 -m g_mmseq_a_diamond_c_mcl_hash_opt2 --dont-split -c examples/test/output -g examples/test/add/*.gff
 ```
